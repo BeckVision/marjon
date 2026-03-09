@@ -13,9 +13,9 @@ Generated 2026-03-10. Covers the full path from current documentation state to a
 | `warehouse_implementation_guide.md` | Paradigm guide — defines warehouse architecture, 13 decision points, data service, query pipelines | **Complete** |
 | `u001_data_specification.md` | U-001 dataset contract — universe, feature layers, join key, PIT, quality constraints | **Complete** (v1.0) |
 | `u001_dataset_implementation_record.md` | U-001 warehouse decisions — all 13 WDPs selected with reasoning | **Complete** |
-| `u001_fl001_pipeline_implementation_record.md` | FL-001 pipeline decisions — all 11 PDPs, DexPaprika conformance mapping, pool mapping table | **Complete** |
+| `u001_fl001_pipeline_implementation_record.md` | FL-001 pipeline decisions — all 11 PDPs, source conformance mapping, pool mapping table | **Complete** |
 | `u001_fl002_pipeline_implementation_record.md` | FL-002 pipeline decisions — all 11 PDPs, Moralis conformance mapping | **Complete** |
-| `u001_fl001_api_exploration_findings.md` | DexPaprika + GeckoTerminal API exploration for OHLCV data | **Complete** |
+| `u001_fl001_api_exploration_findings.md` | API exploration for OHLCV data sources | **Complete** |
 | `u001_fl002_api_exploration_findings.md` | Moralis API exploration for holder snapshots | **Complete** |
 | `models.py` | Abstract base models (UniverseBase, FeatureLayerBase, ReferenceTableBase) | **Sketch** — no concrete models, no constraints, no QuerySets |
 | `audit_report.md` | Paradigm audit — all 29 issues identified, all resolved. Final audit passed 7/7 checks with zero paradigm leaks. | **Complete** |
@@ -59,9 +59,9 @@ Phase 4 ──> Phase 5: Analysis ──> Phase 6: Strategy ──> Phase 7: Exe
 
 ## Phase 5: First Analysis
 
-**What it delivers:** Derived features computed on real data. Your first exploration of what U-001 data actually looks like. Basic signal discovery.
+**What it delivers:** Derived features computed on real data. Your first exploration of what the warehouse data actually looks like. Basic signal discovery.
 
-**What you can DO:** Compute a 20-candle SMA, look at volume patterns after graduation, compare holder growth to price, visualize coin lifecycles. Ask questions like "do coins with fast holder growth in the first hour tend to pump?"
+**What you can DO:** Compute a 20-candle SMA, look at volume patterns after anchor events, compare feature layers cross-layer, visualize asset lifecycles. Ask questions like "does feature layer X predict feature layer Y?"
 
 **Prerequisites:** Phase 4 (data service working). Curriculum through Lesson 4 (statistics basics — mean, variance, correlation).
 
@@ -73,9 +73,9 @@ Phase 4 ──> Phase 5: Analysis ──> Phase 6: Strategy ──> Phase 7: Exe
 |---|---|---|
 | 5.1 | Define DF-001 (e.g., 20-candle SMA of close_price). Compute on-the-fly through the data service (WDP11: on-the-fly). | Lesson 2 (expected value — a moving average IS an expected value estimate) |
 | 5.2 | Define DF-002 (e.g., volume ratio: current interval volume vs mean volume over last N intervals). | Lesson 2 (expected value), Lesson 3 (variance) |
-| 5.3 | Explore the data visually. Plot coin lifecycles. Look at distributions. | Lesson 3-4 (descriptive statistics, distributions) |
+| 5.3 | Explore the data visually. Plot asset lifecycles. Look at distributions. | Lesson 3-4 (descriptive statistics, distributions) |
 | 5.4 | Write the first audit management commands (Shelf 4 logic). What does "unusual but valid" look like in real data? | Phase 4 complete |
-| 5.5 | Cross-layer analysis: holder growth vs price movement. Does FL-002 predict FL-001? | Lesson 4 (correlation, conditional probability) |
+| 5.5 | Cross-layer analysis: does one feature layer predict another? | Lesson 4 (correlation, conditional probability) |
 
 **Estimated effort:** Ongoing — transitions into strategy work.
 
@@ -92,7 +92,7 @@ Phase 4 ──> Phase 5: Analysis ──> Phase 6: Strategy ──> Phase 7: Exe
 - Define what a "strategy" is in the paradigm (entry rules, exit rules, position sizing, risk constraints)
 - Build a backtesting engine that respects PIT semantics (the data service already enforces this)
 - Define strategy evaluation metrics (Sharpe ratio, max drawdown, etc.)
-- Write the first strategy specification for U-001
+- Write the first strategy specification for the active universe
 
 ---
 
@@ -115,10 +115,10 @@ Phase 4 ──> Phase 5: Analysis ──> Phase 6: Strategy ──> Phase 7: Exe
 
 | Lesson | Topic | Connects to Phase | Why |
 |---|---|---|---|
-| **L1** (done) | Base rate vs conditional probability | Phase 5 | "80% of memecoins rug" is a base rate; a strategy needs conditional probability |
+| **L1** (done) | Base rate vs conditional probability | Phase 5 | Base rates describe populations; a strategy needs conditional probability |
 | **L2** (next) | Expected value + NumPy | Phase 4-5 | Moving averages are expected value estimates. NumPy is the tool for data manipulation |
 | **L3** | Variance, standard deviation | Phase 5 | Volatility measurement. Is a signal noise or real? |
-| **L4** | Distributions, hypothesis testing | Phase 5 | "Is this pattern statistically significant or did I get lucky on 10 coins?" |
+| **L4** | Distributions, hypothesis testing | Phase 5 | "Is this pattern statistically significant or did I get lucky on 10 assets?" |
 | **L5** | Linear algebra | Phase 6 | Portfolio construction, multi-factor models |
 | **L6** | Calculus | Phase 6 | Optimization, gradient-based parameter tuning |
 | **L7+** | Stochastic calculus | Phase 6-7 | Continuous-time pricing models. Far out. |
@@ -129,7 +129,7 @@ Phase 4 ──> Phase 5: Analysis ──> Phase 6: Strategy ──> Phase 7: Exe
 
 ## What to Do Next
 
-**If implementation session:** Start Phase 1. Create the Django project. Write the first concrete model (MigratedCoin). Everything you need is documented — abstract bases are sketched, per-definition constants are recorded, decisions are made.
+**If implementation session:** Start Phase 1. Create the Django project. Write the first concrete models. Everything you need is documented — abstract bases are sketched, per-definition constants are recorded, decisions are made.
 
 **If brainstorm session:** Do Session 1.A — walk through every model design against the documentation before writing code.
 
@@ -141,7 +141,7 @@ Phase 4 ──> Phase 5: Analysis ──> Phase 6: Strategy ──> Phase 7: Exe
 
 - **U-002 through U-005.** The audit identified missing paradigm concepts (MC-1 through MC-7) needed for future universes. Fix those when you start a second universe, not before.
 
-- **GeckoTerminal as a second source.** Architecture supports it (additive change). PDP9 chose single-source. Add when DexPaprika reliability becomes a measured problem.
+- **Secondary data sources.** Architecture supports multiple sources per feature layer (additive change). Add when primary source reliability becomes a measured problem.
 
 - **Real-time streaming.** Everything here is batch/scheduled. Real-time feeds are a different architecture on top of this one. Not needed until Phase 7.
 

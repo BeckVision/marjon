@@ -18,7 +18,7 @@
 
 ## Goal
 
-A running Django project with `warehouse` and `data_service` apps. All U-001 concrete models created with correct field types, constraints, and per-definition constants. Custom QuerySets with `.as_of()` PIT enforcement. Empty tables in PostgreSQL. Data service app exists as a placeholder.
+A running Django project with `warehouse` and `data_service` apps. All concrete models for the first universe created with correct field types, constraints, and per-definition constants. Custom QuerySets with `.as_of()` PIT enforcement. Empty tables in PostgreSQL. Data service app exists as a placeholder.
 
 **What you can DO after this phase:** `python manage.py migrate` and see the schema. Create model instances in the shell. Verify CHECK constraints reject bad data (`high_price < low_price` fails). Verify `unique_together` prevents duplicate candles.
 
@@ -54,7 +54,7 @@ Walk through every concrete model before writing code. Confirm field types, cons
 
 | # | Task | Notes |
 |---|---|---|
-| 1.B.1 | `django-admin startproject marjon`. Configure PostgreSQL in settings. `USE_TZ = True`. | Same pattern as meme_analyzer |
+| 1.B.1 | `django-admin startproject marjon`. Configure PostgreSQL in settings. `USE_TZ = True`. | |
 | 1.B.2 | `python manage.py startapp warehouse` and `python manage.py startapp data_service`. Add to `INSTALLED_APPS`. | Two-app structure (architecture decision A1) |
 | 1.B.3 | Copy the three abstract bases from `models.py` sketch into `warehouse/models.py`. Verify: `UniverseBase` has `anchor_event` (DateTimeField, null=True) and `membership_end` (DateTimeField, null=True). `FeatureLayerBase` has `timestamp` (DateTimeField) and timestamp index. `ReferenceTableBase` has `timestamp` and timestamp index. All are `abstract = True`. | models.py (current sketch) — already written |
 
