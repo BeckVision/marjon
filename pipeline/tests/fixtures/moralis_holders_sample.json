@@ -1,0 +1,147 @@
+[
+  {
+    "timestamp": "2026-03-08T12:00:00.000Z",
+    "totalHolders": 1523,
+    "netHolderChange": 15,
+    "holderPercentChange": 0.99,
+    "newHoldersByAcquisition": {
+      "swap": 12,
+      "transfer": 3,
+      "airdrop": 0
+    },
+    "holdersIn": {
+      "whales": 0,
+      "sharks": 1,
+      "dolphins": 2,
+      "fish": 5,
+      "octopus": 3,
+      "crabs": 4,
+      "shrimps": 8
+    },
+    "holdersOut": {
+      "whales": 0,
+      "sharks": 0,
+      "dolphins": 1,
+      "fish": 2,
+      "octopus": 1,
+      "crabs": 2,
+      "shrimps": 2
+    }
+  },
+  {
+    "timestamp": "2026-03-08T12:05:00.000Z",
+    "totalHolders": 1530,
+    "netHolderChange": 7,
+    "holderPercentChange": 0.46,
+    "newHoldersByAcquisition": {
+      "swap": 5,
+      "transfer": 2,
+      "airdrop": 0
+    },
+    "holdersIn": {
+      "whales": 0,
+      "sharks": 0,
+      "dolphins": 1,
+      "fish": 3,
+      "octopus": 2,
+      "crabs": 3,
+      "shrimps": 5
+    },
+    "holdersOut": {
+      "whales": 0,
+      "sharks": 1,
+      "dolphins": 0,
+      "fish": 1,
+      "octopus": 2,
+      "crabs": 1,
+      "shrimps": 2
+    }
+  },
+  {
+    "timestamp": "2026-03-08T12:10:00.000Z",
+    "totalHolders": 1530,
+    "netHolderChange": 0,
+    "holderPercentChange": 0.0,
+    "newHoldersByAcquisition": {
+      "swap": 0,
+      "transfer": 0,
+      "airdrop": 0
+    },
+    "holdersIn": {
+      "whales": 0,
+      "sharks": 0,
+      "dolphins": 0,
+      "fish": 0,
+      "octopus": 0,
+      "crabs": 0,
+      "shrimps": 0
+    },
+    "holdersOut": {
+      "whales": 0,
+      "sharks": 0,
+      "dolphins": 0,
+      "fish": 0,
+      "octopus": 0,
+      "crabs": 0,
+      "shrimps": 0
+    }
+  },
+  {
+    "timestamp": "2026-03-08T12:15:00.000Z",
+    "totalHolders": 1528,
+    "netHolderChange": -2,
+    "holderPercentChange": -0.13,
+    "newHoldersByAcquisition": {
+      "swap": 0,
+      "transfer": 0,
+      "airdrop": 0
+    },
+    "holdersIn": {
+      "whales": 0,
+      "sharks": 0,
+      "dolphins": 0,
+      "fish": 0,
+      "octopus": 0,
+      "crabs": 0,
+      "shrimps": 0
+    },
+    "holdersOut": {
+      "whales": 0,
+      "sharks": 0,
+      "dolphins": 0,
+      "fish": 1,
+      "octopus": 0,
+      "crabs": 1,
+      "shrimps": 0
+    }
+  },
+  {
+    "timestamp": "2026-03-08T12:20:00.000Z",
+    "totalHolders": 1535,
+    "netHolderChange": 7,
+    "holderPercentChange": 0.46,
+    "newHoldersByAcquisition": {
+      "swap": 8,
+      "transfer": 1,
+      "airdrop": 0
+    },
+    "holdersIn": {
+      "whales": 1,
+      "sharks": 0,
+      "dolphins": 1,
+      "fish": 3,
+      "octopus": 2,
+      "crabs": 2,
+      "shrimps": 3
+    },
+    "holdersOut": {
+      "whales": 0,
+      "sharks": 0,
+      "dolphins": 1,
+      "fish": 0,
+      "octopus": 1,
+      "crabs": 0,
+      "shrimps": 3
+    }
+  }
+]
