@@ -4,11 +4,15 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone as dj_timezone
 
 from pipeline.conformance.fl001_dexpaprika import conform
 from pipeline.connectors.dexpaprika import fetch_ohlcv
 from pipeline.loaders.fl001 import get_watermark, load
-from warehouse.models import MigratedCoin, OHLCVCandle, PoolMapping
+from warehouse.models import (
+    MigratedCoin, OHLCVCandle, PoolMapping,
+    RunMode, RunStatus, U001PipelineRun,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +54,7 @@ class Command(BaseCommand):
                 f"Run populate_pool_mapping first."
             )
 
-        # Determine time range
+        # Determine time range and mode
         if options['start'] or options['end']:
             # Re-fill: both must be provided
             if not (options['start'] and options['end']):
@@ -70,6 +74,7 @@ class Command(BaseCommand):
                 raise CommandError(
                     f"--start ({start}) must be before --end ({end})"
                 )
+            mode = RunMode.REFILL
             logger.info("Re-fill mode: %s to %s for %s", start, end, mint)
         else:
             if coin.anchor_event is None:
@@ -85,28 +90,45 @@ class Command(BaseCommand):
             if watermark is None:
                 # Bootstrap: full observation window
                 start = coin.anchor_event
+                mode = RunMode.BOOTSTRAP
                 logger.info(
                     "Bootstrap mode: %s to %s for %s", start, end, mint,
                 )
             else:
                 # Steady-state: windowed incremental with overlap
                 start = max(watermark - OVERLAP, coin.anchor_event)
+                mode = RunMode.STEADY_STATE
                 logger.info(
                     "Steady-state mode: %s to %s (overlap=%s) for %s",
                     start, end, OVERLAP, mint,
                 )
+
+        # PDP8: Create pipeline run entry
+        run = U001PipelineRun.objects.create(
+            coin_id=mint,
+            layer_id='FL-001',
+            mode=mode,
+            status=RunStatus.STARTED,
+            started_at=dj_timezone.now(),
+            time_range_start=start,
+            time_range_end=end,
+        )
 
         # Connector -> Conformance -> Loader
         logger.info(
             "Fetching from DexPaprika for pool %s...", pool.pool_address,
         )
         try:
-            raw = fetch_ohlcv(pool.pool_address, start, end)
-        except Exception:
+            raw, meta = fetch_ohlcv(pool.pool_address, start, end)
+        except Exception as e:
             logger.error(
                 "Connector failed for %s (pool %s)",
                 mint, pool.pool_address, exc_info=True,
             )
+            run.status = RunStatus.ERROR
+            run.completed_at = dj_timezone.now()
+            run.error_message = str(e)
+            run.save()
             raise CommandError(f"DexPaprika connector failed for {mint}")
 
         if not raw:
@@ -114,17 +136,27 @@ class Command(BaseCommand):
                 "Zero results from API for coin %s (pool %s) in [%s, %s]",
                 mint, pool.pool_address, start, end,
             )
+            run.status = RunStatus.COMPLETE
+            run.completed_at = dj_timezone.now()
+            run.records_loaded = 0
+            run.api_calls = meta['api_calls']
+            run.save()
             return
 
         logger.info("Received %d raw records for %s", len(raw), mint)
 
         try:
             canonical = conform(raw, mint)
-        except Exception:
+        except Exception as e:
             logger.error(
                 "Conformance failed for %s (%d raw records)",
                 mint, len(raw), exc_info=True,
             )
+            run.status = RunStatus.ERROR
+            run.completed_at = dj_timezone.now()
+            run.error_message = str(e)
+            run.api_calls = meta['api_calls']
+            run.save()
             raise CommandError(f"Conformance failed for {mint}")
 
         if not canonical:
@@ -132,6 +164,11 @@ class Command(BaseCommand):
                 "All %d records filtered during conformance for %s",
                 len(raw), mint,
             )
+            run.status = RunStatus.COMPLETE
+            run.completed_at = dj_timezone.now()
+            run.records_loaded = 0
+            run.api_calls = meta['api_calls']
+            run.save()
             return
 
         load(mint, start, end, canonical)
@@ -148,3 +185,11 @@ class Command(BaseCommand):
             "first=%s, last=%s",
             mint, len(canonical), expected_intervals, first_ts, last_ts,
         )
+
+        # PDP8: Update pipeline run on success
+        run.status = RunStatus.COMPLETE
+        run.completed_at = dj_timezone.now()
+        run.records_loaded = len(canonical)
+        run.records_expected = int(expected_intervals)
+        run.api_calls = meta['api_calls']
+        run.save()

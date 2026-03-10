@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone as dj_timezone
 
 from pipeline.conformance.fl002_moralis import conform
 from pipeline.connectors.moralis import (
@@ -13,7 +14,10 @@ from pipeline.connectors.moralis import (
     get_daily_cu_used,
 )
 from pipeline.loaders.fl002 import get_watermark, load
-from warehouse.models import HolderSnapshot, MigratedCoin
+from warehouse.models import (
+    HolderSnapshot, MigratedCoin,
+    RunMode, RunStatus, U001PipelineRun,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +47,7 @@ class Command(BaseCommand):
         except MigratedCoin.DoesNotExist:
             raise CommandError(f"MigratedCoin {mint} does not exist")
 
-        # Determine time range
+        # Determine time range and mode
         if options['start'] or options['end']:
             # Re-fill: both must be provided
             if not (options['start'] and options['end']):
@@ -63,6 +67,7 @@ class Command(BaseCommand):
                 raise CommandError(
                     f"--start ({start}) must be before --end ({end})"
                 )
+            mode = RunMode.REFILL
             logger.info("Re-fill mode: %s to %s for %s", start, end, mint)
         else:
             if coin.anchor_event is None:
@@ -77,12 +82,14 @@ class Command(BaseCommand):
 
             if watermark is None:
                 start = coin.anchor_event
+                mode = RunMode.BOOTSTRAP
                 logger.info(
                     "Bootstrap mode: %s to %s for %s", start, end, mint,
                 )
             else:
                 # Steady-state: windowed incremental with overlap
                 start = max(watermark - OVERLAP, coin.anchor_event)
+                mode = RunMode.STEADY_STATE
                 logger.info(
                     "Steady-state mode: %s to %s (overlap=%s) for %s",
                     start, end, OVERLAP, mint,
@@ -103,14 +110,29 @@ class Command(BaseCommand):
                 f"limit={DAILY_CU_LIMIT}"
             )
 
+        # PDP8: Create pipeline run entry
+        run = U001PipelineRun.objects.create(
+            coin_id=mint,
+            layer_id='FL-002',
+            mode=mode,
+            status=RunStatus.STARTED,
+            started_at=dj_timezone.now(),
+            time_range_start=start,
+            time_range_end=end,
+        )
+
         # Connector -> Conformance -> Loader
         logger.info("Fetching from Moralis for %s...", mint)
         try:
-            raw = fetch_holders(mint, start, end)
-        except Exception:
+            raw, meta = fetch_holders(mint, start, end)
+        except Exception as e:
             logger.error(
                 "Connector failed for %s", mint, exc_info=True,
             )
+            run.status = RunStatus.ERROR
+            run.completed_at = dj_timezone.now()
+            run.error_message = str(e)
+            run.save()
             raise CommandError(f"Moralis connector failed for {mint}")
 
         if not raw:
@@ -118,17 +140,29 @@ class Command(BaseCommand):
                 "Zero results from API for coin %s in [%s, %s]",
                 mint, start, end,
             )
+            run.status = RunStatus.COMPLETE
+            run.completed_at = dj_timezone.now()
+            run.records_loaded = 0
+            run.api_calls = meta['api_calls']
+            run.cu_consumed = meta['cu_consumed']
+            run.save()
             return
 
         logger.info("Received %d raw records for %s", len(raw), mint)
 
         try:
             canonical = conform(raw, mint)
-        except Exception:
+        except Exception as e:
             logger.error(
                 "Conformance failed for %s (%d raw records)",
                 mint, len(raw), exc_info=True,
             )
+            run.status = RunStatus.ERROR
+            run.completed_at = dj_timezone.now()
+            run.error_message = str(e)
+            run.api_calls = meta['api_calls']
+            run.cu_consumed = meta['cu_consumed']
+            run.save()
             raise CommandError(f"Conformance failed for {mint}")
 
         if not canonical:
@@ -136,6 +170,12 @@ class Command(BaseCommand):
                 "All %d records filtered during conformance for %s",
                 len(raw), mint,
             )
+            run.status = RunStatus.COMPLETE
+            run.completed_at = dj_timezone.now()
+            run.records_loaded = 0
+            run.api_calls = meta['api_calls']
+            run.cu_consumed = meta['cu_consumed']
+            run.save()
             return
 
         load(mint, start, end, canonical)
@@ -162,3 +202,12 @@ class Command(BaseCommand):
             "first=%s, last=%s",
             mint, loaded_count, int(expected_count), first_ts, last_ts,
         )
+
+        # PDP8: Update pipeline run on success
+        run.status = RunStatus.COMPLETE
+        run.completed_at = dj_timezone.now()
+        run.records_loaded = loaded_count
+        run.records_expected = int(expected_count)
+        run.api_calls = meta['api_calls']
+        run.cu_consumed = meta['cu_consumed']
+        run.save()

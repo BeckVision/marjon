@@ -64,7 +64,9 @@ def fetch_holders(mint_address, start, end):
         end: datetime (UTC) — end of time range.
 
     Returns:
-        List of raw JSON dicts in ascending order (reversed from API).
+        Tuple of (records, metadata) where records is a list of raw JSON
+        dicts in ascending order (reversed from API) and metadata is a
+        dict with 'api_calls' and 'cu_consumed'.
     """
     api_key = os.environ.get('MORALIS_API_KEY')
     if not api_key:
@@ -73,6 +75,7 @@ def fetch_holders(mint_address, start, end):
     all_records = []
     cursor = None
     cu_used = 0
+    api_calls = 0
 
     url = (
         f"{BASE_URL}/token/mainnet/holders/"
@@ -94,6 +97,7 @@ def fetch_holders(mint_address, start, end):
 
         data = _request_with_retry(url, params, headers)
         cu_used += CU_PER_CALL
+        api_calls += 1
 
         if not data:
             break
@@ -116,10 +120,11 @@ def fetch_holders(mint_address, start, end):
     record_cu_used(cu_used)
 
     logger.info(
-        "Fetched %d holder snapshots for %s (CU used: %d)",
-        len(all_records), mint_address, cu_used,
+        "Fetched %d holder snapshots for %s (CU used: %d, API calls: %d)",
+        len(all_records), mint_address, cu_used, api_calls,
     )
-    return all_records
+    meta = {'api_calls': api_calls, 'cu_consumed': cu_used}
+    return all_records, meta
 
 
 def _request_with_retry(url, params, headers, max_retries=3):

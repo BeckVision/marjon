@@ -24,10 +24,12 @@ def fetch_ohlcv(pool_address, start, end):
         end: datetime (UTC) — end of time range.
 
     Returns:
-        List of raw JSON dicts from the API (all pages concatenated).
+        Tuple of (records, metadata) where records is a list of raw JSON
+        dicts and metadata is a dict with 'api_calls'.
     """
     all_records = []
     current_start = start
+    api_calls = 0
 
     while current_start < end:
         url = (
@@ -42,6 +44,7 @@ def fetch_ohlcv(pool_address, start, end):
         }
 
         data = _request_with_retry(url, params)
+        api_calls += 1
 
         if not data:
             break
@@ -66,19 +69,25 @@ def fetch_ohlcv(pool_address, start, end):
         time.sleep(0.5)
 
     logger.info(
-        "Fetched %d OHLCV candles for pool %s", len(all_records), pool_address,
+        "Fetched %d OHLCV candles for pool %s (%d API calls)",
+        len(all_records), pool_address, api_calls,
     )
-    return all_records
+    meta = {'api_calls': api_calls}
+    return all_records, meta
 
 
 def fetch_token_pools(mint_address):
     """Fetch pool list for a token from DexPaprika.
 
+    The /networks/solana/tokens/{mint}/pools endpoint returns
+    {'pools': [...], 'page_info': {...}}, not a bare list.
+
     Returns:
         List of pool detail dicts.
     """
     url = f"{BASE_URL}/networks/solana/tokens/{mint_address}/pools"
-    return _request_with_retry(url, params={})
+    data = _request_with_retry(url, params={})
+    return data['pools']
 
 
 def _request_with_retry(url, params, max_retries=3):
