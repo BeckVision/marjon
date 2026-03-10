@@ -1,10 +1,15 @@
 """Management command to populate pool mapping for a token."""
 
-from django.core.management.base import BaseCommand
+import logging
+from datetime import datetime
+
+from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from pipeline.connectors.dexpaprika import fetch_token_pools
 from warehouse.models import MigratedCoin, PoolMapping
+
+logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
@@ -17,17 +22,21 @@ class Command(BaseCommand):
         mint = options['coin']
 
         if not MigratedCoin.objects.filter(mint_address=mint).exists():
-            self.stderr.write(
+            raise CommandError(
                 f"MigratedCoin with mint_address={mint} does not exist"
             )
-            return
 
-        self.stdout.write(f"Fetching pools for {mint}...")
-        pools = fetch_token_pools(mint)
+        logger.info("Fetching pools for %s...", mint)
+        try:
+            pools = fetch_token_pools(mint)
+        except Exception:
+            logger.error(
+                "Failed to fetch pools for %s", mint, exc_info=True,
+            )
+            raise CommandError(f"DexPaprika pool fetch failed for {mint}")
 
         if not pools:
-            self.stderr.write("No pools found")
-            return
+            raise CommandError(f"No pools found for {mint}")
 
         # Filter for Pumpswap pools
         pumpswap_pools = [
@@ -37,17 +46,22 @@ class Command(BaseCommand):
         ]
 
         if not pumpswap_pools:
-            self.stderr.write(
+            raise CommandError(
                 f"No Pumpswap pools found. Available DEXes: "
                 f"{set(p.get('dex_id', p.get('dexId', '?')) for p in pools)}"
             )
-            return
 
         for pool in pumpswap_pools:
             pool_addr = pool.get('id') or pool.get('address', '')
-            created = pool.get('created_at')
 
-            from datetime import datetime
+            if not pool_addr:
+                logger.warning(
+                    "Skipping pool with empty address for %s: %s",
+                    mint, pool,
+                )
+                continue
+
+            created = pool.get('created_at')
             created_dt = None
             if created:
                 if isinstance(created, str):
@@ -66,6 +80,9 @@ class Command(BaseCommand):
             )
 
             action = "Created" if created_flag else "Updated"
+            logger.info(
+                "%s PoolMapping: %s -> %s", action, mint, pool_addr,
+            )
             self.stdout.write(
                 f"{action} PoolMapping: {mint} -> {pool_addr}"
             )

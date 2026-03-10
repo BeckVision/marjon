@@ -133,7 +133,8 @@ def _request_with_retry(url, params, headers, max_retries=3):
             if resp.status_code == 429:
                 wait = 2 ** (attempt + 1)
                 logger.warning(
-                    "Rate limited (429), waiting %ds", wait
+                    "Rate limited (429), waiting %ds (url=%s)",
+                    wait, url, exc_info=True,
                 )
                 time.sleep(wait)
                 continue
@@ -141,8 +142,8 @@ def _request_with_retry(url, params, headers, max_retries=3):
             if resp.status_code >= 500:
                 wait = 2 ** (attempt + 1)
                 logger.warning(
-                    "Server error %d, waiting %ds",
-                    resp.status_code, wait,
+                    "Server error %d, waiting %ds (url=%s)",
+                    resp.status_code, wait, url, exc_info=True,
                 )
                 time.sleep(wait)
                 continue
@@ -150,22 +151,24 @@ def _request_with_retry(url, params, headers, max_retries=3):
             resp.raise_for_status()
             data = resp.json()
 
-            # Moralis can return 200 with error body
-            if isinstance(data, dict) and 'message' in data:
-                if 'error' in data.get('message', '').lower():
-                    wait = 2 ** (attempt + 1)
-                    logger.warning(
-                        "Moralis error body: %s, waiting %ds",
-                        data['message'], wait,
-                    )
-                    time.sleep(wait)
-                    continue
+            # Moralis can return 200 with error body (no 'result' key)
+            if isinstance(data, dict) and 'message' in data and 'result' not in data:
+                wait = 2 ** (attempt + 1)
+                logger.warning(
+                    "Moralis error body: %s, waiting %ds (url=%s)",
+                    data['message'], wait, url, exc_info=True,
+                )
+                time.sleep(wait)
+                continue
 
             return data
 
-        except requests.exceptions.Timeout:
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
             wait = 2 ** (attempt + 1)
-            logger.warning("Timeout, waiting %ds", wait)
+            logger.warning(
+                "Network error, waiting %ds (url=%s)",
+                wait, url, exc_info=True,
+            )
             time.sleep(wait)
             continue
 

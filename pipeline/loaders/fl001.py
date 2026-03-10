@@ -22,6 +22,12 @@ def load(mint_address, start, end, canonical_records):
         end: datetime — end of time range.
         canonical_records: List of dicts matching OHLCVCandle fields.
     """
+    if not canonical_records:
+        raise ValueError(
+            f"canonical_records is empty for {mint_address} in [{start}, {end}]. "
+            "Refusing to delete-write with no data."
+        )
+
     with transaction.atomic():
         deleted, _ = OHLCVCandle.objects.filter(
             coin_id=mint_address,

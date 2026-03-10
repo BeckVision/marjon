@@ -65,6 +65,9 @@ def fetch_ohlcv(pool_address, start, end):
 
         time.sleep(0.5)
 
+    logger.info(
+        "Fetched %d OHLCV candles for pool %s", len(all_records), pool_address,
+    )
     return all_records
 
 
@@ -87,7 +90,8 @@ def _request_with_retry(url, params, max_retries=3):
             if resp.status_code == 429:
                 wait = 2 ** (attempt + 1)
                 logger.warning(
-                    "Rate limited (429), waiting %ds before retry", wait
+                    "Rate limited (429), waiting %ds (url=%s)",
+                    wait, url, exc_info=True,
                 )
                 time.sleep(wait)
                 continue
@@ -95,8 +99,8 @@ def _request_with_retry(url, params, max_retries=3):
             if resp.status_code >= 500:
                 wait = 2 ** (attempt + 1)
                 logger.warning(
-                    "Server error %d, waiting %ds before retry",
-                    resp.status_code, wait,
+                    "Server error %d, waiting %ds (url=%s)",
+                    resp.status_code, wait, url, exc_info=True,
                 )
                 time.sleep(wait)
                 continue
@@ -104,10 +108,11 @@ def _request_with_retry(url, params, max_retries=3):
             resp.raise_for_status()
             return resp.json()
 
-        except requests.exceptions.Timeout:
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
             wait = 2 ** (attempt + 1)
             logger.warning(
-                "Request timeout, waiting %ds before retry", wait
+                "Network error, waiting %ds (url=%s)",
+                wait, url, exc_info=True,
             )
             time.sleep(wait)
             continue

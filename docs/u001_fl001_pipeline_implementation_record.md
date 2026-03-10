@@ -139,6 +139,16 @@ Maps token mint addresses to their Pumpswap pool addresses. The OHLCV pipeline r
 
 The pool mapping is populated by a separate discovery process — either a dedicated management command or the first stage of the OHLCV pipeline. Source: DexPaprika's token pools endpoint (`/networks/solana/tokens/{mint_address}/pools`) or DEX pools endpoint (`/networks/solana/dexes/pumpswap/pools`).
 
+### Pool Selection Strategy
+
+This is a U-001-specific decision. Other universes may use different DEX filters or pool selection strategies.
+
+**Filter:** `dex == 'pumpswap'`. U-001 targets tokens that graduated from pump.fun to Pumpswap, so only Pumpswap pools are relevant. Pools on other DEXes (Raydium, Orca, etc.) are discovered by the API but excluded during population.
+
+**Selection:** When multiple Pumpswap pools exist for the same token, the pipeline selects the one with the earliest `created_at` — this is the graduation pool (the pool created when the token migrated from pump.fun's bonding curve to Pumpswap). Later pools may represent re-listings or community-created pools and do not reflect the token's primary lifecycle.
+
+**Known limitation:** Tokens that graduated before the Pumpswap era (migrated to Raydium instead) will have no Pumpswap pool mapping and therefore no OHLCV data in FL-001. This is an intentional scope boundary for U-001, not a bug. The U-001 universe definition targets the Pumpswap graduation pathway; pre-Pumpswap tokens fall outside this scope. If coverage of Raydium-era graduates is needed, it would require a separate universe definition with its own pool selection strategy.
+
 ---
 
 ## Idempotency Scope

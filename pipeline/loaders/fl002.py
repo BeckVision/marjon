@@ -12,6 +12,12 @@ logger = logging.getLogger(__name__)
 
 def load(mint_address, start, end, canonical_records):
     """Delete-write canonical holder snapshots into the warehouse."""
+    if not canonical_records:
+        raise ValueError(
+            f"canonical_records is empty for {mint_address} in [{start}, {end}]. "
+            "Refusing to delete-write with no data."
+        )
+
     with transaction.atomic():
         deleted, _ = HolderSnapshot.objects.filter(
             coin_id=mint_address,

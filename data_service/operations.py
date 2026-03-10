@@ -4,6 +4,8 @@ All consumers read data through these functions — never directly from
 warehouse models. Enforces PIT semantics and cross-layer alignment.
 """
 
+import logging
+
 from warehouse.models import (
     MigratedCoin,
     OHLCVCandle,
@@ -12,6 +14,8 @@ from warehouse.models import (
 )
 
 from .alignment import align_layers
+
+logger = logging.getLogger(__name__)
 
 # Layer ID -> model class mapping
 LAYER_REGISTRY = {
@@ -29,7 +33,11 @@ def get_universe_members(simulation_time):
     Returns:
         QuerySet of MigratedCoin rows.
     """
-    return MigratedCoin.objects.as_of(simulation_time)
+    qs = MigratedCoin.objects.as_of(simulation_time)
+    logger.info(
+        "get_universe_members(sim=%s): %d members", simulation_time, qs.count(),
+    )
+    return qs
 
 
 def get_panel_slice(asset_ids, layer_ids, simulation_time):
@@ -106,6 +114,11 @@ def get_panel_slice(asset_ids, layer_ids, simulation_time):
     # Step 4: Align
     result = align_layers(layer_data)
 
+    logger.info(
+        "get_panel_slice(assets=%s, layers=%s, sim=%s): %d rows",
+        asset_ids, layer_ids, simulation_time, len(result),
+    )
+
     # Step 5: Return
     return result
 
@@ -147,11 +160,17 @@ def get_reference_data(asset_id, start, end, simulation_time):
                 f"for asset '{asset_id}'"
             )
 
-    return RawTransaction.objects.filter(
+    qs = RawTransaction.objects.filter(
         coin_id=asset_id,
         timestamp__gte=start,
         timestamp__lte=end,
     ).as_of(simulation_time).order_by('timestamp')
+
+    logger.info(
+        "get_reference_data(asset=%s, range=[%s, %s], sim=%s): %d rows",
+        asset_id, start, end, simulation_time, qs.count(),
+    )
+    return qs
 
 
 def _get_feature_fields(model):

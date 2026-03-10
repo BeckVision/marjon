@@ -1,6 +1,9 @@
 """Conformance function: DexPaprika raw JSON -> canonical OHLCVCandle dicts.
 
 Pure function — no side effects, no DB writes, no API calls.
+Strict: crashes on missing/None fields. DexPaprika's contract guarantees
+non-nullable OHLCV fields — a None here means a broken upstream contract,
+which must surface as a loud failure, not a silent default.
 """
 
 from datetime import datetime

@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from pipeline.conformance.fl002_moralis import conform
 from pipeline.connectors.moralis import (
@@ -41,24 +41,34 @@ class Command(BaseCommand):
         try:
             coin = MigratedCoin.objects.get(mint_address=mint)
         except MigratedCoin.DoesNotExist:
-            self.stderr.write(f"MigratedCoin {mint} does not exist")
-            return
+            raise CommandError(f"MigratedCoin {mint} does not exist")
 
         # Determine time range
-        if options['start'] and options['end']:
-            start = datetime.fromisoformat(options['start'])
-            end = datetime.fromisoformat(options['end'])
+        if options['start'] or options['end']:
+            # Re-fill: both must be provided
+            if not (options['start'] and options['end']):
+                raise CommandError(
+                    "--start and --end must both be provided for re-fill mode"
+                )
+            try:
+                start = datetime.fromisoformat(options['start'])
+                end = datetime.fromisoformat(options['end'])
+            except ValueError as e:
+                raise CommandError(f"Invalid date format: {e}")
             if start.tzinfo is None:
                 start = start.replace(tzinfo=timezone.utc)
             if end.tzinfo is None:
                 end = end.replace(tzinfo=timezone.utc)
-            self.stdout.write(f"Re-fill mode: {start} to {end}")
+            if start >= end:
+                raise CommandError(
+                    f"--start ({start}) must be before --end ({end})"
+                )
+            logger.info("Re-fill mode: %s to %s for %s", start, end, mint)
         else:
-            watermark = get_watermark(mint)
             if coin.anchor_event is None:
-                self.stderr.write("Coin has no anchor_event set")
-                return
+                raise CommandError("Coin has no anchor_event set")
 
+            watermark = get_watermark(mint)
             window_end = (
                 coin.anchor_event + MigratedCoin.OBSERVATION_WINDOW_END
             )
@@ -67,16 +77,15 @@ class Command(BaseCommand):
 
             if watermark is None:
                 start = coin.anchor_event
-                self.stdout.write(f"Bootstrap mode: {start} to {end}")
+                logger.info(
+                    "Bootstrap mode: %s to %s for %s", start, end, mint,
+                )
             else:
                 # Steady-state: windowed incremental with overlap
-                start = watermark - OVERLAP
-                # Don't go before anchor_event
-                if start < coin.anchor_event:
-                    start = coin.anchor_event
-                self.stdout.write(
-                    f"Steady-state mode: {start} to {end} "
-                    f"(overlap={OVERLAP})"
+                start = max(watermark - OVERLAP, coin.anchor_event)
+                logger.info(
+                    "Steady-state mode: %s to %s (overlap=%s) for %s",
+                    start, end, OVERLAP, mint,
                 )
 
         # CU budget guard — abort if insufficient daily budget
@@ -88,16 +97,21 @@ class Command(BaseCommand):
                 "%d already used today (limit: %d). Aborting.",
                 estimated_cu, daily_used, DAILY_CU_LIMIT,
             )
-            self.stderr.write(
-                f"ABORTED: would exceed daily CU limit. "
+            raise CommandError(
+                f"Would exceed daily CU limit. "
                 f"Estimated={estimated_cu}, used={daily_used}, "
                 f"limit={DAILY_CU_LIMIT}"
             )
-            return
 
         # Connector -> Conformance -> Loader
-        self.stdout.write(f"Fetching from Moralis for {mint}...")
-        raw = fetch_holders(mint, start, end)
+        logger.info("Fetching from Moralis for %s...", mint)
+        try:
+            raw = fetch_holders(mint, start, end)
+        except Exception:
+            logger.error(
+                "Connector failed for %s", mint, exc_info=True,
+            )
+            raise CommandError(f"Moralis connector failed for {mint}")
 
         if not raw:
             logger.warning(
@@ -106,19 +120,30 @@ class Command(BaseCommand):
             )
             return
 
-        self.stdout.write(f"Received {len(raw)} raw records")
+        logger.info("Received %d raw records for %s", len(raw), mint)
 
-        canonical = conform(raw, mint)
-        self.stdout.write(f"Conformed {len(canonical)} records")
+        try:
+            canonical = conform(raw, mint)
+        except Exception:
+            logger.error(
+                "Conformance failed for %s (%d raw records)",
+                mint, len(raw), exc_info=True,
+            )
+            raise CommandError(f"Conformance failed for {mint}")
+
+        if not canonical:
+            logger.warning(
+                "All %d records filtered during conformance for %s",
+                len(raw), mint,
+            )
+            return
 
         load(mint, start, end, canonical)
 
         # Reconciliation — stricter for FL-002
         # Moralis returns both boundaries inclusive: +1
         resolution_secs = HolderSnapshot.TEMPORAL_RESOLUTION.total_seconds()
-        expected_count = (
-            (end - start).total_seconds() / resolution_secs + 1
-        )
+        expected_count = (end - start).total_seconds() / resolution_secs + 1
         loaded_count = len(canonical)
 
         if loaded_count != int(expected_count):
@@ -128,18 +153,12 @@ class Command(BaseCommand):
                 mint, loaded_count, int(expected_count),
             )
 
-        if not canonical:
-            logger.warning(
-                "All records filtered during conformance for %s", mint,
-            )
-            return
-
         timestamps = [r['timestamp'] for r in canonical]
         first_ts = min(timestamps)
         last_ts = max(timestamps)
 
-        self.stdout.write(
-            f"Reconciliation: loaded={loaded_count}, "
-            f"expected={int(expected_count)}, "
-            f"first={first_ts}, last={last_ts}"
+        logger.info(
+            "Reconciliation for %s: loaded=%d, expected=%d, "
+            "first=%s, last=%s",
+            mint, loaded_count, int(expected_count), first_ts, last_ts,
         )

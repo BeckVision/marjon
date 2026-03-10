@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from pipeline.conformance.fl001_dexpaprika import conform
 from pipeline.connectors.dexpaprika import fetch_ohlcv
@@ -37,38 +37,44 @@ class Command(BaseCommand):
         try:
             coin = MigratedCoin.objects.get(mint_address=mint)
         except MigratedCoin.DoesNotExist:
-            self.stderr.write(f"MigratedCoin {mint} does not exist")
-            return
+            raise CommandError(f"MigratedCoin {mint} does not exist")
 
-        # Look up pool address
-        try:
-            pool = PoolMapping.objects.filter(coin_id=mint).first()
-            if not pool:
-                raise PoolMapping.DoesNotExist
-        except PoolMapping.DoesNotExist:
-            self.stderr.write(
+        # Look up pool address (earliest created = graduation pool)
+        pool = PoolMapping.objects.filter(
+            coin_id=mint,
+        ).order_by('created_at').first()
+        if not pool:
+            raise CommandError(
                 f"No PoolMapping for {mint}. "
                 f"Run populate_pool_mapping first."
             )
-            return
 
         # Determine time range
-        if options['start'] and options['end']:
-            # Re-fill: explicit range
-            start = datetime.fromisoformat(options['start'])
-            end = datetime.fromisoformat(options['end'])
+        if options['start'] or options['end']:
+            # Re-fill: both must be provided
+            if not (options['start'] and options['end']):
+                raise CommandError(
+                    "--start and --end must both be provided for re-fill mode"
+                )
+            try:
+                start = datetime.fromisoformat(options['start'])
+                end = datetime.fromisoformat(options['end'])
+            except ValueError as e:
+                raise CommandError(f"Invalid date format: {e}")
             if start.tzinfo is None:
                 start = start.replace(tzinfo=timezone.utc)
             if end.tzinfo is None:
                 end = end.replace(tzinfo=timezone.utc)
-            self.stdout.write(f"Re-fill mode: {start} to {end}")
+            if start >= end:
+                raise CommandError(
+                    f"--start ({start}) must be before --end ({end})"
+                )
+            logger.info("Re-fill mode: %s to %s for %s", start, end, mint)
         else:
-            # Check watermark
-            watermark = get_watermark(mint)
             if coin.anchor_event is None:
-                self.stderr.write("Coin has no anchor_event set")
-                return
+                raise CommandError("Coin has no anchor_event set")
 
+            watermark = get_watermark(mint)
             window_end = (
                 coin.anchor_event + MigratedCoin.OBSERVATION_WINDOW_END
             )
@@ -78,25 +84,29 @@ class Command(BaseCommand):
             if watermark is None:
                 # Bootstrap: full observation window
                 start = coin.anchor_event
-                self.stdout.write(
-                    f"Bootstrap mode: {start} to {end}"
+                logger.info(
+                    "Bootstrap mode: %s to %s for %s", start, end, mint,
                 )
             else:
                 # Steady-state: windowed incremental with overlap
-                start = watermark - OVERLAP
-                # Don't go before anchor_event
-                if start < coin.anchor_event:
-                    start = coin.anchor_event
-                self.stdout.write(
-                    f"Steady-state mode: {start} to {end} "
-                    f"(overlap={OVERLAP})"
+                start = max(watermark - OVERLAP, coin.anchor_event)
+                logger.info(
+                    "Steady-state mode: %s to %s (overlap=%s) for %s",
+                    start, end, OVERLAP, mint,
                 )
 
         # Connector -> Conformance -> Loader
-        self.stdout.write(
-            f"Fetching from DexPaprika for pool {pool.pool_address}..."
+        logger.info(
+            "Fetching from DexPaprika for pool %s...", pool.pool_address,
         )
-        raw = fetch_ohlcv(pool.pool_address, start, end)
+        try:
+            raw = fetch_ohlcv(pool.pool_address, start, end)
+        except Exception:
+            logger.error(
+                "Connector failed for %s (pool %s)",
+                mint, pool.pool_address, exc_info=True,
+            )
+            raise CommandError(f"DexPaprika connector failed for {mint}")
 
         if not raw:
             logger.warning(
@@ -105,29 +115,35 @@ class Command(BaseCommand):
             )
             return
 
-        self.stdout.write(f"Received {len(raw)} raw records")
+        logger.info("Received %d raw records for %s", len(raw), mint)
 
-        canonical = conform(raw, mint)
-        self.stdout.write(f"Conformed {len(canonical)} records")
+        try:
+            canonical = conform(raw, mint)
+        except Exception:
+            logger.error(
+                "Conformance failed for %s (%d raw records)",
+                mint, len(raw), exc_info=True,
+            )
+            raise CommandError(f"Conformance failed for {mint}")
+
+        if not canonical:
+            logger.warning(
+                "All %d records filtered during conformance for %s",
+                len(raw), mint,
+            )
+            return
 
         load(mint, start, end, canonical)
 
         # Reconciliation logging
         resolution_secs = OHLCVCandle.TEMPORAL_RESOLUTION.total_seconds()
         expected_intervals = (end - start).total_seconds() / resolution_secs
-
-        if not canonical:
-            logger.warning(
-                "All records filtered during conformance for %s", mint,
-            )
-            return
-
         timestamps = [r['timestamp'] for r in canonical]
         first_ts = min(timestamps)
         last_ts = max(timestamps)
 
-        self.stdout.write(
-            f"Reconciliation: loaded={len(canonical)}, "
-            f"theoretical_max={expected_intervals:.0f}, "
-            f"first={first_ts}, last={last_ts}"
+        logger.info(
+            "Reconciliation for %s: loaded=%d, theoretical_max=%.0f, "
+            "first=%s, last=%s",
+            mint, len(canonical), expected_intervals, first_ts, last_ts,
         )
