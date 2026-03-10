@@ -159,6 +159,10 @@ class MigratedCoin(UniverseBase):
     VERSION = "1.0"
 
     mint_address = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=200, null=True, blank=True, help_text="Token name from Moralis")
+    symbol = models.CharField(max_length=50, null=True, blank=True, help_text="Token symbol from Moralis")
+    decimals = models.PositiveSmallIntegerField(null=True, blank=True, help_text="SPL token decimals (usually 6, but not always)")
+    logo_url = models.URLField(max_length=500, null=True, blank=True, help_text="Token logo URL from Moralis")
     ingested_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
