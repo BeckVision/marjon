@@ -390,24 +390,22 @@ class PipelineBatchRun(models.Model):
         )
 
 
-class PipelineRun(models.Model):
+class PipelineRunBase(models.Model):
     """
-    Tracks a single pipeline attempt for one coin and one feature layer.
-    Full history — every attempt is a new row, including retries.
-    Not a paradigm model — operational infrastructure for pipeline tracking.
+    Abstract base for pipeline run tracking.
+    Paradigm-level: defines what a pipeline run records.
+    Concrete models add a FK to their specific universe model.
+
+    Not a quantitative trading paradigm model (not UniverseBase/FeatureLayerBase).
+    Operational infrastructure that follows the same abstract base pattern.
     """
     batch = models.ForeignKey(
         PipelineBatchRun, on_delete=models.CASCADE,
         null=True, blank=True,
-        related_name='runs',
+        related_name='%(class)s_runs',
         help_text="Parent batch. Null for manual one-off runs.",
     )
-    coin = models.ForeignKey(
-        MigratedCoin, to_field='mint_address',
-        on_delete=models.CASCADE,
-        related_name='pipeline_runs',
-    )
-    layer_id = models.CharField(max_length=20)  # "FL-001", "FL-002"
+    layer_id = models.CharField(max_length=20)
     mode = models.CharField(max_length=20, choices=RunMode.choices)
     status = models.CharField(max_length=20, choices=RunStatus.choices)
 
@@ -425,13 +423,31 @@ class PipelineRun(models.Model):
     api_calls = models.IntegerField(default=0)
 
     class Meta:
+        abstract = True
+
+    def __str__(self):
+        return f"{self.layer_id} {self.status} ({self.started_at:%Y-%m-%d %H:%M})"
+
+
+class U001PipelineRun(PipelineRunBase):
+    """
+    Pipeline run tracking for U-001 (Graduated Pump.fun Tokens).
+    Adds FK to MigratedCoin.
+    """
+    coin = models.ForeignKey(
+        MigratedCoin, to_field='mint_address',
+        on_delete=models.CASCADE,
+        related_name='pipeline_runs',
+    )
+
+    class Meta:
         indexes = [
             models.Index(
                 fields=['coin', 'layer_id', '-started_at'],
-                name='idx_run_coin_layer',
+                name='idx_u001run_coin_layer',
             ),
-            models.Index(fields=['-started_at'], name='idx_run_started'),
-            models.Index(fields=['status'], name='idx_run_status'),
+            models.Index(fields=['-started_at'], name='idx_u001run_started'),
+            models.Index(fields=['status'], name='idx_u001run_status'),
         ]
 
     def __str__(self):

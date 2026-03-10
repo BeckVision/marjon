@@ -8,7 +8,7 @@ from django.db import IntegrityError
 from django.test import TestCase
 
 from warehouse.models import (
-    MigratedCoin, OHLCVCandle, PipelineBatchRun, PipelineRun,
+    MigratedCoin, OHLCVCandle, PipelineBatchRun, U001PipelineRun,
     RawTransaction, RunMode, RunStatus,
 )
 
@@ -219,8 +219,8 @@ class PipelineBatchRunTest(TestCase):
             batch.full_clean()
 
 
-class PipelineRunTest(TestCase):
-    """Tests for PipelineRun operational model."""
+class U001PipelineRunTest(TestCase):
+    """Tests for U001PipelineRun operational model."""
 
     def setUp(self):
         self.coin = MigratedCoin.objects.create(
@@ -234,7 +234,7 @@ class PipelineRunTest(TestCase):
             status=RunStatus.STARTED,
             started_at=T0,
         )
-        run = PipelineRun.objects.create(
+        run = U001PipelineRun.objects.create(
             batch=batch,
             coin=self.coin,
             layer_id='FL-001',
@@ -243,11 +243,11 @@ class PipelineRunTest(TestCase):
             started_at=T0,
             records_loaded=100,
         )
-        self.assertEqual(batch.runs.count(), 1)
-        self.assertEqual(batch.runs.first().pk, run.pk)
+        self.assertEqual(batch.u001pipelinerun_runs.count(), 1)
+        self.assertEqual(batch.u001pipelinerun_runs.first().pk, run.pk)
 
     def test_create_run_without_batch(self):
-        run = PipelineRun.objects.create(
+        run = U001PipelineRun.objects.create(
             batch=None,
             coin=self.coin,
             layer_id='FL-001',
@@ -260,14 +260,14 @@ class PipelineRunTest(TestCase):
 
     def test_multiple_runs_per_coin(self):
         for i in range(3):
-            PipelineRun.objects.create(
+            U001PipelineRun.objects.create(
                 coin=self.coin,
                 layer_id='FL-001',
                 mode=RunMode.STEADY_STATE,
                 status=RunStatus.ERROR if i < 2 else RunStatus.COMPLETE,
                 started_at=T0 + timedelta(minutes=i * 10),
             )
-        runs = PipelineRun.objects.filter(
+        runs = U001PipelineRun.objects.filter(
             coin=self.coin, layer_id='FL-001',
         ).order_by('-started_at')
         self.assertEqual(runs.count(), 3)
@@ -275,33 +275,33 @@ class PipelineRunTest(TestCase):
 
     def test_query_latest_status_per_coin(self):
         for i, status in enumerate([RunStatus.ERROR, RunStatus.ERROR, RunStatus.COMPLETE]):
-            PipelineRun.objects.create(
+            U001PipelineRun.objects.create(
                 coin=self.coin,
                 layer_id='FL-001',
                 mode=RunMode.STEADY_STATE,
                 status=status,
                 started_at=T0 + timedelta(minutes=i * 10),
             )
-        latest = PipelineRun.objects.filter(
+        latest = U001PipelineRun.objects.filter(
             coin=self.coin, layer_id='FL-001',
         ).order_by('-started_at').first()
         self.assertEqual(latest.status, RunStatus.COMPLETE)
 
     def test_query_all_failures(self):
-        PipelineRun.objects.create(
+        U001PipelineRun.objects.create(
             coin=self.coin, layer_id='FL-001',
             mode=RunMode.STEADY_STATE, status=RunStatus.COMPLETE,
             started_at=T0,
         )
-        PipelineRun.objects.create(
+        U001PipelineRun.objects.create(
             coin=self.coin, layer_id='FL-001',
             mode=RunMode.STEADY_STATE, status=RunStatus.ERROR,
             started_at=T0 + timedelta(minutes=10),
         )
-        PipelineRun.objects.create(
+        U001PipelineRun.objects.create(
             coin=self.coin, layer_id='FL-002',
             mode=RunMode.BOOTSTRAP, status=RunStatus.ERROR,
             started_at=T0 + timedelta(minutes=20),
         )
-        errors = PipelineRun.objects.filter(status=RunStatus.ERROR)
+        errors = U001PipelineRun.objects.filter(status=RunStatus.ERROR)
         self.assertEqual(errors.count(), 2)
