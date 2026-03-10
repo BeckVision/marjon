@@ -25,7 +25,7 @@ class FL001ConformanceTest(TestCase):
     def test_keys(self):
         expected_keys = {
             'timestamp', 'open_price', 'high_price', 'low_price',
-            'close_price', 'volume', 'coin_id', 'ingested_at',
+            'close_price', 'volume', 'coin_id',
         }
         for record in self.result:
             self.assertEqual(set(record.keys()), expected_keys)
@@ -58,6 +58,7 @@ class FL001ConformanceTest(TestCase):
         for record in self.result:
             self.assertEqual(record['coin_id'], self.mint)
 
-    def test_ingested_at_is_utc(self):
+    def test_no_ingested_at_in_output(self):
+        """ingested_at is handled by auto_now_add, not by conformance."""
         for record in self.result:
-            self.assertIsNotNone(record['ingested_at'].tzinfo)
+            self.assertNotIn('ingested_at', record)

@@ -1,10 +1,13 @@
 """Tests for cross-layer alignment (inner join)."""
 
+import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.test import TestCase
 
+from data_service.alignment import _check_resolution_mismatch
 from data_service.operations import get_panel_slice
 from warehouse.models import (
     HolderSnapshot,
@@ -76,3 +79,28 @@ class AlignmentInnerJoinTest(TestCase):
         )
         timestamps = sorted(r['timestamp'] for r in result)
         self.assertEqual(timestamps, [T0, T0 + timedelta(minutes=5)])
+
+
+class ForwardFillStubTest(TestCase):
+    """Forward-fill is not implemented yet — verify the stub logs a warning
+    when layers have different temporal resolutions."""
+
+    def test_resolution_mismatch_logs_warning(self):
+        # Temporarily patch OHLCVCandle to pretend it has 15-min resolution
+        with patch.object(
+            OHLCVCandle, 'TEMPORAL_RESOLUTION', timedelta(minutes=15)
+        ):
+            with self.assertLogs(
+                'data_service.alignment', level='WARNING'
+            ) as cm:
+                _check_resolution_mismatch(['FL-001', 'FL-002'])
+            self.assertTrue(
+                any('Resolution mismatch' in msg for msg in cm.output)
+            )
+
+    def test_no_warning_when_resolutions_match(self):
+        # Both FL-001 and FL-002 have 5-min resolution — no warning
+        logger = logging.getLogger('data_service.alignment')
+        with patch.object(logger, 'warning') as mock_warn:
+            _check_resolution_mismatch(['FL-001', 'FL-002'])
+            mock_warn.assert_not_called()

@@ -7,8 +7,11 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+from warehouse.models import OHLCVCandle
+
 BASE_URL = "https://api.dexpaprika.com"
 MAX_PER_PAGE = 366
+# Source-specific API parameter — maps to OHLCVCandle.TEMPORAL_RESOLUTION
 INTERVAL = "5m"
 
 
@@ -53,8 +56,7 @@ def fetch_ohlcv(pool_address, start, end):
                 last_time.replace('Z', '+00:00')
             )
             # Move past the last record to avoid duplicates
-            from datetime import timedelta
-            current_start = last_dt + timedelta(minutes=5)
+            current_start = last_dt + OHLCVCandle.TEMPORAL_RESOLUTION
         else:
             break
 

@@ -1,8 +1,12 @@
 """Moralis source connector for FL-002 holder snapshot data."""
 
+import json
 import logging
+import math
 import os
 import time
+from datetime import date
+from pathlib import Path
 
 import requests
 
@@ -12,6 +16,43 @@ BASE_URL = "https://solana-gateway.moralis.io"
 CU_PER_CALL = 50
 DAILY_CU_LIMIT = 40000
 MAX_PER_PAGE = 100
+
+# Daily CU tracker file (project root)
+_CU_TRACKER_PATH = Path(__file__).resolve().parent.parent.parent / '.moralis_cu_tracker.json'
+
+
+def get_daily_cu_used():
+    """Read today's CU usage from the tracker file."""
+    try:
+        data = json.loads(_CU_TRACKER_PATH.read_text())
+        if data.get('date') == str(date.today()):
+            return data.get('cu_used', 0)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+    return 0
+
+
+def record_cu_used(cu):
+    """Add CU to today's daily tracker."""
+    today = str(date.today())
+    current = 0
+    try:
+        data = json.loads(_CU_TRACKER_PATH.read_text())
+        if data.get('date') == today:
+            current = data.get('cu_used', 0)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+    _CU_TRACKER_PATH.write_text(json.dumps({
+        'date': today,
+        'cu_used': current + cu,
+    }))
+
+
+def estimate_cu_cost(start, end):
+    """Estimate CU cost for a holder snapshot fetch."""
+    intervals = max(1, (end - start).total_seconds() / 300)
+    pages = math.ceil(intervals / MAX_PER_PAGE)
+    return pages * CU_PER_CALL
 
 
 def fetch_holders(mint_address, start, end):
@@ -40,6 +81,7 @@ def fetch_holders(mint_address, start, end):
 
     while True:
         params = {
+            # Source-specific API parameter — maps to HolderSnapshot.TEMPORAL_RESOLUTION
             'timeFrame': '5min',
             'fromDate': start.isoformat(),
             'toDate': end.isoformat(),
@@ -70,6 +112,8 @@ def fetch_holders(mint_address, start, end):
 
     # Moralis returns descending (newest first) — reverse to ascending
     all_records.reverse()
+
+    record_cu_used(cu_used)
 
     logger.info(
         "Fetched %d holder snapshots for %s (CU used: %d)",

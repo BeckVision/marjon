@@ -3,7 +3,7 @@
 Pure function — no side effects, no DB writes, no API calls.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 
 
@@ -16,8 +16,8 @@ def conform(raw_response, mint_address):
 
     Returns:
         List of dicts matching OHLCVCandle field names.
+        Note: ingested_at is handled by the model's auto_now_add=True.
     """
-    now = datetime.now(timezone.utc)
     records = []
 
     for raw in raw_response:
@@ -34,7 +34,6 @@ def conform(raw_response, mint_address):
             'close_price': Decimal(str(raw['close'])),
             'volume': Decimal(str(raw['volume'])),
             'coin_id': mint_address,
-            'ingested_at': now,
         })
 
     return records

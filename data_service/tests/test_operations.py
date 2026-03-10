@@ -69,6 +69,18 @@ class ReferenceDataTest(TestCase):
         )
         self.assertEqual(result.count(), 0)
 
+    def test_time_range_outside_observation_window_raises(self):
+        MigratedCoin.objects.create(
+            mint_address='COIN_WINDOW', anchor_event=T0,
+        )
+        # Observation window is T0 to T0+5000min. Request beyond that.
+        far_future = T0 + timedelta(minutes=6000)
+        with self.assertRaises(ValueError):
+            get_reference_data(
+                'COIN_WINDOW', far_future, far_future + timedelta(hours=1),
+                far_future,
+            )
+
 
 class PanelSliceValidationTest(TestCase):
     def test_nonexistent_asset_raises(self):

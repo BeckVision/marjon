@@ -19,14 +19,25 @@ class UniverseBase(models.Model):
     UNIVERSE_ID = None
     NAME = None
     INCLUSION_CRITERIA = None
-    UNIVERSE_TYPE = None
-    OBSERVATION_WINDOW_START = None
-    OBSERVATION_WINDOW_END = None
+    UNIVERSE_TYPE = None            # "event-driven" or "calendar-driven"
+    OBSERVATION_WINDOW_START = None  # offset from anchor (event-driven) or absolute time
+    OBSERVATION_WINDOW_END = None    # same; None = unbounded
     EXCLUSION_CRITERIA = None
     VERSION = None
 
-    anchor_event = models.DateTimeField(null=True, blank=True)
-    membership_end = models.DateTimeField(null=True, blank=True)
+    anchor_event = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="The reference point (T0) for this asset. "
+                  "Populated for event-driven universes. "
+                  "Null for calendar-driven universes.",
+    )
+    membership_end = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this asset left the universe. "
+                  "Null = still a member.",
+    )
 
     objects = UniverseQuerySet.as_manager()
 
@@ -45,7 +56,10 @@ class FeatureLayerBase(models.Model):
     REFRESH_POLICY = None
     VERSION = None
 
-    timestamp = models.DateTimeField()
+    timestamp = models.DateTimeField(
+        help_text="Observation timestamp, UTC. Whether this represents "
+                  "interval start or end is defined by WDP9.",
+    )
 
     objects = FeatureLayerQuerySet.as_manager()
 
@@ -54,6 +68,37 @@ class FeatureLayerBase(models.Model):
         indexes = [
             models.Index(fields=['timestamp']),
         ]
+
+    def clean(self):
+        """Validate timestamp is within the coin's observation window (DQ-005)."""
+        super().clean()
+        coin_id = getattr(self, 'coin_id', None)
+        if not coin_id or not self.timestamp:
+            return
+        # Discover the universe model via the concrete class's 'coin' FK
+        try:
+            fk_field = self.__class__._meta.get_field('coin')
+        except Exception:
+            return
+        UniverseModel = fk_field.related_model
+        window_start = getattr(UniverseModel, 'OBSERVATION_WINDOW_START', None)
+        window_end = getattr(UniverseModel, 'OBSERVATION_WINDOW_END', None)
+        if window_start is None or window_end is None:
+            return
+        try:
+            coin_obj = UniverseModel.objects.get(
+                **{fk_field.remote_field.field_name: coin_id}
+            )
+        except UniverseModel.DoesNotExist:
+            return
+        if coin_obj.anchor_event:
+            ws = coin_obj.anchor_event + window_start
+            we = coin_obj.anchor_event + window_end
+            if not (ws <= self.timestamp <= we):
+                raise ValidationError(
+                    f"Timestamp {self.timestamp} is outside the "
+                    f"observation window [{ws}, {we}]"
+                )
 
 
 class ReferenceTableBase(models.Model):
@@ -67,7 +112,10 @@ class ReferenceTableBase(models.Model):
     REFRESH_POLICY = None
     VERSION = None
 
-    timestamp = models.DateTimeField()
+    timestamp = models.DateTimeField(
+        help_text="Exact event time, UTC. PIT behavior depends on "
+                  "the declared AVAILABILITY_RULE.",
+    )
 
     objects = ReferenceTableQuerySet.as_manager()
 
@@ -135,11 +183,11 @@ class OHLCVCandle(FeatureLayerBase):
     )
     ingested_at = models.DateTimeField(auto_now_add=True)
 
-    OBSERVATION_WINDOW_START = timedelta(0)
-    OBSERVATION_WINDOW_END = timedelta(minutes=5000)
-
     class Meta:
         unique_together = [('coin', 'timestamp')]
+        indexes = [
+            models.Index(fields=['timestamp']),
+        ]
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(high_price__gte=models.F('low_price')),
@@ -149,30 +197,33 @@ class OHLCVCandle(FeatureLayerBase):
                 condition=models.Q(volume__gte=Decimal('0')),
                 name='ohlcv_volume_non_negative',
             ),
-        ]
-
-    def clean(self):
-        super().clean()
-        if self.coin_id and self.timestamp:
-            try:
-                coin_obj = MigratedCoin.objects.get(
-                    mint_address=self.coin_id,
-                )
-            except MigratedCoin.DoesNotExist:
-                return
-            if coin_obj.anchor_event:
-                window_start = (
-                    coin_obj.anchor_event + self.OBSERVATION_WINDOW_START
-                )
-                window_end = (
-                    coin_obj.anchor_event + self.OBSERVATION_WINDOW_END
-                )
-                if not (window_start <= self.timestamp <= window_end):
-                    raise ValidationError(
-                        f"Timestamp {self.timestamp} is outside the "
-                        f"observation window "
-                        f"[{window_start}, {window_end}]"
+            # DQ-003: open_price must be between low_price and high_price
+            models.CheckConstraint(
+                condition=(
+                    models.Q(open_price__isnull=True)
+                    | models.Q(low_price__isnull=True)
+                    | models.Q(high_price__isnull=True)
+                    | models.Q(
+                        open_price__gte=models.F('low_price'),
+                        open_price__lte=models.F('high_price'),
                     )
+                ),
+                name='ohlcv_open_in_range',
+            ),
+            # DQ-003: close_price must be between low_price and high_price
+            models.CheckConstraint(
+                condition=(
+                    models.Q(close_price__isnull=True)
+                    | models.Q(low_price__isnull=True)
+                    | models.Q(high_price__isnull=True)
+                    | models.Q(
+                        close_price__gte=models.F('low_price'),
+                        close_price__lte=models.F('high_price'),
+                    )
+                ),
+                name='ohlcv_close_in_range',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.coin_id} @ {self.timestamp}"
@@ -186,7 +237,8 @@ class HolderSnapshot(FeatureLayerBase):
     AVAILABILITY_RULE = "end-of-interval"
     GAP_HANDLING = (
         "Every interval has a snapshot — Moralis returns data for every "
-        "interval even when no holder change occurred."
+        "interval even when no holder change occurred. Dead coins show "
+        "netHolderChange=0 with stable totalHolders. No gaps from source."
     )
     DATA_SOURCE = "Moralis API"
     REFRESH_POLICY = "Daily"
@@ -224,6 +276,9 @@ class HolderSnapshot(FeatureLayerBase):
 
     class Meta:
         unique_together = [('coin', 'timestamp')]
+        indexes = [
+            models.Index(fields=['timestamp']),
+        ]
 
     def __str__(self):
         return f"{self.coin_id} @ {self.timestamp}"
@@ -255,7 +310,7 @@ class RawTransaction(ReferenceTableBase):
     NAME = "Raw Transaction Data"
     RECORD_TYPE = "Single trade (buy or sell)"
     AVAILABILITY_RULE = "event-time"
-    ACCESS_PATTERN = "Get all trades for asset X between T1 and T2"
+    ACCESS_PATTERN = "Get all trades for coin X between T1 and T2"
     DATA_SOURCE = "TBD"
     REFRESH_POLICY = "TBD"
     VERSION = "0.1"

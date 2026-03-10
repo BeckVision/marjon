@@ -125,10 +125,27 @@ def get_reference_data(asset_id, start, end, simulation_time):
     Raises:
         ValueError: If asset doesn't exist in universe.
     """
-    if not MigratedCoin.objects.filter(mint_address=asset_id).exists():
+    try:
+        coin = MigratedCoin.objects.get(mint_address=asset_id)
+    except MigratedCoin.DoesNotExist:
         raise ValueError(
             f"Asset '{asset_id}' does not exist in the universe"
         )
+
+    # Validate time range against observation window
+    if coin.anchor_event:
+        window_start = (
+            coin.anchor_event + MigratedCoin.OBSERVATION_WINDOW_START
+        )
+        window_end = (
+            coin.anchor_event + MigratedCoin.OBSERVATION_WINDOW_END
+        )
+        if start < window_start or end > window_end:
+            raise ValueError(
+                f"Time range [{start}, {end}] is outside "
+                f"observation window [{window_start}, {window_end}] "
+                f"for asset '{asset_id}'"
+            )
 
     return RawTransaction.objects.filter(
         coin_id=asset_id,

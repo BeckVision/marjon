@@ -1,16 +1,19 @@
 """Management command to fetch OHLCV data for a token."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from django.core.management.base import BaseCommand
 
 from pipeline.conformance.fl001_dexpaprika import conform
 from pipeline.connectors.dexpaprika import fetch_ohlcv
 from pipeline.loaders.fl001 import get_watermark, load
-from warehouse.models import MigratedCoin, PoolMapping
+from warehouse.models import MigratedCoin, OHLCVCandle, PoolMapping
 
 logger = logging.getLogger(__name__)
+
+# PDP1: windowed incremental overlap — safety margin for watermark edge cases
+OVERLAP = timedelta(minutes=30)
 
 
 class Command(BaseCommand):
@@ -79,10 +82,14 @@ class Command(BaseCommand):
                     f"Bootstrap mode: {start} to {end}"
                 )
             else:
-                # Steady-state: from watermark
-                start = watermark
+                # Steady-state: windowed incremental with overlap
+                start = watermark - OVERLAP
+                # Don't go before anchor_event
+                if start < coin.anchor_event:
+                    start = coin.anchor_event
                 self.stdout.write(
-                    f"Steady-state mode: {start} to {end}"
+                    f"Steady-state mode: {start} to {end} "
+                    f"(overlap={OVERLAP})"
                 )
 
         # Connector -> Conformance -> Loader
@@ -92,7 +99,10 @@ class Command(BaseCommand):
         raw = fetch_ohlcv(pool.pool_address, start, end)
 
         if not raw:
-            self.stdout.write("No data returned from API")
+            logger.warning(
+                "Zero results from API for coin %s (pool %s) in [%s, %s]",
+                mint, pool.pool_address, start, end,
+            )
             return
 
         self.stdout.write(f"Received {len(raw)} raw records")
@@ -103,7 +113,15 @@ class Command(BaseCommand):
         load(mint, start, end, canonical)
 
         # Reconciliation logging
-        expected_intervals = (end - start).total_seconds() / 300
+        resolution_secs = OHLCVCandle.TEMPORAL_RESOLUTION.total_seconds()
+        expected_intervals = (end - start).total_seconds() / resolution_secs
+
+        if not canonical:
+            logger.warning(
+                "All records filtered during conformance for %s", mint,
+            )
+            return
+
         timestamps = [r['timestamp'] for r in canonical]
         first_ts = min(timestamps)
         last_ts = max(timestamps)

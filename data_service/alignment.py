@@ -68,16 +68,11 @@ def _check_resolution_mismatch(layer_ids):
 
     Forward-fill is not implemented yet — this is a stub.
     """
-    from warehouse.models import OHLCVCandle, HolderSnapshot
-
-    registry = {
-        'FL-001': OHLCVCandle,
-        'FL-002': HolderSnapshot,
-    }
+    from data_service.operations import LAYER_REGISTRY
 
     resolutions = set()
     for layer_id in layer_ids:
-        model = registry.get(layer_id)
+        model = LAYER_REGISTRY.get(layer_id)
         if model and model.TEMPORAL_RESOLUTION:
             resolutions.add(model.TEMPORAL_RESOLUTION)
 

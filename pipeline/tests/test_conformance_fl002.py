@@ -26,7 +26,7 @@ class FL002ConformanceTest(TestCase):
 
     def test_keys(self):
         expected_keys = {
-            'timestamp', 'coin_id', 'ingested_at',
+            'timestamp', 'coin_id',
             'total_holders', 'net_holder_change',
             'holder_percent_change',
             'acquired_via_swap', 'acquired_via_transfer',

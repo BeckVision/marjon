@@ -6,11 +6,19 @@ from datetime import datetime, timedelta, timezone
 from django.core.management.base import BaseCommand
 
 from pipeline.conformance.fl002_moralis import conform
-from pipeline.connectors.moralis import fetch_holders
+from pipeline.connectors.moralis import (
+    DAILY_CU_LIMIT,
+    estimate_cu_cost,
+    fetch_holders,
+    get_daily_cu_used,
+)
 from pipeline.loaders.fl002 import get_watermark, load
-from warehouse.models import MigratedCoin
+from warehouse.models import HolderSnapshot, MigratedCoin
 
 logger = logging.getLogger(__name__)
+
+# PDP1: windowed incremental overlap — safety margin for watermark edge cases
+OVERLAP = timedelta(minutes=30)
 
 
 class Command(BaseCommand):
@@ -61,17 +69,41 @@ class Command(BaseCommand):
                 start = coin.anchor_event
                 self.stdout.write(f"Bootstrap mode: {start} to {end}")
             else:
-                start = watermark
+                # Steady-state: windowed incremental with overlap
+                start = watermark - OVERLAP
+                # Don't go before anchor_event
+                if start < coin.anchor_event:
+                    start = coin.anchor_event
                 self.stdout.write(
-                    f"Steady-state mode: {start} to {end}"
+                    f"Steady-state mode: {start} to {end} "
+                    f"(overlap={OVERLAP})"
                 )
+
+        # CU budget guard — abort if insufficient daily budget
+        estimated_cu = estimate_cu_cost(start, end)
+        daily_used = get_daily_cu_used()
+        if daily_used + estimated_cu > DAILY_CU_LIMIT:
+            logger.warning(
+                "CU budget guard: estimated %d CU for this run, "
+                "%d already used today (limit: %d). Aborting.",
+                estimated_cu, daily_used, DAILY_CU_LIMIT,
+            )
+            self.stderr.write(
+                f"ABORTED: would exceed daily CU limit. "
+                f"Estimated={estimated_cu}, used={daily_used}, "
+                f"limit={DAILY_CU_LIMIT}"
+            )
+            return
 
         # Connector -> Conformance -> Loader
         self.stdout.write(f"Fetching from Moralis for {mint}...")
         raw = fetch_holders(mint, start, end)
 
         if not raw:
-            self.stdout.write("No data returned from API")
+            logger.warning(
+                "Zero results from API for coin %s in [%s, %s]",
+                mint, start, end,
+            )
             return
 
         self.stdout.write(f"Received {len(raw)} raw records")
@@ -82,14 +114,25 @@ class Command(BaseCommand):
         load(mint, start, end, canonical)
 
         # Reconciliation — stricter for FL-002
-        expected_count = (end - start).total_seconds() / 300
+        # Moralis returns both boundaries inclusive: +1
+        resolution_secs = HolderSnapshot.TEMPORAL_RESOLUTION.total_seconds()
+        expected_count = (
+            (end - start).total_seconds() / resolution_secs + 1
+        )
         loaded_count = len(canonical)
 
         if loaded_count != int(expected_count):
-            self.stderr.write(
-                f"WARNING: loaded {loaded_count} but expected "
-                f"{expected_count:.0f} (missing intervals)"
+            logger.warning(
+                "Count mismatch for %s: loaded %d but expected %d "
+                "(missing intervals)",
+                mint, loaded_count, int(expected_count),
             )
+
+        if not canonical:
+            logger.warning(
+                "All records filtered during conformance for %s", mint,
+            )
+            return
 
         timestamps = [r['timestamp'] for r in canonical]
         first_ts = min(timestamps)
@@ -97,6 +140,6 @@ class Command(BaseCommand):
 
         self.stdout.write(
             f"Reconciliation: loaded={loaded_count}, "
-            f"expected={expected_count:.0f}, "
+            f"expected={int(expected_count)}, "
             f"first={first_ts}, last={last_ts}"
         )

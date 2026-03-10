@@ -3,7 +3,7 @@
 Pure function — no side effects, no DB writes, no API calls.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 
 
@@ -16,8 +16,8 @@ def conform(raw_response, mint_address):
 
     Returns:
         List of dicts matching HolderSnapshot field names.
+        Note: ingested_at is handled by the model's auto_now_add=True.
     """
-    now = datetime.now(timezone.utc)
     records = []
 
     for raw in raw_response:
@@ -58,7 +58,6 @@ def conform(raw_response, mint_address):
             'holders_out_octopus': holders_out.get('octopus'),
             'holders_out_crabs': holders_out.get('crabs'),
             'holders_out_shrimps': holders_out.get('shrimps'),
-            'ingested_at': now,
         })
 
     return records
