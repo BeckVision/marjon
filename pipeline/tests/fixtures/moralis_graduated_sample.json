@@ -1,0 +1,67 @@
+{
+  "result": [
+    {
+      "tokenAddress": "96dCyTmXNmd9uSTQF9E93PXBxRUMk9jRXmzr5F26pump",
+      "name": "Canabiii",
+      "symbol": "Canabiii",
+      "logo": "https://logo.moralis.io/solana-mainnet_96dCyTmXNmd9uSTQF9E93PXBxRUMk9jRXmzr5F26pump_78e89edc216c8ab6a2448d7bb07bc666.webp",
+      "decimals": "6",
+      "priceNative": "0.0000000022531",
+      "priceUsd": "0.000000199",
+      "liquidity": "141.815033924",
+      "fullyDilutedValuation": "398",
+      "graduatedAt": "2026-03-10T17:22:07.000Z"
+    },
+    {
+      "tokenAddress": "CoT3FEPV3y6kRLQ8gAhQi7FZidXxQ8WiKCKYYXXbpump",
+      "name": "Basic Intelligence eXperiment",
+      "symbol": "BIX",
+      "logo": "https://logo.moralis.io/solana-mainnet_CoT3FEPV3y6kRLQ8gAhQi7FZidXxQ8WiKCKYYXXbpump_57d3d3be44a7f9143955e2411f5354a7.webp",
+      "decimals": "6",
+      "priceNative": "0.000000244",
+      "priceUsd": "0.000021624",
+      "liquidity": "11611.093141704",
+      "fullyDilutedValuation": "21623.990653158944352",
+      "graduatedAt": "2026-03-10T17:17:17.000Z"
+    },
+    {
+      "tokenAddress": "ECs2JMvSnmwu1yCuwRzeM261LyU7CYUyNDDMbrLWpump",
+      "name": "Clawcoin",
+      "symbol": "Clawcoin",
+      "logo": "https://logo.moralis.io/solana-mainnet_ECs2JMvSnmwu1yCuwRzeM261LyU7CYUyNDDMbrLWpump_725155ce8a4f1f88cb16b172455f3113.webp",
+      "decimals": "0",
+      "priceNative": "0.000000148",
+      "priceUsd": "0.000013162",
+      "liquidity": "9059.447254302",
+      "fullyDilutedValuation": null,
+      "graduatedAt": "2026-03-10T17:17:12.000Z"
+    },
+    {
+      "tokenAddress": "EARLYeBEXWA6dA8br6GEaUVmY2dCJQrD9wpwKegH194T",
+      "name": "Early Cash",
+      "symbol": "EARLY",
+      "logo": "https://logo.moralis.io/solana-mainnet_EARLYeBEXWA6dA8br6GEaUVmY2dCJQrD9wpwKegH194T_0200bcb132f0dcd2897aee7545187a16.webp",
+      "decimals": "6",
+      "priceNative": "0.00000001884176806818601709499830166955243699614204",
+      "priceUsd": "0.0000016668363575849471460732679971436939071090387",
+      "liquidity": "3242.3685845649854549227957214169939518159351537986351229198",
+      "fullyDilutedValuation": "1666.8363575849471460732679971436939071090387",
+      "graduatedAt": "2026-03-10T17:13:23.000Z"
+    },
+    {
+      "tokenAddress": "8vxuf4jenmjhBz5BHr56z2hK5KKvJ2otBw8FF7SZpump",
+      "name": "The Lobster",
+      "symbol": "ROSENCRATZ",
+      "logo": "https://logo.moralis.io/solana-mainnet_8vxuf4jenmjhBz5BHr56z2hK5KKvJ2otBw8FF7SZpump_2a0e433b23e9ca62128e9bf1a42c6a4f.webp",
+      "decimals": "6",
+      "priceNative": "0.000000171",
+      "priceUsd": "0.000015186",
+      "liquidity": "10066.37247121",
+      "fullyDilutedValuation": "15186",
+      "graduatedAt": "2026-03-10T17:03:34.000Z"
+    }
+  ],
+  "pageSize": 5,
+  "page": 1,
+  "cursor": "eyJhbGciOiJIUzI1NiJ9.eyJwYWdlIjoxLCJmcm9tTG9va3VwIjp7InRva2VuQWRkcmVzcyI6Ijh2eHVmNGplbm1qaEJ6NUJIcjU2ejJoSzVLS3ZKMm90Qnc4RkY3U1pwdW1wIiwiY2F0ZWdvcnkiOiJwdW1wZnVuOmdyYWR1YXRlZCIsImNhdGVnb3J5S2V5IjoxNzczMTYyMjE0fX0.tr-nTbXvGPqKNjX4uFu3KSyX9P5vXhbm9ct8btVP-1k"
+}

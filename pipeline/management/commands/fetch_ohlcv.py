@@ -39,7 +39,8 @@ class Command(BaseCommand):
         except MigratedCoin.DoesNotExist:
             raise CommandError(f"MigratedCoin {mint} does not exist")
 
-        # Look up pool address (earliest created = graduation pool)
+        # Oldest pool by on-chain creation time — the graduation pool.
+        # See u001_fl001_pipeline_implementation_record.md Pool Selection Strategy.
         pool = PoolMapping.objects.filter(
             coin_id=mint,
         ).order_by('created_at').first()

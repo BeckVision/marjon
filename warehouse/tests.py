@@ -3,10 +3,14 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.test import TestCase
 
-from warehouse.models import MigratedCoin, OHLCVCandle, RawTransaction
+from warehouse.models import (
+    MigratedCoin, OHLCVCandle, PipelineBatchRun, PipelineRun,
+    RawTransaction, RunMode, RunStatus,
+)
 
 T0 = datetime(2026, 3, 1, 10, 0, tzinfo=timezone.utc)
 
@@ -166,3 +170,138 @@ class ReferenceDataHappyPathTest(TestCase):
             T0 + timedelta(minutes=20),
         )
         self.assertEqual(result.count(), 1)
+
+
+class PipelineBatchRunTest(TestCase):
+    """Tests for PipelineBatchRun operational model."""
+
+    def test_create_batch(self):
+        batch = PipelineBatchRun.objects.create(
+            pipeline_id='fl001',
+            mode=RunMode.BOOTSTRAP,
+            status=RunStatus.STARTED,
+            started_at=T0,
+        )
+        batch.refresh_from_db()
+        self.assertEqual(batch.pipeline_id, 'fl001')
+        self.assertEqual(batch.mode, 'bootstrap')
+        self.assertEqual(batch.status, 'started')
+        self.assertEqual(batch.started_at, T0)
+        self.assertIsNone(batch.completed_at)
+        self.assertEqual(batch.coins_attempted, 0)
+
+    def test_update_batch_to_complete(self):
+        batch = PipelineBatchRun.objects.create(
+            pipeline_id='fl002',
+            mode=RunMode.STEADY_STATE,
+            status=RunStatus.STARTED,
+            started_at=T0,
+        )
+        done = T0 + timedelta(minutes=5)
+        batch.status = RunStatus.COMPLETE
+        batch.completed_at = done
+        batch.coins_succeeded = 42
+        batch.save()
+
+        batch.refresh_from_db()
+        self.assertEqual(batch.status, 'complete')
+        self.assertEqual(batch.completed_at, done)
+        self.assertEqual(batch.coins_succeeded, 42)
+
+    def test_invalid_status_rejected(self):
+        batch = PipelineBatchRun(
+            pipeline_id='fl001',
+            mode=RunMode.BOOTSTRAP,
+            status='invalid_status',
+            started_at=T0,
+        )
+        with self.assertRaises(ValidationError):
+            batch.full_clean()
+
+
+class PipelineRunTest(TestCase):
+    """Tests for PipelineRun operational model."""
+
+    def setUp(self):
+        self.coin = MigratedCoin.objects.create(
+            mint_address='RUN_TEST', anchor_event=T0,
+        )
+
+    def test_create_run_linked_to_batch(self):
+        batch = PipelineBatchRun.objects.create(
+            pipeline_id='fl001',
+            mode=RunMode.BOOTSTRAP,
+            status=RunStatus.STARTED,
+            started_at=T0,
+        )
+        run = PipelineRun.objects.create(
+            batch=batch,
+            coin=self.coin,
+            layer_id='FL-001',
+            mode=RunMode.BOOTSTRAP,
+            status=RunStatus.COMPLETE,
+            started_at=T0,
+            records_loaded=100,
+        )
+        self.assertEqual(batch.runs.count(), 1)
+        self.assertEqual(batch.runs.first().pk, run.pk)
+
+    def test_create_run_without_batch(self):
+        run = PipelineRun.objects.create(
+            batch=None,
+            coin=self.coin,
+            layer_id='FL-001',
+            mode=RunMode.REFILL,
+            status=RunStatus.COMPLETE,
+            started_at=T0,
+        )
+        run.refresh_from_db()
+        self.assertIsNone(run.batch)
+
+    def test_multiple_runs_per_coin(self):
+        for i in range(3):
+            PipelineRun.objects.create(
+                coin=self.coin,
+                layer_id='FL-001',
+                mode=RunMode.STEADY_STATE,
+                status=RunStatus.ERROR if i < 2 else RunStatus.COMPLETE,
+                started_at=T0 + timedelta(minutes=i * 10),
+            )
+        runs = PipelineRun.objects.filter(
+            coin=self.coin, layer_id='FL-001',
+        ).order_by('-started_at')
+        self.assertEqual(runs.count(), 3)
+        self.assertEqual(runs.first().started_at, T0 + timedelta(minutes=20))
+
+    def test_query_latest_status_per_coin(self):
+        for i, status in enumerate([RunStatus.ERROR, RunStatus.ERROR, RunStatus.COMPLETE]):
+            PipelineRun.objects.create(
+                coin=self.coin,
+                layer_id='FL-001',
+                mode=RunMode.STEADY_STATE,
+                status=status,
+                started_at=T0 + timedelta(minutes=i * 10),
+            )
+        latest = PipelineRun.objects.filter(
+            coin=self.coin, layer_id='FL-001',
+        ).order_by('-started_at').first()
+        self.assertEqual(latest.status, RunStatus.COMPLETE)
+
+    def test_query_all_failures(self):
+        PipelineRun.objects.create(
+            coin=self.coin, layer_id='FL-001',
+            mode=RunMode.STEADY_STATE, status=RunStatus.COMPLETE,
+            started_at=T0,
+        )
+        PipelineRun.objects.create(
+            coin=self.coin, layer_id='FL-001',
+            mode=RunMode.STEADY_STATE, status=RunStatus.ERROR,
+            started_at=T0 + timedelta(minutes=10),
+        )
+        PipelineRun.objects.create(
+            coin=self.coin, layer_id='FL-002',
+            mode=RunMode.BOOTSTRAP, status=RunStatus.ERROR,
+            started_at=T0 + timedelta(minutes=20),
+        )
+        errors = PipelineRun.objects.filter(status=RunStatus.ERROR)
+        self.assertEqual(errors.count(), 2)

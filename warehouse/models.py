@@ -127,6 +127,22 @@ class ReferenceTableBase(models.Model):
 
 
 # ---------------------------------------------------------------------------
+# Enums — operational infrastructure
+# ---------------------------------------------------------------------------
+
+class RunStatus(models.TextChoices):
+    STARTED = 'started', 'Started'
+    COMPLETE = 'complete', 'Complete'
+    ERROR = 'error', 'Error'
+
+
+class RunMode(models.TextChoices):
+    BOOTSTRAP = 'bootstrap', 'Bootstrap'
+    STEADY_STATE = 'steady_state', 'Steady State'
+    REFILL = 'refill', 'Re-fill'
+
+
+# ---------------------------------------------------------------------------
 # Concrete models — U-001
 # ---------------------------------------------------------------------------
 
@@ -330,3 +346,96 @@ class RawTransaction(ReferenceTableBase):
 
     def __str__(self):
         return f"{self.coin_id} @ {self.timestamp}"
+
+
+# ---------------------------------------------------------------------------
+# Operational models — pipeline tracking (PDP8)
+# ---------------------------------------------------------------------------
+
+class PipelineBatchRun(models.Model):
+    """
+    Tracks a single pipeline invocation (scheduled or manual).
+    One batch may process many coins (FL-001/FL-002) or discover many tokens (universe).
+    Not a paradigm model — operational infrastructure for pipeline tracking.
+    """
+    pipeline_id = models.CharField(max_length=20)  # "universe", "fl001", "fl002"
+    mode = models.CharField(max_length=20, choices=RunMode.choices)
+    status = models.CharField(max_length=20, choices=RunStatus.choices)
+
+    started_at = models.DateTimeField()
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    coins_attempted = models.IntegerField(default=0)
+    coins_succeeded = models.IntegerField(default=0)
+    coins_failed = models.IntegerField(default=0)
+
+    cu_consumed = models.IntegerField(default=0)
+    api_calls = models.IntegerField(default=0)
+
+    error_message = models.TextField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['-started_at'], name='idx_batch_started'),
+            models.Index(
+                fields=['pipeline_id', '-started_at'],
+                name='idx_batch_pipeline_started',
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.pipeline_id} {self.mode} {self.status} "
+            f"({self.started_at:%Y-%m-%d %H:%M})"
+        )
+
+
+class PipelineRun(models.Model):
+    """
+    Tracks a single pipeline attempt for one coin and one feature layer.
+    Full history — every attempt is a new row, including retries.
+    Not a paradigm model — operational infrastructure for pipeline tracking.
+    """
+    batch = models.ForeignKey(
+        PipelineBatchRun, on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='runs',
+        help_text="Parent batch. Null for manual one-off runs.",
+    )
+    coin = models.ForeignKey(
+        MigratedCoin, to_field='mint_address',
+        on_delete=models.CASCADE,
+        related_name='pipeline_runs',
+    )
+    layer_id = models.CharField(max_length=20)  # "FL-001", "FL-002"
+    mode = models.CharField(max_length=20, choices=RunMode.choices)
+    status = models.CharField(max_length=20, choices=RunStatus.choices)
+
+    started_at = models.DateTimeField()
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    records_loaded = models.IntegerField(default=0)
+    records_expected = models.IntegerField(null=True, blank=True)
+    time_range_start = models.DateTimeField(null=True, blank=True)
+    time_range_end = models.DateTimeField(null=True, blank=True)
+
+    error_message = models.TextField(null=True, blank=True)
+
+    cu_consumed = models.IntegerField(default=0)
+    api_calls = models.IntegerField(default=0)
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=['coin', 'layer_id', '-started_at'],
+                name='idx_run_coin_layer',
+            ),
+            models.Index(fields=['-started_at'], name='idx_run_started'),
+            models.Index(fields=['status'], name='idx_run_status'),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.coin_id} {self.layer_id} {self.status} "
+            f"({self.started_at:%Y-%m-%d %H:%M})"
+        )

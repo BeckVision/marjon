@@ -180,7 +180,7 @@ Overlap window size and exact behavior defined during implementation. Starting p
 | Item | Status | Impact |
 |---|---|---|
 | FL-002 (Holder Snapshots) pipeline | ✅ Done | Separate pipeline record: `u001_fl002_pipeline_implementation_record.md` |
-| Pool mapping population process | ✅ Resolved | Separate pipeline using GeckoTerminal API. Runs independently. OHLCV pipeline reads results. Detailed implementation defined during build. |
+| Pool mapping population process | ✅ Resolved | Separate pipeline using DexPaprika API (`/networks/solana/tokens/{mint_address}/pools`). Runs independently. OHLCV pipeline reads results. Detailed implementation defined during build. |
 | DexPaprika volume denomination | ✅ Verified | Cross-referenced against GeckoTerminal. Both APIs return USD volume. GT `currency=token` (SOL) × SOL price = GT `currency=usd` value. DexPaprika returns same USD-scale values with `inversed=true`. |
 | Warehouse field names vs data spec | ✅ Resolved | Convention: `_price` suffix. Fields: `open_price, high_price, low_price, close_price, volume`. Conformance mapping already uses these names. Data spec FL-001 needs updating from `open, high, low, close` to `open_price, high_price, low_price, close_price`. |
 | Apply spec changes to data specification | ✅ Done | Removed market_cap, renamed fields with `_price` suffix, added USD denomination to FL-001. Unblocked FL-002 gap handling. Removed market_cap from JK-001 example. Updated glossary. Updated warehouse record (data types, models summary, added ingested_at). Output: `u001_data_specification.md`, `u001_dataset_implementation_record.md`. |
