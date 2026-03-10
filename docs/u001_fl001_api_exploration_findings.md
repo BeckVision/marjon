@@ -110,6 +110,86 @@ All 7 fields are required per schema. No `market_cap` field exists.
 
 **Note:** Token detail has `fdv` (fully diluted valuation) and `total_supply` but NOT `market_cap`. FDV = price × total supply. Market cap = price × circulating supply. For pump.fun tokens, these may be the same (all supply circulating at graduation).
 
+### DexPaprika Token Pools Response
+
+**Endpoint:** `GET /networks/solana/tokens/{mint_address}/pools`
+
+**Date explored:** 2026-03-11
+
+**Purpose:** Used by `populate_pool_mapping` and `discover_graduates` to find Pumpswap pools for newly discovered tokens. This exploration was missing from the original API exploration — the function was written assuming a bare list response, but the endpoint wraps pools in an object.
+
+**Response structure:**
+
+```json
+{
+    "pools": [
+        {
+            "id": "Eht9rHnn92FhbWLqd7iQuBdkbsJF9qU9QZsdNrhPcXGS",
+            "dex_id": "pumpswap",
+            "chain_id": "solana",
+            "created_at": "2026-03-07T16:27:41Z",
+            "tokens": [
+                {
+                    "id": "So11111111111111111111111111111111111111112",
+                    "name": "Wrapped SOL",
+                    "symbol": "SOL"
+                },
+                {
+                    "id": "DHu9NJw6eHvA87G9K6FcXhfsUetsX46tCuggGfeNffcX",
+                    "name": "Test Coin",
+                    "symbol": "COIN"
+                }
+            ],
+            "last_price_usd": 83.03238042349037,
+            "volume_usd": 152340.23
+        }
+    ],
+    "page_info": {
+        "current_page": 1,
+        "total_pages": 1,
+        "total_items": 2,
+        "items_per_page": 10
+    }
+}
+```
+
+**Response schema:**
+
+| Field | Type | Description |
+|---|---|---|
+| `pools` | array | List of pool objects |
+| `pools[].id` | string | Pool address (on-chain) — use as `pool_address` in PoolMapping |
+| `pools[].dex_id` | string | DEX identifier (`pumpswap`, `raydium`, etc.) — filter on this |
+| `pools[].chain_id` | string | Always `solana` for our queries |
+| `pools[].created_at` | string, date-time | Pool on-chain creation time (ISO 8601 with Z suffix) |
+| `pools[].tokens` | array | Token pair; `tokens[0]` is typically SOL for Pumpswap pools |
+| `pools[].tokens[].id` | string | Token mint address |
+| `pools[].tokens[].name` | string | Token name |
+| `pools[].tokens[].symbol` | string | Token symbol |
+| `pools[].last_price_usd` | number | Current price in USD |
+| `pools[].volume_usd` | number | Trading volume in USD |
+| `page_info` | object | Pagination metadata |
+| `page_info.current_page` | integer | Current page number |
+| `page_info.total_pages` | integer | Total number of pages |
+| `page_info.total_items` | integer | Total pool count across all pages |
+| `page_info.items_per_page` | integer | Items per page (default 10) |
+
+**Key observations:**
+
+1. **Response is an object, NOT a bare list.** The pool array is nested under the `pools` key. The connector must extract `data['pools']`, not return `data` directly. (This was the original bug in `fetch_token_pools`.)
+
+2. **`dex_id` is the field name, not `dexId`.** The response uses snake_case (`dex_id`), consistent with other DexPaprika endpoints. The `dexId` camelCase check in callers was defensive but unnecessary for DexPaprika.
+
+3. **Pool address is in `id`, not `address`.** The pool's on-chain address is the `id` field. There is no separate `address` field.
+
+4. **`created_at` uses ISO 8601 with Z suffix.** Same format as OHLCV timestamps. Used to determine the graduation pool (oldest Pumpswap pool).
+
+5. **Pagination via `page_info`.** For tokens with many pools, results are paginated. Most graduated pump.fun tokens have 1-3 pools (Pumpswap + possibly Raydium), so pagination is rarely needed.
+
+6. **Multiple DEXes possible.** A single token can have pools on both Pumpswap and Raydium. The pipeline filters for `dex_id == 'pumpswap'` and selects the oldest pool by `created_at`.
+
+**Fixture saved:** `pipeline/tests/fixtures/dexpaprika_token_pools_sample.json`
+
 ---
 
 ## GeckoTerminal
