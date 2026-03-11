@@ -13,6 +13,8 @@ A dataset-agnostic reference for implementing data pipelines that feed a quantit
 
 The data specification defines the ideal contract. The pipeline maps between what external sources actually return and what the contract demands. Gaps discovered during pipeline work may require revising the data specification.
 
+Each universe should have at least two Pipeline Implementation Records: one for the universe population pipeline, and one for each feature layer pipeline. Some feature layers may share a record if they share a source and configuration.
+
 ---
 
 ## Part 1: Foundational Concepts
@@ -82,9 +84,47 @@ The pipeline's job is to correctly assign observation timestamps to each data po
 
 ## Part 2: Architecture
 
+### Two Categories of Pipelines
+
+Every universe requires two categories of pipelines:
+
+| Category | Purpose | Writes to | Example |
+|---|---|---|---|
+| **Universe population pipeline** | Discovers assets and creates universe table rows | Universe table (master data) | Polling an API for newly listed tokens, querying an index for current constituents |
+| **Feature layer pipeline(s)** | Fetches time-series data for known assets | Feature layer tables (time series facts) | Fetching OHLCV candles, holder snapshots, funding rates |
+
+**Why this distinction matters:**
+
+Feature layer pipelines assume assets exist. They query watermarks per asset, fetch time ranges, write to append-only tables. They cannot run until the universe table has rows.
+
+The universe population pipeline creates those rows. It is the first link in the chain. Without it, feature layer pipelines have nothing to fetch for.
+
+The two categories have different characteristics. When the warehouse follows the append-only for time series, updates for master data convention (Warehouse Implementation Guide WDP5 Option B): universe pipelines use upsert (master data allows updates), feature layer pipelines use delete-write or skip-existing (time series is append-only). Universe pipelines track a single global watermark (the newest asset's anchor event). Feature layer pipelines track watermarks per asset (the latest data point for each asset).
+
+**The DAG relationship:**
+
+```
+Universe population → Dimension table population (if needed) → Feature layer pipeline(s)
+```
+
+Discovery must complete before feature layers run. If the universe has dimension tables (e.g., source-specific identifier mappings), those must be populated between discovery and feature layer fetching.
+
+This ordering applies regardless of orchestration level — whether you chain management commands manually, use Celery task chains, or define an Airflow DAG.
+
+**Universe population patterns vary by universe type:**
+
+| Universe type | Discovery pattern | Example |
+|---|---|---|
+| Event-driven | Poll a source for new events, create rows as events occur | New token listings, new market events, new protocol launches |
+| Calendar-driven | Evaluate inclusion criteria on a schedule, add/update membership | Re-evaluate market cap rankings monthly, update index constituents quarterly |
+
+Event-driven universes discover assets when they appear. Calendar-driven universes re-evaluate membership periodically — assets can enter and leave (see membership_end in the Warehouse Implementation Guide). Not all universes use membership_end — universes with permanent membership leave it null for every asset.
+
 ### Established Pipeline Layers
 
 The industry describes a pipeline as a **layered architecture governed by explicit contracts.** Data flows in one direction — from source to warehouse — while information about success, failure, and progress flows back to inform the next run.
+
+The layers below apply to both universe population pipelines and feature layer pipelines. The same architecture (source connector → conformance → load → reconciliation) applies to both categories. The differences are in which table is written to, which idempotency mechanism is used, and how the watermark works — not in the fundamental architecture.
 
 #### Source Connector
 
@@ -125,7 +165,7 @@ Critical property: the canonicalization layer should be a **pure function.** Raw
 
 Manages execution: scheduling, dependency ordering, retries, parallelism. The industry standard concept is the **DAG (Directed Acyclic Graph)** — a graph of tasks where edges represent dependencies, with no circular dependencies.
 
-A single pipeline run is a small DAG: extract depends on nothing, conformance depends on extract, load depends on conformance, reconciliation depends on load. At a higher level, multiple pipelines form a larger DAG — one feature layer's pipeline may depend on the universe table being populated first.
+A single pipeline run is a small DAG: extract depends on nothing, conformance depends on extract, load depends on conformance, reconciliation depends on load. At a higher level, multiple pipelines form a larger DAG. The cross-pipeline DAG ordering is: universe population → dimension tables (if needed) → feature layers. This ordering is a paradigm requirement, not an implementation detail. A feature layer pipeline that runs before the universe is populated will either find no assets to process or miss newly discovered assets.
 
 The industry recognizes three levels of orchestration complexity:
 
@@ -206,6 +246,19 @@ Two important connections:
 
 **Orchestration wraps everything.** The orchestrator doesn't do data work — it manages execution of all other layers. It decides when to run, handles retries, tracks success/failure, and produces the final run report. The pattern is the same at every orchestration level — only the infrastructure changes.
 
+The cross-pipeline DAG for a complete universe:
+
+```
+Universe population pipeline:
+    Source → Conformance → Upsert into universe table → Reconciliation
+        ↓ (new assets discovered)
+    Dimension table pipeline (if needed):
+        Source → Conformance → Upsert into dimension table → Reconciliation
+            ↓ (mappings available)
+    Feature layer pipeline(s):
+        Source → Conformance → Delete-write into feature layer table → Reconciliation
+```
+
 ### Source Connector and Conformance Relationship
 
 The industry uses the **adapter pattern** for this relationship. Each source connector is an **extractor adapter** — knows how to talk to one API. Each conformance mapping is a **transform adapter** — knows how to convert one source's raw response into the canonical schema.
@@ -239,6 +292,8 @@ All three scenarios use the same source connector, conformance, load, and reconc
 **Pre-event observation windows (negative t₁):** When a universe defines a negative observation window start (t₁ < 0), the pipeline must collect data from before the anchor event. Since the anchor event is what makes the asset discoverable, pre-event data is always backfilled retroactively — the asset enters the universe after the start of its own observation window. The bootstrap scenario handles this naturally: when a new asset is discovered (anchor event occurs), the pipeline fetches the full observation window including the pre-event range.
 
 The industry warns against the **pipeline divergence** anti-pattern: building a separate backfill script that starts as a quick hack, then the main pipeline evolves and the backfill script doesn't keep up. Eventually they produce different data for the same inputs.
+
+Universe population pipelines also follow code path unification. Bootstrap discovers the full universe (all existing assets). Steady-state discovers only new assets since the last run. The same connector → conformance → loader path is used for both — only the pagination termination condition differs.
 
 ### Pipeline and Warehouse Interaction
 
@@ -345,6 +400,8 @@ General principle: Option A or C for research-stage systems. ELT pays off at sca
 
 **Tradeoff:** Upsert is simplest but least aligned with append-only. Skip-existing is most aligned but can't fix mistakes. Delete-write balances self-correction with append-only compatibility.
 
+This alignment between idempotency mechanism and table category is not a coincidence. It reflects the fundamental difference between master data (identity, metadata that can evolve) and time series facts (immutable observations). Universe tables represent master data — upsert is the natural fit when updates are allowed. Feature layer and reference tables represent time series facts or event facts — delete-write or skip-existing preserve append-only semantics.
+
 ### PDP4: Watermark Strategy
 
 | Option | Description | Pros | Cons |
@@ -352,6 +409,8 @@ General principle: Option A or C for research-stage systems. ELT pays off at sca
 | **A: Derive from warehouse** | Query `MAX(timestamp)` per asset from the feature layer table. No separate tracking state. | Always consistent with actual data. No drift. Zero maintenance. | Requires a query per asset (or one grouped query) before each run. |
 | **B: Dedicated tracking table** | Separate table: `(asset, layer, last_timestamp, last_run_time, status)`. Updated after each load. | Fast lookup. Can store operational metadata. | Extra table. Can drift from warehouse if pipeline crashes after load but before tracking update. |
 | **C: No watermark (full load)** | Every run fetches the full observation window. No incremental state. | Simplest. No state bugs. | Wastes API calls. Only viable for small datasets or generous rate limits. Incompatible with incremental extract strategy (PDP1 Options B/C). |
+
+**Watermark scope:** Feature layer pipelines track watermarks per asset — each asset has its own latest timestamp. Universe population pipelines track a single global watermark — the newest asset's anchor event. The scope differs because feature layers fetch data for specific assets, while universe pipelines discover assets themselves.
 
 ### PDP5: Rate Limit Handling
 
@@ -579,6 +638,8 @@ Key insight: operational failures often look like valid empty results. Reconcili
 
 **Operational risk** — Pipeline failure mode from infrastructure issues: rate limit truncation, network gaps, partial responses.
 
+**Pipeline category** — The quantitative trading paradigm recognizes two categories: universe population (discovers assets, writes to master data) and feature layer (fetches time-series data for known assets, writes to append-only tables). Both follow the same layered architecture but differ in idempotency mechanism, watermark scope, and ordering.
+
 **Pipeline divergence** — Anti-pattern where a separate backfill script diverges from the main pipeline over time, producing different data for the same inputs.
 
 **Processing time (ingestion time)** — When the pipeline received and stored the data. The second of three timelines.
@@ -612,6 +673,8 @@ Key insight: operational failures often look like valid empty results. Reconcili
 **Time conformance** — Converting source timestamps to the warehouse's canonical format. A category of semantic conformance.
 
 **Type conformance** — Casting source types to warehouse types (float → Decimal for prices). A category of semantic conformance.
+
+**Universe population pipeline** — The pipeline responsible for discovering assets and creating rows in the universe table. Must run before feature layer pipelines. Uses upsert idempotency when master data allows updates (Warehouse Implementation Guide WDP5 Option B). Has a global watermark (newest asset discovered), not a per-asset watermark.
 
 **Upsert** — An idempotency mechanism that inserts new rows or updates existing ones. Simple but may conflict with append-only semantics.
 
