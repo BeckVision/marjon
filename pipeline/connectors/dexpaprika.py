@@ -3,11 +3,11 @@
 import logging
 import time
 
-import requests
-
 logger = logging.getLogger(__name__)
 
 from warehouse.models import OHLCVCandle
+
+from pipeline.connectors.http import request_with_retry
 
 BASE_URL = "https://api.dexpaprika.com"
 MAX_PER_PAGE = 366
@@ -40,10 +40,9 @@ def fetch_ohlcv(pool_address, start, end):
             'end': end.isoformat(),
             'interval': INTERVAL,
             'limit': MAX_PER_PAGE,
-            'inversed': 'true',
         }
 
-        data = _request_with_retry(url, params)
+        data = request_with_retry(url, params)
         api_calls += 1
 
         if not data:
@@ -86,46 +85,5 @@ def fetch_token_pools(mint_address):
         List of pool detail dicts.
     """
     url = f"{BASE_URL}/networks/solana/tokens/{mint_address}/pools"
-    data = _request_with_retry(url, params={})
+    data = request_with_retry(url, params={})
     return data['pools']
-
-
-def _request_with_retry(url, params, max_retries=3):
-    """Make GET request with exponential backoff retry."""
-    for attempt in range(max_retries):
-        try:
-            resp = requests.get(url, params=params, timeout=30)
-
-            if resp.status_code == 429:
-                wait = 2 ** (attempt + 1)
-                logger.warning(
-                    "Rate limited (429), waiting %ds (url=%s)",
-                    wait, url, exc_info=True,
-                )
-                time.sleep(wait)
-                continue
-
-            if resp.status_code >= 500:
-                wait = 2 ** (attempt + 1)
-                logger.warning(
-                    "Server error %d, waiting %ds (url=%s)",
-                    resp.status_code, wait, url, exc_info=True,
-                )
-                time.sleep(wait)
-                continue
-
-            resp.raise_for_status()
-            return resp.json()
-
-        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
-            wait = 2 ** (attempt + 1)
-            logger.warning(
-                "Network error, waiting %ds (url=%s)",
-                wait, url, exc_info=True,
-            )
-            time.sleep(wait)
-            continue
-
-    raise RuntimeError(
-        f"Failed after {max_retries} retries: {url}"
-    )

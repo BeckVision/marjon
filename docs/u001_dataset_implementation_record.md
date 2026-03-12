@@ -118,8 +118,9 @@ Values for the per-definition constants declared on each abstract base.
 | Feature layer (time series facts) | `FeatureLayerBase` | `HolderSnapshot` | FL-002 | FK to `MigratedCoin` via mint_address, `timestamp` (inherited from base), features: total_holders, net_holder_change, holder_percent_change, acquisition method breakdowns, size tier breakdowns |
 | Reference (event facts) | `ReferenceTableBase` | `RawTransaction` | RD-001 | FK to `MigratedCoin` via mint_address, `timestamp` (inherited from base), event identifier (TBD). Planned — feature set not yet defined. |
 | | | | | *Operational models below — not paradigm. Infrastructure for pipeline tracking (PDP8).* |
-| Operational (batch tracking) | — | `PipelineBatchRun` | — | `pipeline_id`, `mode`, `status`, `coins_attempted`, `coins_succeeded`, `coins_failed`, `cu_consumed` |
-| Operational (run tracking) | `PipelineRunBase` | `U001PipelineRun` | — | FK to `MigratedCoin` via mint_address, `layer_id`, `mode`, `status`, `started_at`, `completed_at`, `records_loaded`, `error_message`, `cu_consumed` |
+| Operational (batch tracking) | — | `PipelineBatchRun` | — | `pipeline_id`, `mode`, `status`, `coins_attempted`, `coins_succeeded`, `coins_failed`, `cu_consumed`, `api_calls` |
+| Operational (run tracking) | `PipelineRunBase` | `U001PipelineRun` | — | FK to `MigratedCoin` via mint_address, `layer_id`, `mode`, `status`, `started_at`, `completed_at`, `records_loaded`, `error_message`, `cu_consumed`, `api_calls` |
+| Operational (status cache) | `PipelineStatusBase` | `U001PipelineStatus` | — | FK to `MigratedCoin` via mint_address, `layer_id`, `status` (PipelineCompleteness), `watermark`, `last_run_at`, `last_error`, `updated_at`, FK to `U001PipelineRun` |
 
 ---
 

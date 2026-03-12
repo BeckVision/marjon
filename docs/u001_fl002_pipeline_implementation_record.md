@@ -19,13 +19,13 @@ Each row references a decision point (DP) from the Pipeline Implementation Guide
 | **PDP2** | ETL vs ELT | **A: ETL (transform before load)** | Moralis allows historical re-fetching with `fromDate`/`toDate` parameters. If a conformance bug is discovered, re-fetching is possible within CU budget. No staging tables needed. |
 | **PDP3** | Idempotency Mechanism | **HolderSnapshot (feature layer): B (Delete-write)** | HolderSnapshot is a feature layer — append-only per warehouse WDP5. Delete-write is self-correcting on re-run. Same reasoning as FL-001 feature layers. Universe table (MigratedCoin) is shared with FL-001 — upsert, already established. |
 | **PDP4** | Watermark Strategy | **A: Derive from warehouse** | Query `MAX(timestamp)` per asset from HolderSnapshot table. Same approach as FL-001 — always consistent with actual data, no drift, no extra table. |
-| **PDP5** | Rate Limit Handling | **C: Queue with rate limiter (Celery)** | Moralis free plan: 40,000 CU/day, 1,000 CU/s. At 50 CU per call = 800 calls/day. Celery rate limiter must track **CU consumption**, not just call count. Must not exceed daily CU cap or keys are blocked until next day. Rate limiting is more critical here than FL-001 because the budget is tighter (800 calls/day vs DexPaprika's 10,000/day) and exceeding it has an immediate consequence (key suspension). |
-| **PDP6** | Error Handling | **D: Retry with backoff, then fail** | Same reasoning as FL-001 — early-stage system, persistent failures should surface immediately. Moralis showed transient server errors during API exploration (HTTP 200 with error body), confirming that retry logic is essential. Celery's `self.retry(countdown=...)` handles these. |
+| **PDP5** | Rate Limit Handling | **A: Serial with sleep + CU budget guard** | `time.sleep(0.5)` between cursor pages. CU budget guard in `fetch_holders` checks daily limit before each run via `.moralis_cu_tracker.json`. Must not exceed 40,000 CU/day or keys are blocked until next day. Rate limiting is more critical here than FL-001 because the budget is tighter (800 calls/day) and exceeding it has an immediate consequence (key suspension). |
+| **PDP6** | Error Handling | **D: Retry with backoff, then fail** | Same reasoning as FL-001 — early-stage system, persistent failures should surface immediately. Moralis showed transient server errors during API exploration (HTTP 200 with error body), confirming that retry logic is essential. Connector's `_request_with_retry()` handles transient errors with exponential backoff. |
 | **PDP7** | Reconciliation Strategy | **C: Count + boundary** | Critical difference from FL-001: Moralis returns **every interval**, even when no holder change occurred. A missing interval in FL-002 is genuinely suspicious — unlike FL-001 where sparsity is normal (coin died, no trades). Reconciliation for FL-002 should treat missing intervals as a warning, not just informational. Count check: expected = `(end - start) / 5 minutes`, actual should match exactly (minus possible boundary edge cases). Boundary check: first snapshot at/near T0, last at end of fetched range. |
 | **PDP8** | Provenance Tracking | **B: Row-level ingest timestamp** | `ingested_at` already added to warehouse models (shared decision from FL-001). Plus run-level logging. |
 | **PDP9** | Multi-Source Handling | **A: Single source (Moralis)** | Moralis is the only identified source for holder distribution data with size tiers and acquisition method breakdowns. No alternative API provides equivalent data. |
-| **PDP10** | Scheduling | **B + A: Scheduled + Manual** | Celery beat for scheduled runs, manual for backfills. Must coordinate CU budget between scheduled runs and manual backfills — both consume from the same 40,000 CU/day pool. |
-| **PDP11** | Dimension Table Location | **A: Warehouse app owns all tables** | All database tables live in the warehouse app — paradigm models (HolderSnapshot, MigratedCoin) and dimension tables (pool mapping, run logs). Pipeline app owns only code (Celery tasks, conformance functions, source connectors). FL-002 doesn't need a pool mapping table — Moralis queries by mint address directly. |
+| **PDP10** | Scheduling | **A: Manual (management commands)** | `python manage.py fetch_holders` for individual runs. CU budget coordination between runs — both bootstrap and steady-state consume from the same 40,000 CU/day pool. Automated scheduling via cron or external scheduler can be added later. |
+| **PDP11** | Dimension Table Location | **A: Warehouse app owns all tables** | All database tables live in the warehouse app — paradigm models (HolderSnapshot, MigratedCoin) and dimension tables (pool mapping, run logs). Pipeline app owns only code (management commands, conformance functions, source connectors). FL-002 doesn't need a pool mapping table — Moralis queries by mint address directly. |
 
 ---
 
@@ -118,7 +118,7 @@ Daily budget: 40,000 CU = 80 coins per day for full backfill. Steady-state incre
 | **Identifier** | Mint address directly | Moralis queries by token address, which is the warehouse's mint_address. No pool mapping needed. |
 | **Field naming** | camelCase → snake_case | Moralis uses camelCase (`totalHolders`). Warehouse uses snake_case (`total_holders`). Conformance handles the conversion. |
 | **Nested field extraction** | Flatten nested objects into individual columns | Moralis returns `holdersIn: { whales: 5, sharks: 12, ... }`. Warehouse stores as flat columns: `holders_in_whales`, `holders_in_sharks`, etc. |
-| **Sort order** | Reverse on conformance | Moralis returns descending (newest first). Warehouse convention and load logic expect chronological order. Conformance reverses the array. |
+| **Sort order** | Reversed to ascending in connector | Moralis returns descending (newest first). Connector (`moralis.py`) reverses to ascending before returning. Conformance receives already-ascending data. |
 
 ---
 
@@ -144,6 +144,6 @@ Daily budget: 40,000 CU = 80 coins per day for full backfill. Steady-state incre
 | Item | Status | Impact |
 |---|---|---|
 | Moralis timestamp convention | Not verified | Docs don't state if timestamp is interval-start or interval-end. Assumed interval-start. Cross-reference against on-chain events needed. |
-| FL-002 warehouse field names | Preliminary | Data spec says "holders_in/out by size tier" without exact column names. Mapping uses `holders_in_whales` etc. Finalize during model implementation. |
-| CU consumption tracking | Not designed | Pipeline needs mechanism to track daily CU usage and fail gracefully when budget is insufficient. Defined during implementation. |
-| Moralis API key management | Not designed | API key storage, rotation, and security. Defined during implementation. |
+| FL-002 warehouse field names | ✅ Done | Finalized as `holders_in_whales`, `holders_out_whales`, etc. All 20 feature fields defined on HolderSnapshot model. |
+| CU consumption tracking | ✅ Done | Implemented via `.moralis_cu_tracker.json`. CU budget guard in `fetch_holders.py` checks daily limit before each run. |
+| Moralis API key management | Not designed | API key storage, rotation, and security. Currently using `.env` with 4 keys (`MORALIS_API_KEY_1` through `MORALIS_API_KEY_4`). |

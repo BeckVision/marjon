@@ -2,6 +2,8 @@
 
 import logging
 
+from django.db import transaction
+
 from warehouse.models import MigratedCoin
 
 logger = logging.getLogger(__name__)
@@ -22,27 +24,28 @@ def load_graduated_tokens(canonical_tokens):
     created_count = 0
     updated_count = 0
 
-    for token in canonical_tokens:
-        _, created = MigratedCoin.objects.update_or_create(
-            mint_address=token['mint_address'],
-            defaults={
-                'name': token['name'],
-                'symbol': token['symbol'],
-                'decimals': token['decimals'],
-                'logo_url': token['logo_url'],
-            },
-            create_defaults={
-                'name': token['name'],
-                'symbol': token['symbol'],
-                'decimals': token['decimals'],
-                'logo_url': token['logo_url'],
-                'anchor_event': token['anchor_event'],
-            },
-        )
-        if created:
-            created_count += 1
-        else:
-            updated_count += 1
+    with transaction.atomic():
+        for token in canonical_tokens:
+            _, created = MigratedCoin.objects.update_or_create(
+                mint_address=token['mint_address'],
+                defaults={
+                    'name': token['name'],
+                    'symbol': token['symbol'],
+                    'decimals': token['decimals'],
+                    'logo_url': token['logo_url'],
+                },
+                create_defaults={
+                    'name': token['name'],
+                    'symbol': token['symbol'],
+                    'decimals': token['decimals'],
+                    'logo_url': token['logo_url'],
+                    'anchor_event': token['anchor_event'],
+                },
+            )
+            if created:
+                created_count += 1
+            else:
+                updated_count += 1
 
     logger.info(
         "Loaded %d tokens (created=%d, updated=%d)",

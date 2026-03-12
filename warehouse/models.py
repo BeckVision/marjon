@@ -70,15 +70,20 @@ class FeatureLayerBase(models.Model):
         ]
 
     def clean(self):
-        """Validate timestamp is within the coin's observation window (DQ-005)."""
+        """Validate timestamp is within the asset's observation window (DQ-005)."""
         super().clean()
-        coin_id = getattr(self, 'coin_id', None)
-        if not coin_id or not self.timestamp:
+        if not self.timestamp:
             return
-        # Discover the universe model via the concrete class's 'coin' FK
-        try:
-            fk_field = self.__class__._meta.get_field('coin')
-        except Exception:
+        # Dynamically discover the FK to the universe model — no hardcoded field names
+        fk_field = None
+        for field in self.__class__._meta.get_fields():
+            if isinstance(field, models.ForeignKey) and issubclass(field.related_model, UniverseBase):
+                fk_field = field
+                break
+        if fk_field is None:
+            return
+        fk_value = getattr(self, fk_field.attname, None)
+        if not fk_value:
             return
         UniverseModel = fk_field.related_model
         window_start = getattr(UniverseModel, 'OBSERVATION_WINDOW_START', None)
@@ -86,14 +91,14 @@ class FeatureLayerBase(models.Model):
         if window_start is None or window_end is None:
             return
         try:
-            coin_obj = UniverseModel.objects.get(
-                **{fk_field.remote_field.field_name: coin_id}
+            asset = UniverseModel.objects.get(
+                **{fk_field.remote_field.field_name: fk_value}
             )
         except UniverseModel.DoesNotExist:
             return
-        if coin_obj.anchor_event:
-            ws = coin_obj.anchor_event + window_start
-            we = coin_obj.anchor_event + window_end
+        if asset.anchor_event:
+            ws = asset.anchor_event + window_start
+            we = asset.anchor_event + window_end
             if not (ws <= self.timestamp <= we):
                 raise ValidationError(
                     f"Timestamp {self.timestamp} is outside the "
@@ -136,6 +141,14 @@ class RunStatus(models.TextChoices):
     ERROR = 'error', 'Error'
 
 
+class PipelineCompleteness(models.TextChoices):
+    NOT_STARTED = 'not_started', 'Not Started'
+    IN_PROGRESS = 'in_progress', 'In Progress'
+    PARTIAL = 'partial', 'Partial'
+    WINDOW_COMPLETE = 'window_complete', 'Window Complete'
+    ERROR = 'error', 'Error'
+
+
 class RunMode(models.TextChoices):
     BOOTSTRAP = 'bootstrap', 'Bootstrap'
     STEADY_STATE = 'steady_state', 'Steady State'
@@ -164,6 +177,21 @@ class MigratedCoin(UniverseBase):
     decimals = models.PositiveSmallIntegerField(null=True, blank=True, help_text="SPL token decimals (usually 6, but not always)")
     logo_url = models.URLField(max_length=500, null=True, blank=True, help_text="Token logo URL from Moralis")
     ingested_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def is_mature(self):
+        """True if the observation window has closed (current time past window end)."""
+        if self.anchor_event is None:
+            return False
+        from django.utils import timezone
+        return timezone.now() >= self.anchor_event + self.OBSERVATION_WINDOW_END
+
+    @property
+    def window_end_time(self):
+        """Absolute datetime when this coin's observation window closes."""
+        if self.anchor_event is None:
+            return None
+        return self.anchor_event + self.OBSERVATION_WINDOW_END
 
     def __str__(self):
         return self.mint_address
@@ -205,9 +233,6 @@ class OHLCVCandle(FeatureLayerBase):
 
     class Meta:
         unique_together = [('coin', 'timestamp')]
-        indexes = [
-            models.Index(fields=['timestamp']),
-        ]
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(high_price__gte=models.F('low_price')),
@@ -296,9 +321,6 @@ class HolderSnapshot(FeatureLayerBase):
 
     class Meta:
         unique_together = [('coin', 'timestamp')]
-        indexes = [
-            models.Index(fields=['timestamp']),
-        ]
 
     def __str__(self):
         return f"{self.coin_id} @ {self.timestamp}"
@@ -459,3 +481,66 @@ class U001PipelineRun(PipelineRunBase):
             f"{self.coin_id} {self.layer_id} {self.status} "
             f"({self.started_at:%Y-%m-%d %H:%M})"
         )
+
+
+# ---------------------------------------------------------------------------
+# Operational models — pipeline status cache
+# ---------------------------------------------------------------------------
+
+class PipelineStatusBase(models.Model):
+    """
+    Abstract base for pipeline status cache.
+    One row per entity per layer — updated in place, never appended.
+    Not a paradigm model — operational infrastructure.
+    Concrete models add FK to their specific universe model and to their concrete PipelineRun.
+    """
+    layer_id = models.CharField(max_length=20)
+    status = models.CharField(
+        max_length=20, choices=PipelineCompleteness.choices,
+        default=PipelineCompleteness.NOT_STARTED,
+    )
+    watermark = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Cached watermark — latest timestamp in the feature layer table for this entity. "
+                  "Source of truth is the feature layer table itself. Updated after each successful run.",
+    )
+    last_run_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(
+        null=True, blank=True,
+        help_text="Error message from the last failed run. Null if last run succeeded.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+    def __str__(self):
+        return f"{self.layer_id} {self.status}"
+
+
+class U001PipelineStatus(PipelineStatusBase):
+    """
+    Pipeline status cache for U-001 (Graduated Pump.fun Tokens).
+    One row per coin per layer. Updated in place after each pipeline run.
+    """
+    coin = models.ForeignKey(
+        MigratedCoin, to_field='mint_address',
+        on_delete=models.CASCADE,
+        related_name='pipeline_statuses',
+    )
+    last_run = models.ForeignKey(
+        U001PipelineRun,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='+',
+    )
+
+    class Meta:
+        unique_together = [('coin', 'layer_id')]
+        indexes = [
+            models.Index(fields=['status'], name='idx_u001status_status'),
+            models.Index(fields=['layer_id', 'status'], name='idx_u001status_layer_status'),
+        ]
+
+    def __str__(self):
+        return f"{self.coin_id} {self.layer_id} {self.status}"

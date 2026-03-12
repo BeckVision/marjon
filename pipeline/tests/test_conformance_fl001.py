@@ -9,7 +9,7 @@ from django.test import TestCase
 
 from pipeline.conformance.fl001_dexpaprika import conform
 
-FIXTURE_PATH = Path(__file__).parent / 'fixtures' / 'dexpaprika_ohlcv_sample.json'
+FIXTURE_PATH = Path(__file__).parent / 'fixtures' / 'u001' / 'dexpaprika_ohlcv_sample.json'
 
 
 class FL001ConformanceTest(TestCase):

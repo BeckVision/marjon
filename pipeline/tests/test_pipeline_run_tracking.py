@@ -9,8 +9,8 @@ from django.core.management.base import CommandError
 from django.test import TestCase
 
 from warehouse.models import (
-    MigratedCoin, OHLCVCandle, PoolMapping,
-    RunMode, RunStatus, U001PipelineRun,
+    MigratedCoin, OHLCVCandle, PipelineCompleteness, PoolMapping,
+    RunMode, RunStatus, U001PipelineRun, U001PipelineStatus,
 )
 
 T0 = datetime(2026, 3, 1, 10, 0, tzinfo=timezone.utc)
@@ -18,19 +18,10 @@ T0 = datetime(2026, 3, 1, 10, 0, tzinfo=timezone.utc)
 
 # --- Fixtures ----------------------------------------------------------------
 
+# GeckoTerminal format: [unix_timestamp, open, high, low, close, volume]
 FAKE_OHLCV_RAW = [
-    {
-        'time_open': '2026-03-01T10:00:00Z',
-        'time_close': '2026-03-01T10:05:00Z',
-        'open': 10.0, 'high': 12.0, 'low': 9.0, 'close': 11.0,
-        'volume': 100.0,
-    },
-    {
-        'time_open': '2026-03-01T10:05:00Z',
-        'time_close': '2026-03-01T10:10:00Z',
-        'open': 11.0, 'high': 13.0, 'low': 10.0, 'close': 12.0,
-        'volume': 200.0,
-    },
+    [1772359200, 10.0, 12.0, 9.0, 11.0, 100.0],  # 2026-03-01T10:00:00Z
+    [1772359500, 11.0, 13.0, 10.0, 12.0, 200.0],  # 2026-03-01T10:05:00Z
 ]
 
 FAKE_HOLDER_RAW = [
@@ -214,10 +205,53 @@ class FetchHoldersTrackingTest(TestCase):
         self.assertEqual(U001PipelineRun.objects.count(), 0)
 
 
+# --- Zero-results completeness tests -----------------------------------------
+
+class ZeroResultsCompletenessTest(TestCase):
+    """Zero records from API: mature coin = WINDOW_COMPLETE, immature = PARTIAL."""
+
+    def setUp(self):
+        self.coin = MigratedCoin.objects.create(
+            mint_address='ZERO_RES_COIN', anchor_event=T0,
+        )
+        PoolMapping.objects.create(
+            coin_id='ZERO_RES_COIN',
+            pool_address='POOL_ZERO',
+            dex='pumpswap',
+            source='dexpaprika',
+            created_at=T0,
+        )
+
+    @patch('pipeline.management.commands.fetch_ohlcv.fetch_ohlcv')
+    def test_ohlcv_zero_records_mature_sets_complete(self, mock_fetch):
+        """Mature coin with zero API results = dead coin, window covered."""
+        mock_fetch.return_value = ([], {'api_calls': 1})
+
+        call_command('fetch_ohlcv', coin='ZERO_RES_COIN')
+
+        status = U001PipelineStatus.objects.get(
+            coin_id='ZERO_RES_COIN', layer_id='FL-001',
+        )
+        self.assertEqual(status.status, PipelineCompleteness.WINDOW_COMPLETE)
+
+    @patch('pipeline.management.commands.fetch_holders.fetch_holders')
+    @patch('pipeline.management.commands.fetch_holders.get_daily_cu_used', return_value=0)
+    def test_holders_zero_records_mature_sets_complete(self, mock_cu, mock_fetch):
+        """Mature coin with zero API results = window covered."""
+        mock_fetch.return_value = ([], {'api_calls': 1, 'cu_consumed': 50})
+
+        call_command('fetch_holders', coin='ZERO_RES_COIN')
+
+        status = U001PipelineStatus.objects.get(
+            coin_id='ZERO_RES_COIN', layer_id='FL-002',
+        )
+        self.assertEqual(status.status, PipelineCompleteness.WINDOW_COMPLETE)
+
+
 # --- Connector metadata tests ------------------------------------------------
 
 class DexPaprikaMetadataTest(TestCase):
-    @patch('pipeline.connectors.dexpaprika._request_with_retry')
+    @patch('pipeline.connectors.dexpaprika.request_with_retry')
     def test_returns_metadata_with_api_calls(self, mock_request):
         mock_request.return_value = [
             {
@@ -240,7 +274,7 @@ class DexPaprikaMetadataTest(TestCase):
 
 
 class MoralisMetadataTest(TestCase):
-    @patch('pipeline.connectors.moralis._request_with_retry')
+    @patch('pipeline.connectors.moralis.request_with_retry')
     @patch('pipeline.connectors.moralis.record_cu_used')
     @patch.dict('os.environ', {'MORALIS_API_KEY': 'test-key'})
     def test_returns_metadata_with_api_calls_and_cu(self, mock_record, mock_request):

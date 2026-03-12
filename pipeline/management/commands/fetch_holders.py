@@ -14,15 +14,40 @@ from pipeline.connectors.moralis import (
     get_daily_cu_used,
 )
 from pipeline.loaders.fl002 import get_watermark, load
+from django.db.models import Max
+
 from warehouse.models import (
-    HolderSnapshot, MigratedCoin,
-    RunMode, RunStatus, U001PipelineRun,
+    HolderSnapshot, MigratedCoin, PipelineCompleteness,
+    RunMode, RunStatus, U001PipelineRun, U001PipelineStatus,
 )
 
 logger = logging.getLogger(__name__)
 
 # PDP1: windowed incremental overlap — safety margin for watermark edge cases
 OVERLAP = timedelta(minutes=30)
+
+
+def _compute_completeness(coin, mint_address, watermark=None):
+    """Determine pipeline completeness for a coin's FL-002 data.
+
+    WINDOW_COMPLETE when either:
+      - Watermark reached the window end, OR
+      - Coin is mature (window closed) — whatever we got is all there will be.
+
+    PARTIAL otherwise (window still open, or not yet fetched).
+    """
+    if watermark is None:
+        watermark = HolderSnapshot.objects.filter(
+            coin=mint_address,
+        ).aggregate(Max('timestamp'))['timestamp__max']
+
+    if watermark and watermark >= coin.window_end_time - HolderSnapshot.TEMPORAL_RESOLUTION:
+        return PipelineCompleteness.WINDOW_COMPLETE
+
+    if coin.is_mature:
+        return PipelineCompleteness.WINDOW_COMPLETE
+
+    return PipelineCompleteness.PARTIAL
 
 
 class Command(BaseCommand):
@@ -113,12 +138,19 @@ class Command(BaseCommand):
         # PDP8: Create pipeline run entry
         run = U001PipelineRun.objects.create(
             coin_id=mint,
-            layer_id='FL-002',
+            layer_id=HolderSnapshot.LAYER_ID,
             mode=mode,
             status=RunStatus.STARTED,
             started_at=dj_timezone.now(),
             time_range_start=start,
             time_range_end=end,
+        )
+
+        # Pipeline status: mark in-progress
+        U001PipelineStatus.objects.update_or_create(
+            coin_id=mint, layer_id=HolderSnapshot.LAYER_ID,
+            defaults={'status': PipelineCompleteness.IN_PROGRESS,
+                      'last_run_at': dj_timezone.now()},
         )
 
         # Connector -> Conformance -> Loader
@@ -133,6 +165,13 @@ class Command(BaseCommand):
             run.completed_at = dj_timezone.now()
             run.error_message = str(e)
             run.save()
+            U001PipelineStatus.objects.update_or_create(
+                coin_id=mint, layer_id=HolderSnapshot.LAYER_ID,
+                defaults={'status': PipelineCompleteness.ERROR,
+                          'last_run': run,
+                          'last_run_at': run.completed_at,
+                          'last_error': str(e)},
+            )
             raise CommandError(f"Moralis connector failed for {mint}")
 
         if not raw:
@@ -146,6 +185,16 @@ class Command(BaseCommand):
             run.api_calls = meta['api_calls']
             run.cu_consumed = meta['cu_consumed']
             run.save()
+            zero_completeness = _compute_completeness(coin, mint)
+            U001PipelineStatus.objects.update_or_create(
+                coin_id=mint, layer_id=HolderSnapshot.LAYER_ID,
+                defaults={
+                    'status': zero_completeness,
+                    'last_run': run,
+                    'last_run_at': run.completed_at,
+                    'last_error': None,
+                },
+            )
             return
 
         logger.info("Received %d raw records for %s", len(raw), mint)
@@ -163,6 +212,13 @@ class Command(BaseCommand):
             run.api_calls = meta['api_calls']
             run.cu_consumed = meta['cu_consumed']
             run.save()
+            U001PipelineStatus.objects.update_or_create(
+                coin_id=mint, layer_id=HolderSnapshot.LAYER_ID,
+                defaults={'status': PipelineCompleteness.ERROR,
+                          'last_run': run,
+                          'last_run_at': run.completed_at,
+                          'last_error': str(e)},
+            )
             raise CommandError(f"Conformance failed for {mint}")
 
         if not canonical:
@@ -176,6 +232,16 @@ class Command(BaseCommand):
             run.api_calls = meta['api_calls']
             run.cu_consumed = meta['cu_consumed']
             run.save()
+            filtered_completeness = _compute_completeness(coin, mint)
+            U001PipelineStatus.objects.update_or_create(
+                coin_id=mint, layer_id=HolderSnapshot.LAYER_ID,
+                defaults={
+                    'status': filtered_completeness,
+                    'last_run': run,
+                    'last_run_at': run.completed_at,
+                    'last_error': None,
+                },
+            )
             return
 
         load(mint, start, end, canonical)
@@ -211,3 +277,21 @@ class Command(BaseCommand):
         run.api_calls = meta['api_calls']
         run.cu_consumed = meta['cu_consumed']
         run.save()
+
+        # Pipeline status: compute watermark and completeness
+        new_watermark = HolderSnapshot.objects.filter(
+            coin=mint,
+        ).aggregate(Max('timestamp'))['timestamp__max']
+
+        completeness = _compute_completeness(coin, mint, new_watermark)
+
+        U001PipelineStatus.objects.update_or_create(
+            coin_id=mint, layer_id=HolderSnapshot.LAYER_ID,
+            defaults={
+                'status': completeness,
+                'watermark': new_watermark,
+                'last_run': run,
+                'last_run_at': run.completed_at,
+                'last_error': None,
+            },
+        )

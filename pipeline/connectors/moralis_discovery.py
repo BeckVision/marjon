@@ -2,13 +2,12 @@
 
 import logging
 import os
-import time
 
-import requests
-
+from pipeline.connectors.http import request_with_retry
 from pipeline.connectors.moralis import (
     BASE_URL,
     CU_PER_CALL,
+    _validate_moralis_response,
     record_cu_used,
 )
 
@@ -40,7 +39,10 @@ def fetch_graduated_tokens(cursor=None, limit=100):
     if cursor is None:
         logger.info("Fetching graduated tokens (first page, limit=%d)", limit)
 
-    data = _request_with_retry(url, params, headers)
+    data = request_with_retry(
+        url, params, headers=headers,
+        validate_response=_validate_moralis_response,
+    )
 
     result = data.get('result', [])
     next_cursor = data.get('cursor')
@@ -56,68 +58,3 @@ def fetch_graduated_tokens(cursor=None, limit=100):
     logger.debug("Page details: pageSize=%s", data.get('pageSize'))
 
     return data
-
-
-def _request_with_retry(url, params, headers, max_retries=3):
-    """Make GET request with exponential backoff retry."""
-    for attempt in range(max_retries):
-        try:
-            resp = requests.get(
-                url, params=params, headers=headers, timeout=30,
-            )
-
-            if resp.status_code == 429:
-                wait = 2 ** (attempt + 1)
-                logger.warning(
-                    "Rate limited (429), waiting %ds (url=%s)",
-                    wait, url, exc_info=True,
-                )
-                time.sleep(wait)
-                continue
-
-            if resp.status_code >= 500:
-                wait = 2 ** (attempt + 1)
-                logger.warning(
-                    "Server error %d, waiting %ds (url=%s)",
-                    resp.status_code, wait, url, exc_info=True,
-                )
-                time.sleep(wait)
-                continue
-
-            resp.raise_for_status()
-            data = resp.json()
-
-            # Moralis can return 200 with error body (no 'result' key)
-            if isinstance(data, dict) and 'message' in data and 'result' not in data:
-                wait = 2 ** (attempt + 1)
-                logger.warning(
-                    "Moralis error body: %s, waiting %ds (url=%s)",
-                    data['message'], wait, url, exc_info=True,
-                )
-                time.sleep(wait)
-                continue
-
-            return data
-
-        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
-            wait = 2 ** (attempt + 1)
-            logger.warning(
-                "Network error, waiting %ds (url=%s)",
-                wait, url, exc_info=True,
-            )
-            time.sleep(wait)
-            continue
-
-        except ValueError:
-            # json.JSONDecodeError is a subclass of ValueError
-            wait = 2 ** (attempt + 1)
-            logger.warning(
-                "JSON decode error, waiting %ds (url=%s)",
-                wait, url, exc_info=True,
-            )
-            time.sleep(wait)
-            continue
-
-    raise RuntimeError(
-        f"Failed after {max_retries} retries: {url}"
-    )

@@ -27,6 +27,154 @@ DEFAULT_MAX_PAGES_STEADY = 50
 DEFAULT_MAX_PAGES_BOOTSTRAP = 700
 
 
+def run_discovery_steady_state(max_pages=None):
+    """Core steady-state discovery logic.
+
+    Fetch newest graduates, stop when we hit known tokens.
+
+    Args:
+        max_pages: Safety limit on pages. Default: 50.
+
+    Returns:
+        dict with 'created', 'updated', 'pages', 'cu_consumed'.
+
+    Raises:
+        ValueError: If no existing tokens (need bootstrap first).
+    """
+    if max_pages is None:
+        max_pages = DEFAULT_MAX_PAGES_STEADY
+
+    watermark = MigratedCoin.objects.aggregate(
+        Max('anchor_event')
+    )['anchor_event__max']
+
+    if watermark is None:
+        raise ValueError("No existing tokens. Run bootstrap first.")
+
+    logger.info("Steady-state mode: watermark=%s", watermark)
+
+    tokens_to_load = []
+    cursor = None
+    pages_fetched = 0
+    cu_consumed = 0
+    hit_watermark = False
+
+    for page_num in range(1, max_pages + 1):
+        daily_used = get_daily_cu_used()
+        if daily_used + CU_PER_CALL > DAILY_CU_LIMIT:
+            logger.warning(
+                "CU budget exhausted after %d pages. Stopping.",
+                pages_fetched,
+            )
+            break
+
+        data = fetch_graduated_tokens(cursor=cursor)
+        pages_fetched += 1
+        cu_consumed += CU_PER_CALL
+
+        result = data.get('result', [])
+        if not result:
+            break
+
+        for token in result:
+            graduated_at_str = token['graduatedAt']
+            if graduated_at_str.endswith('Z'):
+                graduated_at_str = graduated_at_str[:-1] + '+00:00'
+            graduated_at = datetime.fromisoformat(graduated_at_str)
+            graduated_at = graduated_at.replace(microsecond=0)
+
+            if graduated_at < watermark:
+                hit_watermark = True
+                break
+
+            tokens_to_load.append(token)
+
+        if hit_watermark:
+            break
+
+        cursor = data.get('cursor')
+        if not cursor:
+            break
+
+        time.sleep(0.5)
+
+    created = 0
+    updated = 0
+    if tokens_to_load:
+        canonical = conform_moralis_graduated(tokens_to_load)
+        created, updated = load_graduated_tokens(canonical)
+        _populate_pools_for_new_tokens(canonical, created)
+
+    logger.info(
+        "Steady-state complete: %d new, %d updated, %d pages, %d CU",
+        created, updated, pages_fetched, cu_consumed,
+    )
+
+    return {
+        'created': created,
+        'updated': updated,
+        'pages': pages_fetched,
+        'cu_consumed': cu_consumed,
+    }
+
+
+def _populate_pools_for_new_tokens(canonical_tokens, created_count):
+    """Trigger pool mapping for newly created tokens (synchronous)."""
+    if created_count == 0:
+        return
+
+    from pipeline.connectors.dexpaprika import fetch_token_pools
+    from warehouse.models import PoolMapping
+
+    for token in canonical_tokens:
+        mint = token['mint_address']
+        if PoolMapping.objects.filter(coin_id=mint).exists():
+            continue
+
+        logger.info("Populating pool mapping for new token %s", mint)
+        try:
+            pools = fetch_token_pools(mint)
+        except Exception:
+            logger.warning(
+                "Failed to fetch pools for %s, skipping",
+                mint, exc_info=True,
+            )
+            continue
+
+        if not pools:
+            logger.warning("No pools found for %s", mint)
+            continue
+
+        pumpswap_pools = [
+            p for p in pools
+            if p.get('dex_id') == 'pumpswap'
+            or p.get('dexId') == 'pumpswap'
+        ]
+
+        for pool in pumpswap_pools:
+            pool_addr = pool.get('id') or pool.get('address', '')
+            if not pool_addr:
+                continue
+
+            created_at_raw = pool.get('created_at')
+            created_dt = None
+            if created_at_raw and isinstance(created_at_raw, str):
+                if created_at_raw.endswith('Z'):
+                    created_at_raw = created_at_raw[:-1] + '+00:00'
+                created_dt = datetime.fromisoformat(created_at_raw)
+
+            PoolMapping.objects.update_or_create(
+                coin_id=mint,
+                pool_address=pool_addr,
+                defaults={
+                    'dex': 'pumpswap',
+                    'source': 'dexpaprika',
+                    'created_at': created_dt,
+                },
+            )
+            logger.info("Created PoolMapping: %s -> %s", mint, pool_addr)
+
+
 class Command(BaseCommand):
     help = "Discover graduated pump.fun tokens via Moralis and load into MigratedCoin"
 
@@ -75,12 +223,32 @@ class Command(BaseCommand):
             if mode == 'bootstrap':
                 self._handle_bootstrap(batch, max_pages, restart_bootstrap)
             else:
-                self._handle_steady_state(batch, max_pages)
+                result = run_discovery_steady_state(max_pages)
+
+                batch.status = RunStatus.COMPLETE
+                batch.completed_at = datetime.now(timezone.utc)
+                batch.coins_attempted = result['created'] + result['updated']
+                batch.coins_succeeded = result['created'] + result['updated']
+                batch.cu_consumed = result['cu_consumed']
+                batch.api_calls = result['pages']
+                batch.save()
+
+                self.stdout.write(
+                    f"Discovered {result['created']} new tokens, "
+                    f"updated {result['updated']}, "
+                    f"{result['pages']} pages, "
+                    f"{result['cu_consumed']} CU consumed"
+                )
         except CommandError:
             batch.status = RunStatus.ERROR
             batch.completed_at = datetime.now(timezone.utc)
             batch.save()
             raise
+        except ValueError as e:
+            batch.status = RunStatus.ERROR
+            batch.completed_at = datetime.now(timezone.utc)
+            batch.save()
+            raise CommandError(str(e))
         except Exception as e:
             batch.status = RunStatus.ERROR
             batch.error_message = str(e)
@@ -88,98 +256,6 @@ class Command(BaseCommand):
             batch.save()
             logger.error("Discovery failed", exc_info=True)
             raise CommandError(f"Discovery failed: {e}")
-
-    def _handle_steady_state(self, batch, max_pages):
-        """Fetch newest graduates, stop when we hit known tokens."""
-        watermark = MigratedCoin.objects.aggregate(
-            Max('anchor_event')
-        )['anchor_event__max']
-
-        if watermark is None:
-            raise CommandError(
-                "No existing tokens. Run bootstrap first."
-            )
-
-        logger.info("Steady-state mode: watermark=%s", watermark)
-
-        tokens_to_load = []
-        cursor = None
-        pages_fetched = 0
-        cu_consumed = 0
-        hit_watermark = False
-
-        for page_num in range(1, max_pages + 1):
-            # CU budget check before each page
-            daily_used = get_daily_cu_used()
-            if daily_used + CU_PER_CALL > DAILY_CU_LIMIT:
-                logger.warning(
-                    "CU budget exhausted after %d pages. Stopping.",
-                    pages_fetched,
-                )
-                break
-
-            data = fetch_graduated_tokens(cursor=cursor)
-            pages_fetched += 1
-            cu_consumed += CU_PER_CALL
-
-            result = data.get('result', [])
-            if not result:
-                break
-
-            for token in result:
-                graduated_at_str = token['graduatedAt']
-                # Quick parse for comparison
-                if graduated_at_str.endswith('.000Z'):
-                    ts_str = graduated_at_str[:-5] + '+00:00'
-                elif graduated_at_str.endswith('Z'):
-                    ts_str = graduated_at_str[:-1] + '+00:00'
-                else:
-                    ts_str = graduated_at_str
-                graduated_at = datetime.fromisoformat(ts_str)
-
-                if graduated_at < watermark:
-                    hit_watermark = True
-                    break
-
-                tokens_to_load.append(token)
-
-            if hit_watermark:
-                break
-
-            cursor = data.get('cursor')
-            if not cursor:
-                break
-
-            time.sleep(0.5)
-
-        # Process collected tokens
-        created = 0
-        updated = 0
-        if tokens_to_load:
-            canonical = conform_moralis_graduated(tokens_to_load)
-            created, updated = load_graduated_tokens(canonical)
-
-            # Task 6 Option A: trigger pool mapping for newly created tokens
-            # TODO: Option B — dispatch as Celery task per new token
-            self._populate_pools_for_new_tokens(canonical, created)
-
-        # Update batch
-        batch.status = RunStatus.COMPLETE
-        batch.completed_at = datetime.now(timezone.utc)
-        batch.coins_attempted = len(tokens_to_load)
-        batch.coins_succeeded = created + updated
-        batch.cu_consumed = cu_consumed
-        batch.api_calls = pages_fetched
-        batch.save()
-
-        logger.info(
-            "Steady-state complete: %d new, %d updated, %d pages, %d CU",
-            created, updated, pages_fetched, cu_consumed,
-        )
-        self.stdout.write(
-            f"Discovered {created} new tokens, updated {updated}, "
-            f"{pages_fetched} pages, {cu_consumed} CU consumed"
-        )
 
     def _handle_bootstrap(self, batch, max_pages, restart_bootstrap):
         """Paginate through all graduated tokens."""
@@ -198,7 +274,6 @@ class Command(BaseCommand):
                 "Resuming bootstrap from page %d", pages_completed + 1,
             )
         else:
-            # Check if table has data and restart not requested
             if MigratedCoin.objects.exists() and not restart_bootstrap:
                 raise CommandError(
                     "MigratedCoin table has data. Use --restart-bootstrap "
@@ -210,7 +285,6 @@ class Command(BaseCommand):
         cu_consumed = 0
 
         for page_num in range(1, max_pages + 1):
-            # CU budget check before each page
             daily_used = get_daily_cu_used()
             if daily_used + CU_PER_CALL > DAILY_CU_LIMIT:
                 logger.warning(
@@ -227,7 +301,6 @@ class Command(BaseCommand):
             if not result:
                 break
 
-            # Connector -> Conformance -> Loader per page
             canonical = conform_moralis_graduated(result)
             created, updated = load_graduated_tokens(canonical)
             total_created += created
@@ -236,7 +309,6 @@ class Command(BaseCommand):
             pages_completed += 1
             cursor = data.get('cursor')
 
-            # Save state after each page
             BOOTSTRAP_STATE_PATH.write_text(json.dumps({
                 'cursor': cursor,
                 'pages_completed': pages_completed,
@@ -245,7 +317,6 @@ class Command(BaseCommand):
             }))
 
             if not cursor:
-                # All pages exhausted
                 logger.info(
                     "Bootstrap complete: %d tokens loaded (%d created, "
                     "%d updated) in %d pages",
@@ -257,14 +328,12 @@ class Command(BaseCommand):
 
             time.sleep(0.5)
         else:
-            # max_pages reached before cursor is null
             logger.info(
                 "Bootstrap incomplete: %d pages done, resume tomorrow. "
                 "Created=%d, updated=%d",
                 pages_completed, total_created, total_updated,
             )
 
-        # Update batch
         batch.status = RunStatus.COMPLETE
         batch.completed_at = datetime.now(timezone.utc)
         batch.coins_attempted = total_created + total_updated
@@ -277,66 +346,3 @@ class Command(BaseCommand):
             f"Bootstrap: {total_created} created, {total_updated} updated, "
             f"{pages_completed} pages, {cu_consumed} CU consumed"
         )
-
-    def _populate_pools_for_new_tokens(self, canonical_tokens, created_count):
-        """Trigger pool mapping for newly created tokens (Option A: synchronous).
-
-        TODO: Option B — dispatch populate_pool_mapping as a Celery task
-        per new token for async processing.
-        """
-        if created_count == 0:
-            return
-
-        from pipeline.connectors.dexpaprika import fetch_token_pools
-        from warehouse.models import PoolMapping
-
-        # Only process tokens that were actually created (not updated).
-        # We check which mint_addresses were just created by looking at
-        # tokens with no pool mappings yet.
-        for token in canonical_tokens:
-            mint = token['mint_address']
-            if PoolMapping.objects.filter(coin_id=mint).exists():
-                continue
-
-            logger.info("Populating pool mapping for new token %s", mint)
-            try:
-                pools = fetch_token_pools(mint)
-            except Exception:
-                logger.warning(
-                    "Failed to fetch pools for %s, skipping",
-                    mint, exc_info=True,
-                )
-                continue
-
-            if not pools:
-                logger.warning("No pools found for %s", mint)
-                continue
-
-            pumpswap_pools = [
-                p for p in pools
-                if p.get('dex_id') == 'pumpswap'
-                or p.get('dexId') == 'pumpswap'
-            ]
-
-            for pool in pumpswap_pools:
-                pool_addr = pool.get('id') or pool.get('address', '')
-                if not pool_addr:
-                    continue
-
-                created_at_raw = pool.get('created_at')
-                created_dt = None
-                if created_at_raw and isinstance(created_at_raw, str):
-                    if created_at_raw.endswith('Z'):
-                        created_at_raw = created_at_raw[:-1] + '+00:00'
-                    created_dt = datetime.fromisoformat(created_at_raw)
-
-                PoolMapping.objects.update_or_create(
-                    coin_id=mint,
-                    pool_address=pool_addr,
-                    defaults={
-                        'dex': 'pumpswap',
-                        'source': 'dexpaprika',
-                        'created_at': created_dt,
-                    },
-                )
-                logger.info("Created PoolMapping: %s -> %s", mint, pool_addr)

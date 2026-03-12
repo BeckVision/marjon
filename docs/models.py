@@ -17,13 +17,19 @@ What the bases do NOT contain:
     - Foreign keys (vary by which universe model the concrete model belongs to)
     - Feature columns (vary by what each layer measures)
     - UniqueConstraints (require FK field, which isn't on the base)
-    - CHECK constraints (dataset-specific, added in a later step)
-    - .as_of() QuerySets (added in a later step)
+    - CHECK constraints (dataset-specific)
 
 Concrete models inherit a base and add all of the above.
 """
 
+from django.core.exceptions import ValidationError
 from django.db import models
+
+from .managers import (
+    FeatureLayerQuerySet,
+    ReferenceTableQuerySet,
+    UniverseQuerySet,
+)
 
 
 # ==========================================================================
@@ -56,8 +62,8 @@ class UniverseBase(models.Model):
     UNIVERSE_ID = None
     NAME = None
     INCLUSION_CRITERIA = None
-    UNIVERSE_TYPE = None  # "event-driven" or "calendar-driven"
-    OBSERVATION_WINDOW_START = None  # offset from anchor (event-driven) or absolute time (calendar-driven)
+    UNIVERSE_TYPE = None            # "event-driven" or "calendar-driven"
+    OBSERVATION_WINDOW_START = None  # offset from anchor (event-driven) or absolute time
     OBSERVATION_WINDOW_END = None    # same; None = unbounded
     EXCLUSION_CRITERIA = None
     VERSION = None
@@ -67,22 +73,20 @@ class UniverseBase(models.Model):
         null=True,
         blank=True,
         help_text="The reference point (T0) for this asset. "
-                  "Populated for event-driven universes (each asset has its own T0). "
-                  "Null for calendar-driven universes (observation window is absolute).",
+                  "Populated for event-driven universes. "
+                  "Null for calendar-driven universes.",
     )
     membership_end = models.DateTimeField(
         null=True,
         blank=True,
         help_text="When this asset left the universe. "
-                  "Null = still a member (or universe has permanent membership). "
-                  "Used for universes with rebalancing or natural exit events.",
+                  "Null = still a member.",
     )
+
+    objects = UniverseQuerySet.as_manager()
 
     class Meta:
         abstract = True
-
-    def __str__(self):
-        return f"{self.pk} (T0: {self.anchor_event})"
 
 
 # ==========================================================================
@@ -122,25 +126,52 @@ class FeatureLayerBase(models.Model):
     # --- Per-row field (quantitative trading paradigm attribute) ---
     timestamp = models.DateTimeField(
         help_text="Observation timestamp, UTC. Whether this represents "
-                  "interval start or end is defined by the dataset's "
-                  "timestamp convention (WDP9).",
+                  "interval start or end is defined by WDP9.",
     )
+
+    objects = FeatureLayerQuerySet.as_manager()
 
     class Meta:
         abstract = True
-
         indexes = [
-            # Cross-sectional queries ("all assets at time T").
-            # The per-asset time range index comes from the UniqueConstraint,
-            # which concrete models define (because it includes the FK field).
-            models.Index(
-                fields=["timestamp"],
-                name="%(app_label)s_%(class)s_ts_idx",
-            ),
+            models.Index(fields=['timestamp']),
         ]
 
-    def __str__(self):
-        return f"{self.pk} @ {self.timestamp}"
+    def clean(self):
+        """Validate timestamp is within the asset's observation window (DQ-005)."""
+        super().clean()
+        if not self.timestamp:
+            return
+        # Dynamically discover the FK to the universe model — no hardcoded field names
+        fk_field = None
+        for field in self.__class__._meta.get_fields():
+            if isinstance(field, models.ForeignKey) and issubclass(field.related_model, UniverseBase):
+                fk_field = field
+                break
+        if fk_field is None:
+            return
+        fk_value = getattr(self, fk_field.attname, None)
+        if not fk_value:
+            return
+        UniverseModel = fk_field.related_model
+        window_start = getattr(UniverseModel, 'OBSERVATION_WINDOW_START', None)
+        window_end = getattr(UniverseModel, 'OBSERVATION_WINDOW_END', None)
+        if window_start is None or window_end is None:
+            return
+        try:
+            asset = UniverseModel.objects.get(
+                **{fk_field.remote_field.field_name: fk_value}
+            )
+        except UniverseModel.DoesNotExist:
+            return
+        if asset.anchor_event:
+            ws = asset.anchor_event + window_start
+            we = asset.anchor_event + window_end
+            if not (ws <= self.timestamp <= we):
+                raise ValidationError(
+                    f"Timestamp {self.timestamp} is outside the "
+                    f"observation window [{ws}, {we}]"
+                )
 
 
 # ==========================================================================
@@ -182,16 +213,10 @@ class ReferenceTableBase(models.Model):
                   "the declared AVAILABILITY_RULE.",
     )
 
+    objects = ReferenceTableQuerySet.as_manager()
+
     class Meta:
         abstract = True
-
         indexes = [
-            # Time-range queries ("all events for an asset between T1 and T2").
-            models.Index(
-                fields=["timestamp"],
-                name="%(app_label)s_%(class)s_ts_idx",
-            ),
+            models.Index(fields=['timestamp']),
         ]
-
-    def __str__(self):
-        return f"{self.pk} @ {self.timestamp}"

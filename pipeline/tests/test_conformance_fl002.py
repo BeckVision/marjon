@@ -10,7 +10,7 @@ from django.test import TestCase
 from pipeline.conformance.fl002_moralis import conform
 
 FIXTURE_PATH = (
-    Path(__file__).parent / 'fixtures' / 'moralis_holders_sample.json'
+    Path(__file__).parent / 'fixtures' / 'u001' / 'moralis_holders_sample.json'
 )
 
 

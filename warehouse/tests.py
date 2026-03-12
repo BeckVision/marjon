@@ -8,8 +8,8 @@ from django.db import IntegrityError
 from django.test import TestCase
 
 from warehouse.models import (
-    MigratedCoin, OHLCVCandle, PipelineBatchRun, U001PipelineRun,
-    RawTransaction, RunMode, RunStatus,
+    MigratedCoin, OHLCVCandle, PipelineBatchRun, PipelineCompleteness,
+    RawTransaction, RunMode, RunStatus, U001PipelineRun, U001PipelineStatus,
 )
 
 T0 = datetime(2026, 3, 1, 10, 0, tzinfo=timezone.utc)
@@ -305,3 +305,121 @@ class U001PipelineRunTest(TestCase):
         )
         errors = U001PipelineRun.objects.filter(status=RunStatus.ERROR)
         self.assertEqual(errors.count(), 2)
+
+
+class U001PipelineStatusTest(TestCase):
+    """Tests for U001PipelineStatus cache model."""
+
+    def setUp(self):
+        self.coin = MigratedCoin.objects.create(
+            mint_address='STATUS_TEST', anchor_event=T0,
+        )
+
+    def test_create_status(self):
+        status = U001PipelineStatus.objects.create(
+            coin=self.coin, layer_id='FL-001',
+            status=PipelineCompleteness.PARTIAL,
+        )
+        status.refresh_from_db()
+        self.assertEqual(status.coin_id, 'STATUS_TEST')
+        self.assertEqual(status.layer_id, 'FL-001')
+        self.assertEqual(status.status, 'partial')
+
+    def test_unique_constraint(self):
+        U001PipelineStatus.objects.create(
+            coin=self.coin, layer_id='FL-001',
+            status=PipelineCompleteness.PARTIAL,
+        )
+        with self.assertRaises(IntegrityError):
+            U001PipelineStatus.objects.create(
+                coin=self.coin, layer_id='FL-001',
+                status=PipelineCompleteness.WINDOW_COMPLETE,
+            )
+
+    def test_update_in_place(self):
+        U001PipelineStatus.objects.create(
+            coin=self.coin, layer_id='FL-001',
+            status=PipelineCompleteness.PARTIAL,
+        )
+        U001PipelineStatus.objects.update_or_create(
+            coin=self.coin, layer_id='FL-001',
+            defaults={'status': PipelineCompleteness.WINDOW_COMPLETE},
+        )
+        self.assertEqual(U001PipelineStatus.objects.count(), 1)
+        self.assertEqual(
+            U001PipelineStatus.objects.first().status,
+            PipelineCompleteness.WINDOW_COMPLETE,
+        )
+
+    def test_query_by_status(self):
+        coins = []
+        for i in range(5):
+            c = MigratedCoin.objects.create(
+                mint_address=f'STATUS_Q_{i}', anchor_event=T0,
+            )
+            coins.append(c)
+        statuses = [
+            PipelineCompleteness.WINDOW_COMPLETE,
+            PipelineCompleteness.WINDOW_COMPLETE,
+            PipelineCompleteness.PARTIAL,
+            PipelineCompleteness.PARTIAL,
+            PipelineCompleteness.ERROR,
+        ]
+        for c, s in zip(coins, statuses):
+            U001PipelineStatus.objects.create(
+                coin=c, layer_id='FL-001', status=s,
+            )
+        partial = U001PipelineStatus.objects.filter(
+            status=PipelineCompleteness.PARTIAL,
+        )
+        self.assertEqual(partial.count(), 2)
+
+    def test_find_coins_without_status(self):
+        coins = []
+        for i in range(10):
+            c = MigratedCoin.objects.create(
+                mint_address=f'NO_STATUS_{i}', anchor_event=T0,
+            )
+            coins.append(c)
+        # Create status for first 7 only
+        for c in coins[:7]:
+            U001PipelineStatus.objects.create(
+                coin=c, layer_id='FL-001',
+                status=PipelineCompleteness.PARTIAL,
+            )
+        # Exclude the setUp coin from the query
+        without = MigratedCoin.objects.filter(
+            mint_address__startswith='NO_STATUS_',
+        ).exclude(
+            pipeline_statuses__layer_id='FL-001',
+        )
+        self.assertEqual(without.count(), 3)
+
+
+class MigratedCoinMaturityTest(TestCase):
+    """Tests for is_mature and window_end_time properties."""
+
+    def test_is_mature_true(self):
+        # anchor_event 10 days ago — well past 5000 min (~3.47 days)
+        coin = MigratedCoin(
+            mint_address='MATURE_YES',
+            anchor_event=T0 - timedelta(days=10),
+        )
+        self.assertTrue(coin.is_mature)
+
+    def test_is_mature_false(self):
+        from django.utils import timezone as dj_tz
+        # anchor_event 1 hour ago — nowhere near 5000 min
+        coin = MigratedCoin(
+            mint_address='MATURE_NO',
+            anchor_event=dj_tz.now() - timedelta(hours=1),
+        )
+        self.assertFalse(coin.is_mature)
+
+    def test_window_end_time(self):
+        coin = MigratedCoin(
+            mint_address='WINDOW_END',
+            anchor_event=T0,
+        )
+        expected = T0 + MigratedCoin.OBSERVATION_WINDOW_END
+        self.assertEqual(coin.window_end_time, expected)

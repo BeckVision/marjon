@@ -8,3 +8,6 @@ node_modules/
 .DS_Store
 venv/
 .moralis_cu_tracker.json
+.moralis_bootstrap_state.json
+marjon.log
+source_comparison*.json

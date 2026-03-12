@@ -8,7 +8,7 @@ import time
 from datetime import date
 from pathlib import Path
 
-import requests
+from pipeline.connectors.http import request_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +19,12 @@ MAX_PER_PAGE = 100
 
 # Daily CU tracker file (project root)
 _CU_TRACKER_PATH = Path(__file__).resolve().parent.parent.parent / '.moralis_cu_tracker.json'
+
+
+def _validate_moralis_response(data):
+    """Raise if Moralis returned a 200 with an error body."""
+    if isinstance(data, dict) and 'message' in data and 'result' not in data:
+        raise ValueError(f"Moralis error body: {data['message']}")
 
 
 def get_daily_cu_used():
@@ -95,7 +101,10 @@ def fetch_holders(mint_address, start, end):
 
         headers = {'X-Api-Key': api_key}
 
-        data = _request_with_retry(url, params, headers)
+        data = request_with_retry(
+            url, params, headers=headers,
+            validate_response=_validate_moralis_response,
+        )
         cu_used += CU_PER_CALL
         api_calls += 1
 
@@ -125,58 +134,3 @@ def fetch_holders(mint_address, start, end):
     )
     meta = {'api_calls': api_calls, 'cu_consumed': cu_used}
     return all_records, meta
-
-
-def _request_with_retry(url, params, headers, max_retries=3):
-    """Make GET request with exponential backoff retry."""
-    for attempt in range(max_retries):
-        try:
-            resp = requests.get(
-                url, params=params, headers=headers, timeout=30,
-            )
-
-            if resp.status_code == 429:
-                wait = 2 ** (attempt + 1)
-                logger.warning(
-                    "Rate limited (429), waiting %ds (url=%s)",
-                    wait, url, exc_info=True,
-                )
-                time.sleep(wait)
-                continue
-
-            if resp.status_code >= 500:
-                wait = 2 ** (attempt + 1)
-                logger.warning(
-                    "Server error %d, waiting %ds (url=%s)",
-                    resp.status_code, wait, url, exc_info=True,
-                )
-                time.sleep(wait)
-                continue
-
-            resp.raise_for_status()
-            data = resp.json()
-
-            # Moralis can return 200 with error body (no 'result' key)
-            if isinstance(data, dict) and 'message' in data and 'result' not in data:
-                wait = 2 ** (attempt + 1)
-                logger.warning(
-                    "Moralis error body: %s, waiting %ds (url=%s)",
-                    data['message'], wait, url, exc_info=True,
-                )
-                time.sleep(wait)
-                continue
-
-            return data
-
-        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
-            wait = 2 ** (attempt + 1)
-            logger.warning(
-                "Network error, waiting %ds (url=%s)",
-                wait, url, exc_info=True,
-            )
-            time.sleep(wait)
-            continue
-
-    raise RuntimeError(
-        f"Failed after {max_retries} retries: {url}"
-    )

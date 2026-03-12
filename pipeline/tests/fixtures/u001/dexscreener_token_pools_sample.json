@@ -1,0 +1,83 @@
+[
+  {
+    "chainId": "solana",
+    "dexId": "pumpswap",
+    "pairAddress": "DDfjJU1XXLM84G32y9u4oHjXm6EDRBGaUXucfvALgWyu",
+    "baseToken": {
+      "address": "12qKJmoJj9hKs12S8kPhRMrWhsyfqaiEsDh9Z38xpump",
+      "name": "Trump and Messi",
+      "symbol": "MESSI"
+    },
+    "quoteToken": {
+      "address": "So11111111111111111111111111111111111111112",
+      "name": "Wrapped SOL",
+      "symbol": "SOL"
+    },
+    "pairCreatedAt": 1772790925000,
+    "liquidity": {
+      "usd": 3636.09,
+      "base": 961197309,
+      "quote": 21.04776
+    },
+    "volume": {
+      "h24": 2.6,
+      "h6": 2.52,
+      "h1": 0,
+      "m5": 0
+    }
+  },
+  {
+    "chainId": "solana",
+    "dexId": "pumpswap",
+    "pairAddress": "8dX1BmVj4ni5rhaAq2QcK44rbdR6wko5iVYTHWS3z5rs",
+    "baseToken": {
+      "address": "13FtKfGKNHvTR62v1oMictrPUhTxhoiYiHghzvkRpump",
+      "name": "Super Mario Galaxy",
+      "symbol": "SMG"
+    },
+    "quoteToken": {
+      "address": "So11111111111111111111111111111111111111112",
+      "name": "Wrapped SOL",
+      "symbol": "SOL"
+    },
+    "pairCreatedAt": 1772808236000,
+    "liquidity": {
+      "usd": 4670.65,
+      "base": 661325786,
+      "quote": 27.2935
+    },
+    "volume": {
+      "h24": 205.29,
+      "h6": 14.71,
+      "h1": 0,
+      "m5": 0
+    }
+  },
+  {
+    "chainId": "solana",
+    "dexId": "pumpswap",
+    "pairAddress": "7uMczfsnYedsN6xD9cDadP4grRuFmznuAZX1tt5WCws1",
+    "baseToken": {
+      "address": "14C9LWz3tYKXhfXH8Z5P2726g3ri8V3EtSxPJQrMpump",
+      "name": "ONESHOTTED",
+      "symbol": "ONESHOTTED"
+    },
+    "quoteToken": {
+      "address": "So11111111111111111111111111111111111111112",
+      "name": "Wrapped SOL",
+      "symbol": "SOL"
+    },
+    "pairCreatedAt": 1773000320000,
+    "liquidity": {
+      "usd": 3711.34,
+      "base": 831600515,
+      "quote": 21.4076
+    },
+    "volume": {
+      "h24": 34.46,
+      "h6": 0,
+      "h1": 0,
+      "m5": 0
+    }
+  }
+]

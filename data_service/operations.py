@@ -17,10 +17,10 @@ from .alignment import align_layers
 
 logger = logging.getLogger(__name__)
 
-# Layer ID -> model class mapping
+# Layer ID -> model class mapping (keys from model constants — Rule 1)
 LAYER_REGISTRY = {
-    'FL-001': OHLCVCandle,
-    'FL-002': HolderSnapshot,
+    OHLCVCandle.LAYER_ID: OHLCVCandle,
+    HolderSnapshot.LAYER_ID: HolderSnapshot,
 }
 
 

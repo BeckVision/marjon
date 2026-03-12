@@ -67,9 +67,9 @@ All 7 fields are required per schema. No `market_cap` field exists.
 
 2. **Timestamps are ISO 8601 with `Z` suffix (UTC).** No timezone ambiguity.
 
-3. **DexPaprika ALWAYS returns USD prices — VERIFIED.** The `inversed` flag controls which token's USD price you get: `inversed=false` → token[0] price in USD, `inversed=true` → token[1] price in USD. Tested with TRUMP (~$3) across TRUMP/USDC and TRUMP/SOL pools — both modes produced correct USD values. For Pumpswap pools (token[0]=SOL, token[1]=memecoin), use `inversed=true` to get memecoin USD price.
+3. **DexPaprika ALWAYS returns USD prices — VERIFIED.** The `inversed` flag controls which token's USD price you get: `inversed=false` → token[0] price in USD, `inversed=true` → token[1] price in USD. Default (`inversed=false`) returns correct USD prices for all tokens. **UPDATE (2026-03-11):** The original `inversed=true` verification with TRUMP was misleading — TRUMP is a high-value token (~$3) where the inversed output happened to look correct. For micro-cap memecoins with very low prices, `inversed=true` returns incorrect values. Reverted to default (`inversed=false`), which produces correct USD prices across all token value ranges.
 
-4. **Volume is USD — VERIFIED via cross-reference.** Cross-referenced against GeckoTerminal: GT `currency=token` returns SOL volume (~16.25 SOL), GT `currency=usd` returns USD volume (~$1,335). SOL vol × SOL price ($82) = USD vol. DexPaprika returns ~$1,081 for the same candle — USD-scale, not token-scale. Values differ between APIs (different aggregation) but both are clearly USD. DexPaprika volume differs slightly between `inversed` modes (~1081 vs ~1085) for reasons unclear, but both are USD-scale. Using `inversed=true` consistently.
+4. **Volume is USD — VERIFIED via cross-reference.** Cross-referenced against GeckoTerminal: GT `currency=token` returns SOL volume (~16.25 SOL), GT `currency=usd` returns USD volume (~$1,335). SOL vol × SOL price ($82) = USD vol. DexPaprika returns ~$1,081 for the same candle — USD-scale, not token-scale. Values differ between APIs (different aggregation) but both are clearly USD. Using default parameters (`inversed=false`).
 
 5. **Gap handling confirmed:** No candle is created for intervals with no trades. A coin that traded for 20 minutes then died returns only 4 candles out of 156 possible. Matches FL-001 gap handling rule.
 
@@ -188,7 +188,7 @@ All 7 fields are required per schema. No `market_cap` field exists.
 
 6. **Multiple DEXes possible.** A single token can have pools on both Pumpswap and Raydium. The pipeline filters for `dex_id == 'pumpswap'` and selects the oldest pool by `created_at`.
 
-**Fixture saved:** `pipeline/tests/fixtures/dexpaprika_token_pools_sample.json`
+**Fixture saved:** `pipeline/tests/fixtures/u001/dexpaprika_token_pools_sample.json`
 
 ---
 
@@ -286,9 +286,9 @@ Response structure: `data.attributes.ohlcv_list` (array of arrays). `meta` conta
 | **Timestamp meaning** | Both `time_open` and `time_close` provided | Single timestamp = interval start (confirmed by docs) |
 | **Response format** | Array of named objects | Nested: `data.attributes.ohlcv_list` as positional arrays |
 | **Sort order** | Ascending (oldest first) | Descending (newest first) |
-| **Price denomination** | USD always. `inversed` controls which token (false=token[0], true=token[1]). **Verified with TRUMP.** | USD by default (`currency=usd`). `token` param controls base/quote. **Verified with TRUMP.** |
+| **Price denomination** | USD always. Default (`inversed=false`) returns correct prices for all tokens. **`inversed=true` is incorrect for micro-cap memecoins.** | USD by default (`currency=usd`). `token` param controls base/quote. **Verified with TRUMP.** |
 | **Volume denomination** | USD — verified via cross-reference with GeckoTerminal. `int64` per schema. | USD by default (`currency=usd`) — verified via `currency=token` × SOL price cross-check. |
-| **Inversion** | `inversed` parameter (boolean) flips pair direction | `token` parameter (`base`/`quote`/address) controls which token is charted. `currency` controls USD vs token. |
+| **Inversion** | `inversed` parameter (boolean) flips pair direction. **Do not use — incorrect for micro-cap tokens.** | `token` parameter (`base`/`quote`/address) controls which token is charted. `currency` controls USD vs token. |
 | **Partial candles** | Not returned before pool creation | Returned before pool creation |
 | **Market cap** | Not in OHLCV response | Not in OHLCV response |
 | **Rate limit** | 10,000 requests/day | ~10 calls/minute (free). Higher on paid CoinGecko API plans. |
@@ -342,8 +342,39 @@ DexPaprika and GeckoTerminal both use **pool address** as the query key, not min
 | **FL-001 includes `market_cap` but neither API provides it — RESOLVED** | Decision: remove `market_cap` from FL-001 feature set. FL-001 stores only what APIs return: open, high, low, close, volume. Market cap can be added later as a derived feature (DF-001) if needed. | Update FL-001 feature set to: `open, high, low, close, volume` (all in USD). |
 | **Volume denomination not specified in FL-001 — RESOLVED & VERIFIED** | FL-001 specifies USD. Both APIs confirmed to return USD volume. DexPaprika verified via cross-reference with GeckoTerminal: GT `currency=token` (SOL) × SOL price = GT `currency=usd` value. DexPaprika returns same USD-scale values. | Update FL-001 spec: volume is in USD. |
 | **Pool address not captured in data spec — RESOLVED** | Decision: create a separate pool mapping dimension table (not a field on MigratedCoin). Supports multiple pools per token. Pipeline uses mint_address → pool_address mapping to query APIs. | Design pool mapping table in pipeline record. |
-| **Price denomination not specified in FL-001 — RESOLVED** | FL-001 will specify USD. DexPaprika returns USD (verified). GeckoTerminal returns USD by default (verified). Both APIs confirmed to produce memecoin-in-USD with correct parameter settings. | Update FL-001 spec: prices are in USD. DexPaprika: `inversed=true`. GeckoTerminal: defaults. |
-| **Pair direction/inversion behavior — VERIFIED** | Both APIs return USD prices by default. DexPaprika: `inversed` controls which token's USD price (false=token[0], true=token[1]). Pumpswap has token[0]=SOL, so `inversed=true` gives memecoin USD price. GeckoTerminal: Pumpswap pools have base=memecoin, quote=SOL, so default params (`currency=usd`, `token=base`) give memecoin USD price. Volume is also USD-denominated in default/USD mode for both APIs. | **DexPaprika:** use `inversed=true` for Pumpswap pools. **GeckoTerminal:** use defaults. Document in pipeline record. |
+| **Price denomination not specified in FL-001 — RESOLVED** | FL-001 will specify USD. DexPaprika returns USD (verified). GeckoTerminal returns USD by default (verified). Both APIs confirmed to produce memecoin-in-USD with correct parameter settings. | Update FL-001 spec: prices are in USD. DexPaprika: default params. GeckoTerminal: defaults. |
+| **Pair direction/inversion behavior — UPDATED 2026-03-11** | Both APIs return USD prices by default. DexPaprika: default (`inversed=false`) returns correct USD prices for all tokens. The original `inversed=true` verification with TRUMP was misleading — it happened to work for a high-value token but returns incorrect values for micro-cap memecoins. GeckoTerminal: Pumpswap pools have base=memecoin, quote=SOL, so default params give memecoin USD price. | **DexPaprika:** use defaults (no `inversed` parameter). **GeckoTerminal:** use defaults. |
+
+---
+
+## Source Comparison Results (2026-03-11)
+
+**Method:** `compare_sources` management command. Fetched OHLCV from all 3 sources (DexPaprika, GeckoTerminal, Moralis) for 5 coins across 28 hours (1680 minutes). Candle-by-candle comparison at 5-minute resolution.
+
+**Coins tested:** Wei, italianrot, NOVAH, PumpDex, believe — all micro-cap Pumpswap graduates.
+
+### Results
+
+| Metric | DexPaprika | GeckoTerminal | Moralis |
+|---|---|---|---|
+| **Candles returned** | 519 | **632** | 549 |
+| **Coverage** | 30.9% | **37.6%** | 32.7% |
+| **Flat candles** (O=H=L=C) | 213 (41%) | **0** | 239 (44%) |
+| **Missing candles** | 113 | **0** | 83 |
+| **Volume=0/None** | 69 | **0** | 0 |
+| **Volume >10x mismatch** | — | — | 19 candles |
+
+### Key findings
+
+1. **GeckoTerminal is strictly superior.** Every timestamp that any source has, GT has. Zero flat candles, zero missing volume. GT has 71 exclusive candles (present in GT only, not in DP or Moralis).
+2. **Flat candle problem is systemic.** 95% of DexPaprika's flat candles are also flat in Moralis. GT shows real price movement at those same timestamps.
+3. **DexPaprika volumes are broken.** Integer-truncated (vol=1, vol=7, vol=23) while GT and Moralis show precise decimals (1.38, 7.33, 23.88). 69 candles with null/zero volume.
+4. **Prices agree in magnitude.** All 3 sources return USD prices in the same 10^-5 to 10^-6 range. Small differences from trade aggregation methods, not denomination errors.
+5. **DexPaprika has zero exclusive candles.** Every candle DexPaprika has, GeckoTerminal also has. No data lost by switching.
+
+### Verdict
+
+**GeckoTerminal selected as primary FL-001 source.** DexPaprika demoted to pool mapping discovery only. Full comparison data saved in `source_comparison_28h.json`.
 
 ---
 
@@ -357,3 +388,4 @@ DexPaprika and GeckoTerminal both use **pool address** as the query key, not min
 | `dexpaprika_pool_detail.json` | Pool detail response |
 | `dexpaprika_token_detail.json` | Token detail response |
 | `geckoterminal_ohlcv_5m_raw.json` | GeckoTerminal 5-min OHLCV |
+| `source_comparison_28h.json` | Full 3-source comparison (5 coins, 28h, candle-by-candle) |

@@ -19,13 +19,13 @@ Each row references a decision point (DP) from the Pipeline Implementation Guide
 | **PDP2** | ETL vs ELT | **A: ETL (transform before load)** | Moralis allows re-fetching at 50 CU/page — not free, but affordable for a universe of ~200K tokens across ~2,000 pages. If a conformance bug is discovered, re-fetching the affected pages is feasible within a few days of CU budget. No staging tables needed. |
 | **PDP3** | Idempotency Mechanism | **A: Upsert** | Aligned with warehouse WDP5 (updates allowed for master data). MigratedCoin is a universe table, not a time series. `update_or_create()` on `mint_address`: insert if new, update metadata fields (`name`, `symbol`, `decimals`, `logo_url`) if the token already exists. This is the mechanism established in the FL-001 record (PDP3) for the universe table specifically. Not delete-write (Option B) — there is no scope to delete within; the unit of work is the individual token, not a time range. Not skip-existing (Option C) — we want metadata updates to flow through on re-runs. |
 | **PDP4** | Watermark Strategy | **A: Derive from warehouse** | Query `MAX(anchor_event)` from MigratedCoin. This is the `graduatedAt` of the most recently discovered token. Steady-state stops paginating when it encounters a `graduatedAt` strictly less than this watermark. Always consistent with actual data. No drift risk. No extra table. Different from FL-001/FL-002 watermarks which are per-asset — the universe watermark is a single global value because the endpoint returns all tokens, not per-asset data. |
-| **PDP5** | Rate Limit Handling | **C: Queue with rate limiter (Celery)** | Moralis charges 50 CU per call from a shared 40,000 CU/day pool. The universe pipeline shares this pool with FL-002. Celery rate limiter must track CU consumption, not just call count. Discovery must coordinate with FL-002 — discovery runs first to ensure new tokens are available before FL-002 fetches their holders. Same infrastructure as FL-001/FL-002 (Celery already in the stack from those pipelines). |
-| **PDP6** | Error Handling | **D: Retry with backoff, then fail** | Early-stage system — silent skipping is more dangerous than blocked runs. Moralis showed transient server errors (HTTP 200 with error body) during FL-002 exploration, and the same behavior is expected here. Celery's `self.retry(countdown=...)` handles transient errors. After N retries, the task fails and the run crashes. The entire run is one paginated walk — partial progress is acceptable because the watermark is only updated after successful upserts, so re-running picks up where it left off. |
+| **PDP5** | Rate Limit Handling | **A: Serial with CU budget tracking** | Moralis charges 50 CU per call from a shared 40,000 CU/day pool. The universe pipeline shares this pool with FL-002. CU consumption tracked via `.moralis_cu_tracker.json`. Discovery must coordinate with FL-002 — discovery runs first to ensure new tokens are available before FL-002 fetches their holders. |
+| **PDP6** | Error Handling | **D: Retry with backoff, then fail** | Early-stage system — silent skipping is more dangerous than blocked runs. Moralis showed transient server errors (HTTP 200 with error body) during FL-002 exploration, and the same behavior is expected here. Connector's `_request_with_retry()` handles transient errors with exponential backoff. After max retries, the exception propagates and the run fails. The entire run is one paginated walk — partial progress is acceptable because the watermark is only updated after successful upserts, so re-running picks up where it left off. |
 | **PDP7** | Reconciliation Strategy | **A: Count-based** | The graduated endpoint has no `total` field — no expected count is available from the source. Count-based reconciliation logs how many new tokens were discovered per run. Boundary check is also applied: the newest token's `graduatedAt` should be recent (within the expected polling interval, e.g. < 24 hours old). Not Option C (count + boundary) in the FL-001/FL-002 sense because there is no time range to validate against — the unit of work is "all tokens newer than the watermark," not "a fixed window." |
 | **PDP8** | Provenance Tracking | **B: Row-level ingest timestamp** | `ingested_at` already exists on MigratedCoin (`auto_now_add=True`). Plus run-level logging (start/end time, tokens discovered, tokens updated, CU consumed). Same approach as FL-001/FL-002. |
 | **PDP9** | Multi-Source Handling | **A: Single source (Moralis)** | Moralis graduated tokens endpoint is the only identified API that provides a structured list of pump.fun graduates with graduation timestamps. No alternative source provides equivalent data. Architecture supports adding sources later (e.g. on-chain indexing) as an additive change. |
-| **PDP10** | Scheduling | **B + A: Scheduled + Manual** | Celery beat for automated daily discovery runs. Manual triggers for bootstrap (initial full load across multiple days) and debugging. Discovery must be scheduled to run BEFORE FL-001 and FL-002 in the daily DAG — new MigratedCoin rows must exist before feature layer pipelines can fetch data for them. |
-| **PDP11** | Dimension Table Location | **A: Warehouse app owns all tables** | MigratedCoin already lives in the warehouse app. No new dimension tables needed for the universe pipeline — unlike FL-001 which needs PoolMapping, the universe pipeline writes directly to the existing MigratedCoin model. Pipeline app owns only code (connector, conformance function, Celery task). |
+| **PDP10** | Scheduling | **A: Manual (management commands)** | `python manage.py discover_graduates --mode steady-state` for daily runs. `python manage.py discover_graduates --mode bootstrap` for initial full load across multiple days. Discovery must run BEFORE FL-001 and FL-002 — new MigratedCoin rows must exist before feature layer pipelines can fetch data for them. Orchestrator command handles step ordering. |
+| **PDP11** | Dimension Table Location | **A: Warehouse app owns all tables** | MigratedCoin already lives in the warehouse app. No new dimension tables needed for the universe pipeline — unlike FL-001 which needs PoolMapping, the universe pipeline writes directly to the existing MigratedCoin model. Pipeline app owns only code (connector, conformance function, management command). |
 
 ---
 
@@ -231,32 +231,7 @@ The bootstrap must handle interruption gracefully:
 
 ## Pool Mapping Integration
 
-After discovering a new token and creating a MigratedCoin row, the pipeline triggers pool mapping population to enable FL-001 (OHLCV) data fetching.
-
-### Flow
-
-```
-Universe pipeline discovers new token
-    → MigratedCoin row created (mint_address, anchor_event, metadata)
-        → Pool mapping task triggered for new mint_address
-            → DexPaprika: GET /networks/solana/tokens/{mint_address}/pools
-                → Filter for Pumpswap pools (dex == "pumpswap")
-                    → Select oldest pool by created_at (graduation pool)
-                        → Create PoolMapping row
-```
-
-### Pool mapping is a separate task
-
-Pool mapping runs as a follow-up task, not inline with discovery. This decouples the two concerns:
-- Discovery can complete even if DexPaprika is down.
-- Pool mapping can be retried independently.
-- FL-002 (holders) does not need pool mapping — it queries by mint address directly. Only FL-001 (OHLCV) depends on pool mapping.
-
-### Known limitation: pre-Pumpswap tokens
-
-Tokens that graduated before the Pumpswap era (migrated to Raydium instead) will have no Pumpswap pool mapping. They will have MigratedCoin rows (the Moralis graduated endpoint includes them) but no PoolMapping entries, and therefore no FL-001 OHLCV data. FL-002 holder data is unaffected (queries by mint address, no pool needed).
-
-This is an intentional scope boundary for U-001. The `dex` field on PoolMapping allows future expansion to Raydium pools without schema changes.
+Pool mapping is documented in `u001_pool_mapping_pipeline_implementation_record.md`. After discovering new tokens, the pool mapping pipeline runs as a separate batch step to resolve mint addresses to Pumpswap pool addresses. FL-001 (OHLCV) depends on pool mapping; FL-002 (holders) does not (queries by mint address directly).
 
 ---
 
@@ -285,10 +260,10 @@ This is an intentional scope boundary for U-001. The `dex` field on PoolMapping 
 
 | Item | Status | Impact |
 |---|---|---|
-| MigratedCoin model migration | Not yet created | Need `makemigrations` after adding `name`, `symbol`, `decimals`, `logo_url` fields. Non-destructive — all new fields are nullable. |
-| Bootstrap cursor persistence | Design decided, not implemented | `.moralis_bootstrap_state.json` file for multi-day bootstrap resumption. Must be implemented before bootstrap begins. |
+| MigratedCoin model migration | ✅ Done | Migration 0006 created. `name`, `symbol`, `decimals`, `logo_url` fields added. |
+| Bootstrap cursor persistence | ✅ Done | `.moralis_bootstrap_state.json` implemented in `discover_graduates.py`. Saves `{ date, cursor, pages_completed, cu_used }`. |
 | DEX destination (Pumpswap vs Raydium) | Unknown from this endpoint | Moralis graduated endpoint does not indicate which DEX the token graduated to. If distinction matters for filtering, need a secondary source (on-chain data or another API). Currently not blocking — all graduates are included. |
 | CU cost verification at scale | Measured at 50 CU/call (19 calls) | Should re-verify during bootstrap when making hundreds of calls. If cost differs at scale, budget plan needs updating. |
-| Bootstrap/steady-state mode detection | Not designed | Pipeline must distinguish between "bootstrap in progress" (paginate until cursor null) and "steady-state" (paginate until watermark hit). Could use presence of `.moralis_bootstrap_state.json` as the signal, or a flag in the management command. |
-| Conformance function | Not yet written | Pure function: list of Moralis token dicts → list of MigratedCoin-compatible dicts. Strict — crashes on malformed input (PDP6). Test with saved fixture file (`moralis_graduated_sample.json`). |
-| Daily scheduling order | Not configured | Discovery must run before FL-001 and FL-002 in the Celery beat schedule. DAG dependency: discovery → pool mapping → FL-001; discovery → FL-002. |
+| Bootstrap/steady-state mode detection | ✅ Done | `--mode` flag on `discover_graduates` command: `bootstrap` (paginate until cursor null) or `steady-state` (paginate until watermark hit). Presence of `.moralis_bootstrap_state.json` tracks bootstrap progress. |
+| Conformance function | ✅ Done | `pipeline/conformance/u001_universe_moralis.py`: `conform_moralis_graduated(raw_tokens)`. Strict — raises on missing fields. Tested with fixture. |
+| Daily scheduling order | ✅ Done | Orchestrator command (`python manage.py orchestrate`) handles step ordering via topological sort. DAG: discovery → pool mapping → FL-001; discovery → FL-002. |

@@ -22,12 +22,12 @@ def conform(raw_response, mint_address):
 
     for raw in raw_response:
         ts_str = raw['timestamp']
-        # Strip .000Z milliseconds
-        if ts_str.endswith('.000Z'):
-            ts_str = ts_str[:-5] + '+00:00'
-        elif ts_str.endswith('Z'):
+        # Normalize Z suffix to +00:00 for fromisoformat compatibility
+        if ts_str.endswith('Z'):
             ts_str = ts_str[:-1] + '+00:00'
         ts = datetime.fromisoformat(ts_str)
+        # Drop sub-second precision — warehouse resolution is 5 minutes
+        ts = ts.replace(microsecond=0)
 
         holders_in = raw.get('holdersIn', {})
         holders_out = raw.get('holdersOut', {})

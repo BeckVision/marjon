@@ -365,4 +365,4 @@ With discovery using ~150 CU/day at steady-state:
 
 | File | Contents |
 |---|---|
-| `pipeline/tests/fixtures/moralis_graduated_sample.json` | 5-token sample with cursor, page 1 (used for unit tests) |
+| `pipeline/tests/fixtures/u001/moralis_graduated_sample.json` | 5-token sample with cursor, page 1 (used for unit tests) |

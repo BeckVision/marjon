@@ -8,7 +8,7 @@ from django.test import TestCase
 
 from pipeline.conformance.u001_universe_moralis import conform_moralis_graduated
 
-FIXTURE_PATH = Path(__file__).parent / 'fixtures' / 'moralis_graduated_sample.json'
+FIXTURE_PATH = Path(__file__).parent / 'fixtures' / 'u001' / 'moralis_graduated_sample.json'
 
 
 class U001ConformanceTest(TestCase):
