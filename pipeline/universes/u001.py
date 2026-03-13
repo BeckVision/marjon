@@ -26,9 +26,8 @@ UNIVERSE = {
             'name': 'pool_mapping',
             'handler': 'pipeline.orchestration.handlers.run_pool_mapping',
             'depends_on': 'discovery',
-            'per_coin': True,
-            'source': 'dexpaprika',
-            'rate_limit_sleep': 0.5,
+            'per_coin': False,
+            'sources': ['dexscreener', 'geckoterminal'],
             'skip_if': 'pool_mapping_exists',
         },
         {

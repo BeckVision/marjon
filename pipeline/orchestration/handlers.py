@@ -23,18 +23,24 @@ def run_discovery_u001(config, days=None, max_pages=None):
     return run_discovery_steady_state(max_pages=max_pages)
 
 
-def run_pool_mapping(coin, config):
-    """Populate pool mapping for one coin.
+def run_pool_mapping(coins, config):
+    """Populate pool mappings for a list of coins using the fallback chain.
 
-    Reuses populate_pool_mapping command logic.
+    Not per-coin — runs batch discovery for all unmapped coins at once.
+
+    Args:
+        coins: List of MigratedCoin instances (unmapped ones).
+        config: Universe config dict (unused but kept for handler contract).
 
     Returns:
-        dict with 'status', 'pools_created', 'pools_updated', 'error_message'.
+        dict with 'dexscreener_mapped', 'geckoterminal_mapped',
+        'unmapped', 'total_processed', 'api_calls'.
     """
     from pipeline.management.commands.populate_pool_mapping import (
-        populate_pool_mapping_for_coin,
+        run_fallback_chain,
     )
-    return populate_pool_mapping_for_coin(coin.mint_address)
+    mint_addresses = [c.mint_address for c in coins]
+    return run_fallback_chain(mint_addresses)
 
 
 def run_ohlcv(coin, config):

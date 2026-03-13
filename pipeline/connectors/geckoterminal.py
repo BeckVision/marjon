@@ -102,3 +102,32 @@ def fetch_ohlcv(pool_address, start, end):
     )
     meta = {'api_calls': api_calls}
     return deduped, meta
+
+
+def fetch_token_pools_batch(mint_addresses):
+    """Fetch pool info from GeckoTerminal for a batch of token addresses.
+
+    Uses the /tokens/multi/ endpoint with include=top_pools to get
+    sideloaded pool data in a single call.
+
+    Args:
+        mint_addresses: List of token mint address strings (max 30).
+
+    Returns:
+        Tuple of (response_dict, metadata) where response_dict is the
+        full JSON:API response (with 'data' and 'included' keys) and
+        metadata is a dict with 'api_calls'.
+    """
+    if len(mint_addresses) > 30:
+        raise ValueError(
+            f"Batch size {len(mint_addresses)} exceeds maximum of 30"
+        )
+
+    addresses = ",".join(mint_addresses)
+    base_url = _next_base_url()
+    url = f"{base_url}/api/v2/networks/solana/tokens/multi/{addresses}"
+    response_dict = request_with_retry(
+        url, params={'include': 'top_pools'}, headers=HEADERS,
+    )
+
+    return response_dict, {'api_calls': 1}

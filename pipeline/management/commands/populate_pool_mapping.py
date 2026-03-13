@@ -1,147 +1,138 @@
-"""Management command to populate pool mapping for a token."""
+"""Management command to populate pool mappings via Dexscreener/GeckoTerminal fallback chain."""
 
 import logging
-from datetime import datetime
+import time
 
-from django.core.management.base import BaseCommand, CommandError
-from django.utils import timezone
+from django.core.management.base import BaseCommand
 
-from pipeline.connectors.dexpaprika import fetch_token_pools
+from pipeline.connectors.dexscreener import fetch_token_pools_batch as dex_fetch
+from pipeline.connectors.geckoterminal import fetch_token_pools_batch as gt_fetch
+from pipeline.conformance.u001_pool_mapping_dexscreener import conform as dex_conform
+from pipeline.conformance.u001_pool_mapping_geckoterminal import conform as gt_conform
+from pipeline.loaders.u001_pool_mapping import load_pool_mappings
 from warehouse.models import MigratedCoin, PoolMapping
 
 logger = logging.getLogger(__name__)
 
+BATCH_SIZE = 30
 
-def populate_pool_mapping_for_coin(mint_address):
-    """Core pool mapping logic for one coin.
+
+def get_unmapped_tokens():
+    """Return list of mint addresses that have no PoolMapping row."""
+    mapped = set(
+        PoolMapping.objects.values_list('coin_id', flat=True).distinct()
+    )
+    all_mints = list(
+        MigratedCoin.objects.values_list('mint_address', flat=True)
+    )
+    return [m for m in all_mints if m not in mapped]
+
+
+def run_fallback_chain(mint_addresses=None):
+    """Execute the Dexscreener -> GeckoTerminal fallback chain.
 
     Args:
-        mint_address: Token mint address.
+        mint_addresses: List of mint addresses to process.
+            If None, queries all unmapped tokens.
 
     Returns:
-        dict with 'status' ('created', 'exists', 'no_pumpswap_pool', 'error'),
-        'pools_created', 'pools_updated', 'error_message'.
-
-    Raises:
-        ValueError: If coin doesn't exist.
-        RuntimeError: If API call fails.
+        dict with 'dexscreener_mapped', 'geckoterminal_mapped',
+        'unmapped', 'total_processed', 'api_calls'.
     """
-    if not MigratedCoin.objects.filter(mint_address=mint_address).exists():
-        raise ValueError(
-            f"MigratedCoin with mint_address={mint_address} does not exist"
-        )
+    if mint_addresses is None:
+        mint_addresses = get_unmapped_tokens()
 
-    # Check if mapping already exists
-    if PoolMapping.objects.filter(coin_id=mint_address).exists():
+    if not mint_addresses:
         return {
-            'status': 'exists',
-            'pools_created': 0,
-            'pools_updated': 0,
-            'error_message': None,
+            'dexscreener_mapped': 0,
+            'geckoterminal_mapped': 0,
+            'unmapped': 0,
+            'total_processed': 0,
+            'api_calls': 0,
         }
 
-    logger.info("Fetching pools for %s...", mint_address)
-    try:
-        pools = fetch_token_pools(mint_address)
-    except Exception as e:
-        raise RuntimeError(
-            f"DexPaprika pool fetch failed for {mint_address}"
-        ) from e
+    total_api_calls = 0
+    dex_mapped = set()
 
-    if not pools:
-        return {
-            'status': 'no_pools',
-            'pools_created': 0,
-            'pools_updated': 0,
-            'error_message': f"No pools found for {mint_address}",
-        }
-
-    # Filter for Pumpswap pools
-    pumpswap_pools = [
-        p for p in pools
-        if p.get('dex_id') == 'pumpswap'
-        or p.get('dexId') == 'pumpswap'
+    # Stage 1 — Dexscreener
+    batches = [
+        mint_addresses[i:i + BATCH_SIZE]
+        for i in range(0, len(mint_addresses), BATCH_SIZE)
     ]
+    for batch in batches:
+        raw_pairs, meta = dex_fetch(batch)
+        total_api_calls += meta['api_calls']
+        canonical = dex_conform(raw_pairs)
+        if canonical:
+            load_pool_mappings(canonical)
+            dex_mapped.update(r['coin_id'] for r in canonical)
 
-    if not pumpswap_pools:
-        return {
-            'status': 'no_pumpswap_pool',
-            'pools_created': 0,
-            'pools_updated': 0,
-            'error_message': (
-                f"No Pumpswap pools found. Available DEXes: "
-                f"{set(p.get('dex_id', p.get('dexId', '?')) for p in pools)}"
-            ),
-        }
+    still_unmapped = [m for m in mint_addresses if m not in dex_mapped]
 
-    created_count = 0
-    updated_count = 0
+    logger.info(
+        "Stage 1 (Dexscreener): mapped %d of %d tokens (%d API calls)",
+        len(dex_mapped), len(mint_addresses), total_api_calls,
+    )
 
-    for pool in pumpswap_pools:
-        pool_addr = pool.get('id') or pool.get('address', '')
+    # Stage 2 — GeckoTerminal (only Stage 1 misses)
+    gt_mapped = set()
+    gt_api_calls = 0
 
-        if not pool_addr:
-            logger.warning(
-                "Skipping pool with empty address for %s: %s",
-                mint_address, pool,
-            )
-            continue
+    if still_unmapped:
+        gt_batches = [
+            still_unmapped[i:i + BATCH_SIZE]
+            for i in range(0, len(still_unmapped), BATCH_SIZE)
+        ]
+        for idx, batch in enumerate(gt_batches):
+            raw_response, meta = gt_fetch(batch)
+            gt_api_calls += meta['api_calls']
+            canonical = gt_conform(raw_response)
+            if canonical:
+                load_pool_mappings(canonical)
+                gt_mapped.update(r['coin_id'] for r in canonical)
 
-        created = pool.get('created_at')
-        created_dt = None
-        if created:
-            if isinstance(created, str):
-                if created.endswith('Z'):
-                    created = created[:-1] + '+00:00'
-                created_dt = datetime.fromisoformat(created)
+            if idx < len(gt_batches) - 1:
+                time.sleep(6)
 
-        _, created_flag = PoolMapping.objects.update_or_create(
-            coin_id=mint_address,
-            pool_address=pool_addr,
-            defaults={
-                'dex': 'pumpswap',
-                'source': 'dexpaprika',
-                'created_at': created_dt,
-            },
-        )
+    total_api_calls += gt_api_calls
 
-        if created_flag:
-            created_count += 1
-        else:
-            updated_count += 1
+    logger.info(
+        "Stage 2 (GeckoTerminal): mapped %d of %d tokens (%d API calls)",
+        len(gt_mapped), len(still_unmapped), gt_api_calls,
+    )
 
-        action = "Created" if created_flag else "Updated"
-        logger.info("%s PoolMapping: %s -> %s", action, mint_address, pool_addr)
+    final_unmapped = [m for m in still_unmapped if m not in gt_mapped]
+
+    logger.info("Unmapped after both stages: %d tokens", len(final_unmapped))
+    if final_unmapped and len(final_unmapped) <= 20:
+        logger.info("Unmapped addresses: %s", final_unmapped)
 
     return {
-        'status': 'created' if created_count else 'updated',
-        'pools_created': created_count,
-        'pools_updated': updated_count,
-        'error_message': None,
+        'dexscreener_mapped': len(dex_mapped),
+        'geckoterminal_mapped': len(gt_mapped),
+        'unmapped': len(final_unmapped),
+        'total_processed': len(mint_addresses),
+        'api_calls': total_api_calls,
     }
 
 
 class Command(BaseCommand):
-    help = "Discover Pumpswap pool for a token and save to PoolMapping"
+    help = "Populate pool mappings using Dexscreener/GeckoTerminal fallback chain"
 
     def add_arguments(self, parser):
-        parser.add_argument('--coin', required=True, help='Mint address')
+        parser.add_argument(
+            '--coin', type=str, default=None,
+            help='Single mint address (bypasses batch — for debugging)',
+        )
 
     def handle(self, *args, **options):
-        mint = options['coin']
-
-        try:
-            result = populate_pool_mapping_for_coin(mint)
-        except (ValueError, RuntimeError) as e:
-            raise CommandError(str(e))
-
-        if result['status'] == 'exists':
-            self.stdout.write(f"PoolMapping already exists for {mint}")
-        elif result['status'] in ('no_pools', 'no_pumpswap_pool'):
-            raise CommandError(result['error_message'])
+        if options['coin']:
+            result = run_fallback_chain([options['coin']])
         else:
-            self.stdout.write(
-                f"{result['status'].title()}: "
-                f"{result['pools_created']} created, "
-                f"{result['pools_updated']} updated"
-            )
+            result = run_fallback_chain()
+
+        self.stdout.write(
+            f"Dexscreener: {result['dexscreener_mapped']} mapped, "
+            f"GeckoTerminal: {result['geckoterminal_mapped']} mapped, "
+            f"Unmapped: {result['unmapped']}"
+        )

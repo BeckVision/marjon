@@ -137,10 +137,38 @@ class Command(BaseCommand):
 
             # 7. Run each step in dependency order
             for step in steps:
-                if not step.get('per_coin', False):
-                    continue
-
                 step_name = step['name']
+
+                if not step.get('per_coin', False):
+                    # --- batch step handling ---
+                    logger.info("Step '%s': batch mode", step_name)
+                    self.stdout.write(f"\nStep '{step_name}': batch mode")
+
+                    # Filter to coins that shouldn't be skipped
+                    batch_coins = [c for c in coins if not should_skip(c, step)]
+                    if not batch_coins:
+                        self.stdout.write(f"Step '{step_name}': all coins skipped")
+                        continue
+
+                    try:
+                        result = call_handler(step['handler'], batch_coins, config)
+                        mapped = result.get('dexscreener_mapped', 0) + result.get('geckoterminal_mapped', 0)
+                        unmapped = result.get('unmapped', 0)
+                        total_succeeded += mapped
+                        logger.info(
+                            "%s: %d mapped, %d unmapped",
+                            step_name, mapped, unmapped,
+                        )
+                        self.stdout.write(
+                            f"Step '{step_name}': {mapped} mapped, {unmapped} unmapped"
+                        )
+                    except Exception as e:
+                        logger.error("%s failed: %s", step_name, e, exc_info=True)
+                        self.stderr.write(f"Step '{step_name}' failed: {e}")
+                        total_failed += len(batch_coins)
+                    continue
+                    # --- END batch step handling ---
+
                 logger.info("Step '%s': %d coins to process", step_name, len(coins))
                 self.stdout.write(f"\nStep '{step_name}': {len(coins)} coins")
 

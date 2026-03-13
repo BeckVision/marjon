@@ -238,7 +238,10 @@ class RunPoolMappingHandlerTest(TestCase):
             mint_address='HANDLER_POOL', anchor_event=T0,
         )
 
-    def test_run_pool_mapping_skips_existing(self):
+    @patch('pipeline.management.commands.populate_pool_mapping.dex_fetch')
+    @patch('pipeline.management.commands.populate_pool_mapping.gt_fetch')
+    def test_run_pool_mapping_all_already_mapped(self, mock_gt, mock_dex):
+        """When all coins already have mappings, nothing is fetched."""
         PoolMapping.objects.create(
             coin_id='HANDLER_POOL',
             pool_address='EXISTING_POOL',
@@ -246,6 +249,12 @@ class RunPoolMappingHandlerTest(TestCase):
             source='dexpaprika',
         )
 
+        # Dexscreener returns no pumpswap pairs for this mint
+        mock_dex.return_value = ([], {'api_calls': 1})
+        mock_gt.return_value = ({'data': [], 'included': []}, {'api_calls': 1})
+
         from pipeline.orchestration.handlers import run_pool_mapping
-        result = run_pool_mapping(self.coin, {})
-        self.assertEqual(result['status'], 'exists')
+        result = run_pool_mapping([self.coin], {})
+        self.assertIn('dexscreener_mapped', result)
+        self.assertIn('geckoterminal_mapped', result)
+        self.assertIn('unmapped', result)
