@@ -243,6 +243,8 @@ Both sources represent `created_at` in UTC:
 
 10. **`top_pools` returns only the highest-liquidity pool.** Tested 4 multi-DEX tokens (pumpswap + meteora/pumpfun) via batch with `include=top_pools`. All 4 returned only 1 pool each — the Pumpswap pool, which had the highest liquidity in every case. **Risk:** if a token's Pumpswap pool has lower liquidity than another DEX's pool, `top_pools` may exclude it. For pump.fun graduates Pumpswap is typically dominant, but the per-token endpoint (`/tokens/{address}/pools`) returns all pools and is the safer fallback if `top_pools` misses Pumpswap.
 
+11. **`include=top_pools` controls sideloading, not relationship presence.** Called `/tokens/multi/` for the same token (HBAD) with and without the parameter. `data[].relationships.top_pools.data` (pool ID references) appears in both responses — identical. The difference: with the parameter, the `included[]` array contains full pool objects (address, dex, name, pool_created_at, reserve_in_usd); without it, `included[]` is absent entirely. The parameter is required — without sideloaded pool attributes there is no way to extract `address`, `dex`, or `created_at` for PoolMapping.
+
 ---
 
 ## 6. Coverage Comparison
@@ -263,25 +265,6 @@ Coverage was measured in stages:
 | DexPaprika | No (1/call) | 10,000 req/day | 2,024 / 3,674 | 55.1% |
 | Dexscreener | Yes (30/call) | 300 req/min | 2,747 / 3,674 | 74.8% |
 | GeckoTerminal | Yes (30/call) | ~10 req/min | 12/15 sampled misses | (sample — 80%) |
-
-### Cumulative Coverage
-
-| Source | Unique pool discoveries | Cumulative |
-|---|---|---|
-| Dexscreener batch | 2,747 | 2,747 (74.8%) |
-| + GeckoTerminal fallback | ~741 estimated (80% of 927 misses) | ~3,488 (95.0%) |
-| Still missing after both | ≤927 | — |
-
-### Source Overlap
-
-| Comparison | Count |
-|---|---|
-| Both Dexscreener + DexPaprika | 1,796 |
-| Dexscreener only | 723 |
-| DexPaprika only | 228 |
-| Neither (of 3,674) | 927 |
-
-Dexscreener is NOT a superset of DexPaprika (misses 228 tokens). GeckoTerminal batch covered 12/15 (80%) of sampled Dexscreener misses, suggesting it captures most of the remaining 927.
 
 ### What about the tokens still missing?
 
