@@ -134,14 +134,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # API Gateway proxy URLs (for IP rotation)
 # ---------------------------------------------------------------------------
 GATEWAY_URLS = [
-    url for url in [
-        os.environ.get('GATEWAY_URL_1'),
-        os.environ.get('GATEWAY_URL_2'),
-        os.environ.get('GATEWAY_URL_3'),
-        os.environ.get('GATEWAY_URL_4'),
-        os.environ.get('GATEWAY_URL_5'),
-        os.environ.get('GATEWAY_URL_6'),
-    ] if url
+    url for key, url in sorted(os.environ.items())
+    if key.startswith('GATEWAY_URL_') and url
 ]
 
 # ---------------------------------------------------------------------------

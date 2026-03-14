@@ -1,7 +1,7 @@
 """Management command to benchmark OHLCV fetch speed and gateway performance.
 
-No database writes — fetches real data from GeckoTerminal and discards it.
-Measures per-call latency, per-gateway performance, and 429/error rates.
+No database writes — fetches real data via the GeckoTerminal connector and
+discards it. Measures per-call latency, per-gateway performance, and error rates.
 
 Usage:
     python manage.py benchmark_ohlcv --coins 20
@@ -12,8 +12,6 @@ Usage:
     python manage.py benchmark_ohlcv --coins 100 --workers 6
 """
 
-import itertools
-import threading
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -21,8 +19,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from pipeline.connectors.geckoterminal import DIRECT_URL, HEADERS, MAX_PER_PAGE
-from pipeline.connectors.http import request_with_retry
+from pipeline.connectors.geckoterminal import (
+    DIRECT_URL,
+    configure_gateway_urls,
+    fetch_ohlcv,
+)
 from warehouse.models import MigratedCoin, PoolMapping
 
 # Region labels for nicer output
@@ -37,7 +38,7 @@ REGION_LABELS = {
 
 
 def _label_for_url(url):
-    """Return a short label like 'Tokyo (ap-northeast-1)' for a gateway URL."""
+    """Return a short label like 'Tokyo' for a gateway URL."""
     if url == DIRECT_URL:
         return 'direct'
     for region, city in REGION_LABELS.items():
@@ -77,14 +78,9 @@ class Command(BaseCommand):
         gw_mode = options['gateways']
         workers = options['workers']
 
-        # Build gateway pool
+        # Configure connector's gateway pool for this benchmark run
         gateway_urls = self._resolve_gateways(gw_mode)
-        gw_cycle = itertools.cycle(gateway_urls)
-        gw_lock = threading.Lock()
-
-        def next_gateway():
-            with gw_lock:
-                return next(gw_cycle)
+        configure_gateway_urls(gateway_urls)
 
         mappings = list(
             PoolMapping.objects
@@ -119,34 +115,17 @@ class Command(BaseCommand):
             start = coin.anchor_event
             end = start + MigratedCoin.OBSERVATION_WINDOW_END
 
-            base_url = next_gateway()
-            path = f"/api/v2/networks/solana/pools/{pool_address}/ohlcv/minute"
-            url = f"{base_url}{path}"
-
-            params = {
-                'aggregate': '5',
-                'before_timestamp': str(int(end.timestamp())),
-                'limit': MAX_PER_PAGE,
-                'currency': 'usd',
-            }
-
             t0 = time.monotonic()
             try:
-                data = request_with_retry(url, params, headers=HEADERS)
+                candles, meta = fetch_ohlcv(pool_address, start, end)
                 elapsed = time.monotonic() - t0
-
-                candles = []
-                try:
-                    candles = data['data']['attributes']['ohlcv_list']
-                except (KeyError, TypeError):
-                    pass
 
                 result = {
                     'idx': idx,
                     'coin': coin,
-                    'gateway': base_url,
+                    'gateway': meta['gateways_used'][0],
                     'latency': elapsed,
-                    'candles': len(candles) if candles else 0,
+                    'candles': len(candles),
                     'status': 'ok',
                 }
             except Exception as e:
@@ -154,7 +133,7 @@ class Command(BaseCommand):
                 result = {
                     'idx': idx,
                     'coin': coin,
-                    'gateway': base_url,
+                    'gateway': 'unknown',
                     'latency': elapsed,
                     'candles': 0,
                     'status': str(e)[:50],
@@ -162,7 +141,6 @@ class Command(BaseCommand):
             return result
 
         if workers > 1:
-            # Concurrent mode
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 futures = {
                     executor.submit(_fetch_one, i, m): i
@@ -172,7 +150,6 @@ class Command(BaseCommand):
                     result = future.result()
                     results.append(result)
         else:
-            # Serial mode
             for i, mapping in enumerate(mappings, 1):
                 result = _fetch_one(i, mapping)
                 results.append(result)
@@ -193,11 +170,11 @@ class Command(BaseCommand):
             )
 
         self._print_gateway_breakdown(results)
-        self._print_summary(results, wall_elapsed, sleep_secs, workers)
+        self._print_summary(results, wall_elapsed, workers)
 
     def _resolve_gateways(self, mode):
         """Parse --gateways flag into a list of URLs."""
-        configured = settings.GATEWAY_URLS  # list from settings
+        configured = settings.GATEWAY_URLS
 
         if mode == 'all':
             if not configured:
@@ -207,7 +184,6 @@ class Command(BaseCommand):
         if mode == 'direct':
             return [DIRECT_URL]
 
-        # Comma-separated numbers like "1,3"
         try:
             indices = [int(x.strip()) for x in mode.split(',')]
         except ValueError:
@@ -263,7 +239,7 @@ class Command(BaseCommand):
                     f"{stats['candles']:7d}  {stats['errors']:6d}"
                 )
 
-    def _print_summary(self, results, wall_elapsed, sleep_secs, workers):
+    def _print_summary(self, results, wall_elapsed, workers):
         ok = [r for r in results if r['status'] == 'ok']
         errors = len(results) - len(ok)
         total_candles = sum(r['candles'] for r in results)

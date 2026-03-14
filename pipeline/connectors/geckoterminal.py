@@ -22,6 +22,17 @@ _gateway_pool = itertools.cycle(
 _gateway_lock = threading.Lock()
 
 
+def configure_gateway_urls(urls):
+    """Replace the gateway pool with a custom set of URLs.
+
+    Used by diagnostic tools (e.g. benchmark) to test specific gateways
+    without changing settings. Thread-safe.
+    """
+    global _gateway_pool
+    with _gateway_lock:
+        _gateway_pool = itertools.cycle(urls if urls else [DIRECT_URL])
+
+
 def _next_base_url():
     """Return the next base URL from the gateway rotation (thread-safe)."""
     with _gateway_lock:
@@ -49,6 +60,7 @@ def fetch_ohlcv(pool_address, start, end):
     before_ts = int(end.timestamp())
     all_candles = []
     api_calls = 0
+    gateways_used = []
 
     while True:
         params = {
@@ -59,6 +71,7 @@ def fetch_ohlcv(pool_address, start, end):
         }
 
         base_url = _next_base_url()
+        gateways_used.append(base_url)
         url = f"{base_url}{path}"
         data = request_with_retry(url, params, headers=HEADERS)
         api_calls += 1
@@ -102,7 +115,7 @@ def fetch_ohlcv(pool_address, start, end):
         "Fetched %d OHLCV candles for pool %s (%d API calls)",
         len(deduped), pool_address, api_calls,
     )
-    meta = {'api_calls': api_calls}
+    meta = {'api_calls': api_calls, 'gateways_used': gateways_used}
     return deduped, meta
 
 
