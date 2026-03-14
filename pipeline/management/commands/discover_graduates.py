@@ -103,7 +103,6 @@ def run_discovery_steady_state(max_pages=None):
     if tokens_to_load:
         canonical = conform_moralis_graduated(tokens_to_load)
         created, updated = load_graduated_tokens(canonical)
-        _populate_pools_for_new_tokens(canonical, created)
 
     logger.info(
         "Steady-state complete: %d new, %d updated, %d pages, %d CU",
@@ -116,63 +115,6 @@ def run_discovery_steady_state(max_pages=None):
         'pages': pages_fetched,
         'cu_consumed': cu_consumed,
     }
-
-
-def _populate_pools_for_new_tokens(canonical_tokens, created_count):
-    """Trigger pool mapping for newly created tokens (synchronous)."""
-    if created_count == 0:
-        return
-
-    from pipeline.connectors.dexpaprika import fetch_token_pools
-    from warehouse.models import PoolMapping
-
-    for token in canonical_tokens:
-        mint = token['mint_address']
-        if PoolMapping.objects.filter(coin_id=mint).exists():
-            continue
-
-        logger.info("Populating pool mapping for new token %s", mint)
-        try:
-            pools = fetch_token_pools(mint)
-        except Exception:
-            logger.warning(
-                "Failed to fetch pools for %s, skipping",
-                mint, exc_info=True,
-            )
-            continue
-
-        if not pools:
-            logger.warning("No pools found for %s", mint)
-            continue
-
-        pumpswap_pools = [
-            p for p in pools
-            if p.get('dex_id') == 'pumpswap'
-            or p.get('dexId') == 'pumpswap'
-        ]
-
-        for pool in pumpswap_pools:
-            pool_addr = pool.get('id') or pool.get('address', '')
-            if not pool_addr:
-                continue
-
-            created_at_raw = pool.get('created_at')
-            created_dt = None
-            if created_at_raw and isinstance(created_at_raw, str):
-                if created_at_raw.endswith('Z'):
-                    created_at_raw = created_at_raw[:-1] + '+00:00'
-                created_dt = datetime.fromisoformat(created_at_raw)
-
-            PoolMapping.objects.update_or_create(
-                coin_id=mint,
-                pool_address=pool_addr,
-                defaults={
-                    'dex': 'pumpswap',
-                    'source': 'dexpaprika',
-                    'created_at': created_dt,
-                },
-            )
-            logger.info("Created PoolMapping: %s -> %s", mint, pool_addr)
 
 
 class Command(BaseCommand):

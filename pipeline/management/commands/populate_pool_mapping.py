@@ -92,7 +92,7 @@ def run_fallback_chain(mint_addresses=None):
                 gt_mapped.update(r['coin_id'] for r in canonical)
 
             if idx < len(gt_batches) - 1:
-                time.sleep(6)
+                time.sleep(0.1)
 
     total_api_calls += gt_api_calls
 
