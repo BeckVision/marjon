@@ -204,7 +204,7 @@ class OHLCVCandle(FeatureLayerBase):
     TEMPORAL_RESOLUTION = timedelta(minutes=5)
     AVAILABILITY_RULE = "end-of-interval"
     GAP_HANDLING = "No candle created if no trades occurred in the interval"
-    DATA_SOURCE = "DexPaprika / GeckoTerminal"
+    DATA_SOURCE = "GeckoTerminal"
     REFRESH_POLICY = "Daily"
     VERSION = "1.0"
 

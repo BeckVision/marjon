@@ -44,7 +44,7 @@
 | **Temporal resolution** | 5-minute candles |
 | **Availability rule** | End-of-interval — a candle covering T to T+5min becomes available at T+5min |
 | **Gap handling** | No candle created if no trades occurred in the interval |
-| **Data source** | DexPaprika / GeckoTerminal |
+| **Data source** | GeckoTerminal |
 | **Refresh policy** | Daily |
 | **Version** | 1.0 |
 

@@ -2,6 +2,7 @@
 
 import itertools
 import logging
+import threading
 import time
 
 from django.conf import settings
@@ -18,11 +19,13 @@ HEADERS = {'Accept': 'application/json'}
 _gateway_pool = itertools.cycle(
     settings.GATEWAY_URLS if settings.GATEWAY_URLS else [DIRECT_URL]
 )
+_gateway_lock = threading.Lock()
 
 
 def _next_base_url():
-    """Return the next base URL from the gateway rotation."""
-    return next(_gateway_pool)
+    """Return the next base URL from the gateway rotation (thread-safe)."""
+    with _gateway_lock:
+        return next(_gateway_pool)
 
 
 def fetch_ohlcv(pool_address, start, end):
@@ -77,7 +80,6 @@ def fetch_ohlcv(pool_address, start, end):
             break  # No more data
 
         before_ts = oldest_ts
-        time.sleep(6)
 
     # Filter to requested window
     all_candles = [

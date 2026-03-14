@@ -2,15 +2,31 @@
 
 import logging
 import time
+from urllib.parse import urlparse
 
-import requests
+import httpx
 
 logger = logging.getLogger(__name__)
+
+# Per-host session pool. Each unique origin (scheme + host) gets its own
+# httpx.Client, reusing TCP + TLS connections via HTTP keep-alive + HTTP/2.
+_session_pool = {}
+
+
+def _get_session(url):
+    """Return a persistent Client for the given URL's origin."""
+    parsed = urlparse(url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    if origin not in _session_pool:
+        _session_pool[origin] = httpx.Client(http2=True)
+    return _session_pool[origin]
 
 
 def request_with_retry(url, params, headers=None, timeout=30, max_retries=3,
                        validate_response=None):
     """Make GET request with exponential backoff retry.
+
+    Uses a per-host session pool for TCP/TLS connection reuse (HTTP/2).
 
     Args:
         url: Request URL.
@@ -29,9 +45,11 @@ def request_with_retry(url, params, headers=None, timeout=30, max_retries=3,
     Raises:
         RuntimeError: After all retries exhausted.
     """
+    session = _get_session(url)
+
     for attempt in range(max_retries):
         try:
-            resp = requests.get(
+            resp = session.get(
                 url, params=params, headers=headers, timeout=timeout,
             )
 
@@ -80,8 +98,7 @@ def request_with_retry(url, params, headers=None, timeout=30, max_retries=3,
             time.sleep(wait)
             continue
 
-        except (requests.exceptions.Timeout,
-                requests.exceptions.ConnectionError):
+        except (httpx.TimeoutException, httpx.ConnectError):
             wait = 2 ** (attempt + 1)
             logger.warning(
                 "Network error, waiting %ds (url=%s)",

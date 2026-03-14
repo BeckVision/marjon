@@ -8,10 +8,12 @@ Usage:
     python manage.py orchestrate --universe u001 --steps discovery,ohlcv
     python manage.py orchestrate --universe u001 --resume
     python manage.py orchestrate --universe u001 --coins 5 --dry-run
+    python manage.py orchestrate --universe u001 --steps ohlcv --workers 6
 """
 
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
@@ -55,6 +57,10 @@ class Command(BaseCommand):
         parser.add_argument(
             '--coins', type=int, default=None,
             help='Max number of coins to process per step',
+        )
+        parser.add_argument(
+            '--workers', type=int, default=None,
+            help='Number of concurrent workers (overrides step config; 1 = serial)',
         )
         parser.add_argument(
             '--dry-run', action='store_true',
@@ -169,43 +175,29 @@ class Command(BaseCommand):
                     continue
                     # --- END batch step handling ---
 
-                logger.info("Step '%s': %d coins to process", step_name, len(coins))
-                self.stdout.write(f"\nStep '{step_name}': {len(coins)} coins")
+                # Resolve worker count: CLI flag > step config > 1
+                workers = options.get('workers') or step.get('workers', 1)
 
-                succeeded = 0
-                failed = 0
-                skipped = 0
+                logger.info(
+                    "Step '%s': %d coins to process (workers=%d)",
+                    step_name, len(coins), workers,
+                )
+                self.stdout.write(
+                    f"\nStep '{step_name}': {len(coins)} coins (workers={workers})"
+                )
 
-                for coin in coins:
-                    if should_skip(coin, step):
-                        skipped += 1
-                        continue
+                # Filter coins that should be skipped
+                work_coins = [c for c in coins if not should_skip(c, step)]
+                skipped = len(coins) - len(work_coins)
 
-                    try:
-                        result = call_handler(step['handler'], coin, config)
-                        update_pipeline_status(coin, step, result)
-                        succeeded += 1
-
-                        # Log per-coin result for feature layers
-                        records = result.get('records_loaded')
-                        if records is not None:
-                            logger.info(
-                                "%s %s: %d records loaded",
-                                step_name, coin.mint_address, records,
-                            )
-                    except Exception as e:
-                        logger.error(
-                            "%s failed for %s: %s",
-                            step_name, coin.mint_address, e,
-                            exc_info=True,
-                        )
-                        mark_error(coin, step, str(e))
-                        failed += 1
-
-                    # Rate limit
-                    sleep_time = step.get('rate_limit_sleep', 0)
-                    if sleep_time:
-                        time.sleep(sleep_time)
+                if workers > 1:
+                    succeeded, failed = self._run_concurrent(
+                        step, work_coins, config, workers,
+                    )
+                else:
+                    succeeded, failed = self._run_serial(
+                        step, work_coins, config,
+                    )
 
                 total_succeeded += succeeded
                 total_failed += failed
@@ -241,6 +233,85 @@ class Command(BaseCommand):
             f"{total_failed} failed, {total_skipped} skipped"
         )
 
+    def _run_serial(self, step, coins, config):
+        """Process coins one at a time. Returns (succeeded, failed)."""
+        step_name = step['name']
+        succeeded = 0
+        failed = 0
+
+        for coin in coins:
+            try:
+                result = call_handler(step['handler'], coin, config)
+                update_pipeline_status(coin, step, result)
+                succeeded += 1
+
+                records = result.get('records_loaded')
+                if records is not None:
+                    logger.info(
+                        "%s %s: %d records loaded",
+                        step_name, coin.mint_address, records,
+                    )
+            except Exception as e:
+                logger.error(
+                    "%s failed for %s: %s",
+                    step_name, coin.mint_address, e,
+                    exc_info=True,
+                )
+                mark_error(coin, step, str(e))
+                failed += 1
+
+            sleep_time = step.get('rate_limit_sleep', 0)
+            if sleep_time:
+                time.sleep(sleep_time)
+
+        return succeeded, failed
+
+    def _run_concurrent(self, step, coins, config, workers):
+        """Process coins concurrently with ThreadPoolExecutor.
+
+        Each worker gets its own Django DB connection (thread-local).
+        Each coin writes to disjoint rows, so no locking needed.
+
+        Returns (succeeded, failed).
+        """
+        step_name = step['name']
+        succeeded = 0
+        failed = 0
+
+        def _process_coin(coin):
+            result = call_handler(step['handler'], coin, config)
+            update_pipeline_status(coin, step, result)
+            return coin, result
+
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(_process_coin, coin): coin
+                for coin in coins
+            }
+
+            for future in as_completed(futures):
+                coin = futures[future]
+                try:
+                    _, result = future.result()
+                    succeeded += 1
+
+                    records = result.get('records_loaded')
+                    if records is not None:
+                        logger.info(
+                            "%s %s: %d records loaded",
+                            step_name, coin.mint_address, records,
+                        )
+                except Exception as e:
+                    logger.error(
+                        "%s failed for %s: %s",
+                        step_name, coin.mint_address, e,
+                        exc_info=True,
+                    )
+                    mark_error(coin, step, str(e))
+                    failed += 1
+
+        return succeeded, failed
+
     def _dry_run(self, config, steps, run_discovery, options):
         """Show what would be executed without doing it."""
         self.stdout.write(f"=== DRY RUN: {config['id']} — {config['name']} ===\n")
@@ -263,13 +334,17 @@ class Command(BaseCommand):
         if options.get('coins'):
             self.stdout.write(f"  (limited to {options['coins']} coins)")
 
+        workers_override = options.get('workers')
+
         for i, step in enumerate(steps, start=2 if run_discovery else 1):
             skip_count = sum(1 for c in coins if should_skip(c, step))
             process_count = len(coins) - skip_count
+            step_workers = workers_override or step.get('workers', 1)
             self.stdout.write(
                 f"\n{i}. Step '{step['name']}':"
                 f"\n   Handler: {step['handler']}"
                 f"\n   Source: {step.get('source', 'n/a')}"
+                f"\n   Workers: {step_workers}"
                 f"\n   Rate limit: {step.get('rate_limit_sleep', 0)}s between calls"
                 f"\n   Would process: {process_count} coins"
                 f"\n   Would skip: {skip_count} coins (condition: {step.get('skip_if', 'none')})"

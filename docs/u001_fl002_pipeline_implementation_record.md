@@ -124,18 +124,19 @@ Daily budget: 40,000 CU = 80 coins per day for full backfill. Steady-state incre
 
 ## Key Differences from FL-001
 
-| Property | FL-001 (DexPaprika → OHLCVCandle) | FL-002 (Moralis → HolderSnapshot) |
+| Property | FL-001 (GeckoTerminal → OHLCVCandle) | FL-002 (Moralis → HolderSnapshot) |
 |---|---|---|
 | **Auth** | None | API key + CU cost |
-| **Daily budget** | 10,000 requests | 800 calls (40,000 CU ÷ 50 CU/call) |
+| **Daily budget** | No daily cap (~10 req/min per IP, 6 gateway IPs) | 800 calls (40,000 CU ÷ 50 CU/call) |
 | **Query key** | Pool address (needs pool mapping table) | Mint address (direct, no mapping) |
-| **Pagination** | `start`/`end` range, max 366 per call | Cursor-based, 100 per page |
+| **Pagination** | Backward via `before_timestamp`, max 1000 per call | Cursor-based, 100 per page |
 | **Gap behavior** | No candle if no trades (sparse) | Every interval present (dense, zeros when inactive) |
 | **Reconciliation** | Sparsity is normal | Missing intervals are suspicious |
-| **Sort order** | Ascending (oldest first) | Descending (newest first) — must reverse |
-| **Response structure** | Flat fields | Nested objects (must flatten) |
+| **Sort order** | Descending (newest first) — connector reverses | Descending (newest first) — must reverse |
+| **Response structure** | Positional arrays `[ts, o, h, l, c, v]` | Nested objects (must flatten) |
 | **Dimension tables needed** | Pool mapping table | None |
 | **Budget consequence** | No published consequence | Key blocked until next day |
+| **Concurrency** | 6 workers via ThreadPoolExecutor | Serial (CU budget too tight) |
 
 ---
 

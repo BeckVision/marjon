@@ -19,7 +19,7 @@ Each row references a decision point (DP) from the Pipeline Implementation Guide
 | **PDP2** | ETL vs ELT | **A: ETL (transform before load)** | Both APIs (DexPaprika, GeckoTerminal) allow free historical re-fetching. DexPaprika provides 1 year of history, GeckoTerminal provides 6 months. Observation window is only 3.47 days. If a conformance bug is discovered, re-fetching is cheap. No staging tables needed — keeps the schema simple. |
 | **PDP3** | Idempotency Mechanism | **Universe: A (Upsert). Feature layers & reference tables: B (Delete-write).** | Aligned with warehouse WDP5 (append-only for time series, updates for master data). Universe table (MigratedCoin) allows updates — upsert is the natural fit for metadata enrichment. Feature layers are append-only — delete-write is self-correcting on re-run while maintaining append-only semantics (remove and replace within a transaction, not modify in place). Important during early stage when conformance bugs are likely. |
 | **PDP4** | Watermark Strategy | **A: Derive from warehouse** | Query `MAX(timestamp)` per asset from OHLCVCandle table. Always consistent with actual data. No drift risk. No extra table to maintain. One grouped query before each run is sufficient at current scale. |
-| **PDP5** | Rate Limit Handling | **A: Serial with sleep** | `time.sleep(6)` between paginated calls respects the ~10 requests/minute rate limit. Exponential backoff on transient errors (aligns with PDP6). Simple and sufficient at current scale — no task queue infrastructure needed. |
+| **PDP5** | Rate Limit Handling | **B: Concurrent with gateway rotation** | 6 concurrent workers (`ThreadPoolExecutor`) each hitting a different gateway IP. Gateway rotation is thread-safe (`threading.Lock`). `rate_limit_sleep=0` — no sleep between calls (each worker uses a different IP). Exponential backoff on transient errors (aligns with PDP6). Configurable via `--workers` CLI flag or step config `workers: 6`. Falls back to serial (`workers=1`) for debugging. |
 | **PDP6** | Error Handling | **D: Retry with backoff, then fail** | Early-stage system — silent skipping is more dangerous than blocked runs. Persistent failures should surface immediately so they can be investigated. Connector's `_request_with_retry()` handles transient errors (network blips, temporary 429s) with exponential backoff. After max retries, the exception propagates and the run fails. Can soften to Option C (skip-and-continue) later when the system is stable and monitoring is in place. |
 | **PDP7** | Reconciliation Strategy | **C: Count + boundary** | Both count and boundary checks, logged as informational reports. Count: how many candles loaded vs theoretical maximum for the time range. Boundary: first candle at/near T0, last candle at expected position. Must account for legitimate sparsity — a memecoin with 4 candles out of 1000 possible is normal. The pattern across many coins reveals systemic issues (e.g. 100 coins all returning 0 candles = API outage). |
 | **PDP8** | Provenance Tracking | **B: Row-level ingest timestamp** | Add `ingested_at` field to warehouse models (OHLCVCandle, MigratedCoin). Plus run-level logging (start/end time, assets processed, record counts, errors). Cheap to add now — one column per model. Expensive to add retroactively after data exists. Distinguishes backfill rows from daily ingestion rows. |
@@ -68,11 +68,11 @@ Gaps discovered during API exploration that require updates to the data specific
 
 ### Pagination Strategy
 
-GeckoTerminal paginates backward using `before_timestamp`. The connector fetches pages until the earliest timestamp in a page is at or before the requested `start`. A full 5000-minute observation window at 5-minute resolution = 1000 candles maximum = 1 API call. `time.sleep(6)` between paginated calls respects the ~10/min rate limit.
+GeckoTerminal paginates backward using `before_timestamp`. The connector fetches pages until the earliest timestamp in a page is at or before the requested `start`. A full 5000-minute observation window at 5-minute resolution = 1000 candles maximum = 1 API call. No sleep between paginated calls — gateway rotation distributes requests across IPs.
 
 ### Gateway Rotation (IP Diversity)
 
-4 AWS API Gateway HTTP proxies rotate via `itertools.cycle` in the connector. Each gateway proxies requests through a different AWS region IP, reducing the chance of IP-based rate limiting from GeckoTerminal.
+6 AWS API Gateway HTTP proxies rotate via `itertools.cycle` in the connector. Each gateway proxies requests through a different AWS region IP, reducing the chance of IP-based rate limiting from GeckoTerminal. Gateway rotation is thread-safe (`threading.Lock`) for concurrent fetching.
 
 | # | Region | Endpoint |
 |---|--------|----------|
@@ -80,12 +80,14 @@ GeckoTerminal paginates backward using `before_timestamp`. The connector fetches
 | 2 | us-east-1 (Virginia) | `GATEWAY_URL_2` in `.env` |
 | 3 | eu-west-1 (Ireland) | `GATEWAY_URL_3` in `.env` |
 | 4 | ap-northeast-1 (Tokyo) | `GATEWAY_URL_4` in `.env` |
+| 5 | us-west-2 (Oregon) | `GATEWAY_URL_5` in `.env` |
+| 6 | eu-central-1 (Frankfurt) | `GATEWAY_URL_6` in `.env` |
 
-**Wiring:** `marjon/settings.py` reads `GATEWAY_URL_1` through `GATEWAY_URL_4` from `.env` into a `GATEWAY_URLS` list. The connector uses `itertools.cycle(settings.GATEWAY_URLS)` to round-robin across gateways. If no gateways are configured, falls back to the direct GeckoTerminal URL (`https://api.geckoterminal.com`).
+**Wiring:** `marjon/settings.py` reads `GATEWAY_URL_1` through `GATEWAY_URL_6` from `.env` into a `GATEWAY_URLS` list. The connector uses `itertools.cycle(settings.GATEWAY_URLS)` to round-robin across gateways (protected by `threading.Lock` for concurrent workers). If no gateways are configured, falls back to the direct GeckoTerminal URL (`https://api.geckoterminal.com`).
 
 ### Rate Limit Budget
 
-~10 requests/minute = ~600/hour = ~14,400/day. At 1 call per coin for bootstrap (1000 candles fits in one call), this allows ~14,400 coins per day. Rate-limited by minute, not daily total — must throttle with `time.sleep(6)` between calls.
+~10 requests/minute per IP. With 6 gateway IPs and concurrent workers, effective throughput is ~400-500 calls/min. At 1 call per coin for bootstrap (1000 candles fits in one call), this allows processing the full universe in hours rather than days.
 
 ---
 

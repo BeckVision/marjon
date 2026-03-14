@@ -37,7 +37,8 @@ UNIVERSE = {
             'depends_on': 'pool_mapping',
             'per_coin': True,
             'source': 'geckoterminal',
-            'rate_limit_sleep': 6,
+            'rate_limit_sleep': 0,
+            'workers': 6,
             'skip_if': 'window_complete_or_immature',
         },
         # Uncomment when ready:

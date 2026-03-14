@@ -139,6 +139,8 @@ GATEWAY_URLS = [
         os.environ.get('GATEWAY_URL_2'),
         os.environ.get('GATEWAY_URL_3'),
         os.environ.get('GATEWAY_URL_4'),
+        os.environ.get('GATEWAY_URL_5'),
+        os.environ.get('GATEWAY_URL_6'),
     ] if url
 ]
 
