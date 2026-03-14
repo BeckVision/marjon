@@ -17,6 +17,7 @@ MAX_PER_PAGE = 1000
 HEADERS = {'Accept': 'application/json'}
 
 # Round-robin iterator over gateway URLs, falls back to direct if none configured
+_active_urls = list(settings.GATEWAY_URLS) if settings.GATEWAY_URLS else []
 _gateway_pool = itertools.cycle(
     settings.GATEWAY_URLS if settings.GATEWAY_URLS else [DIRECT_URL]
 )
@@ -29,9 +30,19 @@ def configure_gateway_urls(urls):
     Used by diagnostic tools (e.g. benchmark) to test specific gateways
     without changing settings. Thread-safe.
     """
-    global _gateway_pool
+    global _gateway_pool, _active_urls
     with _gateway_lock:
+        _active_urls = list(urls) if urls else []
         _gateway_pool = itertools.cycle(urls if urls else [DIRECT_URL])
+
+
+def get_active_gateway_count():
+    """Return the number of gateway URLs the connector is currently using.
+
+    Returns 0 when using direct URL only.
+    """
+    with _gateway_lock:
+        return len(_active_urls)
 
 
 @contextlib.contextmanager
@@ -43,15 +54,18 @@ def override_gateway_urls(urls):
             fetch_ohlcv(...)  # uses only direct URL
         # original pool is restored here
     """
-    global _gateway_pool
+    global _gateway_pool, _active_urls
     with _gateway_lock:
-        previous = _gateway_pool
+        previous_pool = _gateway_pool
+        previous_urls = _active_urls
+        _active_urls = list(urls) if urls else []
         _gateway_pool = itertools.cycle(urls if urls else [DIRECT_URL])
     try:
         yield
     finally:
         with _gateway_lock:
-            _gateway_pool = previous
+            _gateway_pool = previous_pool
+            _active_urls = previous_urls
 
 
 def _next_base_url():

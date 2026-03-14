@@ -2,6 +2,7 @@
 
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from django.core.management.base import BaseCommand
 
@@ -28,12 +29,27 @@ def get_unmapped_tokens():
     return [m for m in all_mints if m not in mapped]
 
 
-def run_fallback_chain(mint_addresses=None):
+def _process_dex_batch(batch):
+    """Fetch and conform a single Dexscreener batch. Returns (canonical, api_calls)."""
+    raw_pairs, meta = dex_fetch(batch)
+    canonical = dex_conform(raw_pairs)
+    return canonical, meta['api_calls']
+
+
+def _process_gt_batch(batch):
+    """Fetch and conform a single GeckoTerminal batch. Returns (canonical, api_calls)."""
+    raw_response, meta = gt_fetch(batch)
+    canonical = gt_conform(raw_response)
+    return canonical, meta['api_calls']
+
+
+def run_fallback_chain(mint_addresses=None, workers=1):
     """Execute the Dexscreener -> GeckoTerminal fallback chain.
 
     Args:
         mint_addresses: List of mint addresses to process.
             If None, queries all unmapped tokens.
+        workers: Number of concurrent workers. 1 = serial (default).
 
     Returns:
         dict with 'dexscreener_mapped', 'geckoterminal_mapped',
@@ -59,13 +75,26 @@ def run_fallback_chain(mint_addresses=None):
         mint_addresses[i:i + BATCH_SIZE]
         for i in range(0, len(mint_addresses), BATCH_SIZE)
     ]
-    for batch in batches:
-        raw_pairs, meta = dex_fetch(batch)
-        total_api_calls += meta['api_calls']
-        canonical = dex_conform(raw_pairs)
-        if canonical:
-            load_pool_mappings(canonical)
-            dex_mapped.update(r['coin_id'] for r in canonical)
+
+    if workers > 1:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(_process_dex_batch, batch): batch
+                for batch in batches
+            }
+            for future in as_completed(futures):
+                canonical, api_calls = future.result()
+                total_api_calls += api_calls
+                if canonical:
+                    load_pool_mappings(canonical)
+                    dex_mapped.update(r['coin_id'] for r in canonical)
+    else:
+        for batch in batches:
+            canonical, api_calls = _process_dex_batch(batch)
+            total_api_calls += api_calls
+            if canonical:
+                load_pool_mappings(canonical)
+                dex_mapped.update(r['coin_id'] for r in canonical)
 
     still_unmapped = [m for m in mint_addresses if m not in dex_mapped]
 
@@ -83,16 +112,29 @@ def run_fallback_chain(mint_addresses=None):
             still_unmapped[i:i + BATCH_SIZE]
             for i in range(0, len(still_unmapped), BATCH_SIZE)
         ]
-        for idx, batch in enumerate(gt_batches):
-            raw_response, meta = gt_fetch(batch)
-            gt_api_calls += meta['api_calls']
-            canonical = gt_conform(raw_response)
-            if canonical:
-                load_pool_mappings(canonical)
-                gt_mapped.update(r['coin_id'] for r in canonical)
 
-            if idx < len(gt_batches) - 1:
-                time.sleep(0.1)
+        if workers > 1:
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = {
+                    executor.submit(_process_gt_batch, batch): batch
+                    for batch in gt_batches
+                }
+                for future in as_completed(futures):
+                    canonical, api_calls = future.result()
+                    gt_api_calls += api_calls
+                    if canonical:
+                        load_pool_mappings(canonical)
+                        gt_mapped.update(r['coin_id'] for r in canonical)
+        else:
+            for idx, batch in enumerate(gt_batches):
+                canonical, api_calls = _process_gt_batch(batch)
+                gt_api_calls += api_calls
+                if canonical:
+                    load_pool_mappings(canonical)
+                    gt_mapped.update(r['coin_id'] for r in canonical)
+
+                if idx < len(gt_batches) - 1:
+                    time.sleep(0.1)
 
     total_api_calls += gt_api_calls
 
@@ -124,12 +166,17 @@ class Command(BaseCommand):
             '--coin', type=str, default=None,
             help='Single mint address (bypasses batch — for debugging)',
         )
+        parser.add_argument(
+            '--workers', type=int, default=1,
+            help='Number of concurrent workers (default: 1 = serial)',
+        )
 
     def handle(self, *args, **options):
+        workers = options['workers']
         if options['coin']:
-            result = run_fallback_chain([options['coin']])
+            result = run_fallback_chain([options['coin']], workers=workers)
         else:
-            result = run_fallback_chain()
+            result = run_fallback_chain(workers=workers)
 
         self.stdout.write(
             f"Dexscreener: {result['dexscreener_mapped']} mapped, "

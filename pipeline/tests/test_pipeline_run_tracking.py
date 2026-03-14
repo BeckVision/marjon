@@ -69,7 +69,7 @@ class FetchOHLCVTrackingTest(TestCase):
             coin_id='TRACK_FL001',
             pool_address='POOL_001',
             dex='pumpswap',
-            source='dexpaprika',
+            source='dexscreener',
             created_at=T0,
         )
 
@@ -218,7 +218,7 @@ class ZeroResultsCompletenessTest(TestCase):
             coin_id='ZERO_RES_COIN',
             pool_address='POOL_ZERO',
             dex='pumpswap',
-            source='dexpaprika',
+            source='dexscreener',
             created_at=T0,
         )
 
@@ -249,29 +249,6 @@ class ZeroResultsCompletenessTest(TestCase):
 
 
 # --- Connector metadata tests ------------------------------------------------
-
-class DexPaprikaMetadataTest(TestCase):
-    @patch('pipeline.connectors.dexpaprika.request_with_retry')
-    def test_returns_metadata_with_api_calls(self, mock_request):
-        mock_request.return_value = [
-            {
-                'time_open': '2026-03-01T10:00:00Z',
-                'time_close': '2026-03-01T10:05:00Z',
-                'open': 10.0, 'high': 12.0, 'low': 9.0, 'close': 11.0,
-                'volume': 100.0,
-            },
-        ]
-
-        from pipeline.connectors.dexpaprika import fetch_ohlcv
-        start = datetime(2026, 3, 1, 10, 0, tzinfo=timezone.utc)
-        end = datetime(2026, 3, 1, 10, 10, tzinfo=timezone.utc)
-
-        records, meta = fetch_ohlcv('POOL_TEST', start, end)
-
-        self.assertIsInstance(records, list)
-        self.assertIn('api_calls', meta)
-        self.assertGreaterEqual(meta['api_calls'], 1)
-
 
 class MoralisMetadataTest(TestCase):
     @patch('pipeline.connectors.moralis.request_with_retry')

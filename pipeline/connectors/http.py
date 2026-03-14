@@ -1,6 +1,7 @@
 """Shared HTTP request utilities for source connectors."""
 
 import logging
+import threading
 import time
 from urllib.parse import urlparse
 
@@ -11,15 +12,26 @@ logger = logging.getLogger(__name__)
 # Per-host session pool. Each unique origin (scheme + host) gets its own
 # httpx.Client, reusing TCP + TLS connections via HTTP keep-alive + HTTP/2.
 _session_pool = {}
+_session_lock = threading.Lock()
 
 
 def _get_session(url):
-    """Return a persistent Client for the given URL's origin."""
+    """Return a persistent Client for the given URL's origin (thread-safe)."""
     parsed = urlparse(url)
     origin = f"{parsed.scheme}://{parsed.netloc}"
-    if origin not in _session_pool:
-        _session_pool[origin] = httpx.Client(http2=True)
-    return _session_pool[origin]
+    with _session_lock:
+        if origin not in _session_pool:
+            _session_pool[origin] = httpx.Client(http2=True)
+        return _session_pool[origin]
+
+
+def shutdown_sessions():
+    """Close all pooled httpx.Client instances and clear the pool."""
+    with _session_lock:
+        for origin, client in _session_pool.items():
+            client.close()
+            logger.info("Closed HTTP session for %s", origin)
+        _session_pool.clear()
 
 
 def request_with_retry(url, params, headers=None, timeout=30, max_retries=3,

@@ -66,7 +66,7 @@ class ShouldSkipTest(TestCase):
             coin_id='SKIP_TEST_COIN',
             pool_address='POOL_123',
             dex='pumpswap',
-            source='dexpaprika',
+            source='dexscreener',
         )
         step = {'name': 'pool_mapping', 'skip_if': 'pool_mapping_exists'}
         self.assertTrue(should_skip(self.coin, step))
@@ -201,7 +201,7 @@ class RunOHLCVHandlerTest(TestCase):
             coin_id='HANDLER_OHLCV',
             pool_address='POOL_HANDLER',
             dex='pumpswap',
-            source='dexpaprika',
+            source='dexscreener',
             created_at=T0,
         )
 
@@ -249,7 +249,7 @@ class RunPoolMappingHandlerTest(TestCase):
             coin_id='HANDLER_POOL',
             pool_address='EXISTING_POOL',
             dex='pumpswap',
-            source='dexpaprika',
+            source='dexscreener',
         )
 
         # Dexscreener returns no pumpswap pairs for this mint
@@ -279,7 +279,7 @@ class ConcurrentExecutionTest(TestCase):
                 coin_id=f'CONC_COIN_{i}',
                 pool_address=f'POOL_CONC_{i}',
                 dex='pumpswap',
-                source='dexpaprika',
+                source='dexscreener',
             )
 
     @patch('pipeline.management.commands.orchestrate.update_pipeline_status')
