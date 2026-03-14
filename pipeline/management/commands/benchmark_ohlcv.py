@@ -21,8 +21,8 @@ from django.core.management.base import BaseCommand, CommandError
 
 from pipeline.connectors.geckoterminal import (
     DIRECT_URL,
-    configure_gateway_urls,
     fetch_ohlcv,
+    override_gateway_urls,
 )
 from warehouse.models import MigratedCoin, PoolMapping
 
@@ -78,9 +78,7 @@ class Command(BaseCommand):
         gw_mode = options['gateways']
         workers = options['workers']
 
-        # Configure connector's gateway pool for this benchmark run
         gateway_urls = self._resolve_gateways(gw_mode)
-        configure_gateway_urls(gateway_urls)
 
         mappings = list(
             PoolMapping.objects
@@ -140,21 +138,23 @@ class Command(BaseCommand):
                 }
             return result
 
-        if workers > 1:
-            with ThreadPoolExecutor(max_workers=workers) as executor:
-                futures = {
-                    executor.submit(_fetch_one, i, m): i
-                    for i, m in enumerate(mappings, 1)
-                }
-                for future in as_completed(futures):
-                    result = future.result()
+        # Use context manager to temporarily override gateways, restoring on exit
+        with override_gateway_urls(gateway_urls):
+            if workers > 1:
+                with ThreadPoolExecutor(max_workers=workers) as executor:
+                    futures = {
+                        executor.submit(_fetch_one, i, m): i
+                        for i, m in enumerate(mappings, 1)
+                    }
+                    for future in as_completed(futures):
+                        result = future.result()
+                        results.append(result)
+            else:
+                for i, mapping in enumerate(mappings, 1):
+                    result = _fetch_one(i, mapping)
                     results.append(result)
-        else:
-            for i, mapping in enumerate(mappings, 1):
-                result = _fetch_one(i, mapping)
-                results.append(result)
-                if sleep_secs and i < len(mappings):
-                    time.sleep(sleep_secs)
+                    if sleep_secs and i < len(mappings):
+                        time.sleep(sleep_secs)
 
         wall_elapsed = time.monotonic() - wall_start
 

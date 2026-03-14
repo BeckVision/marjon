@@ -8,6 +8,9 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone as dj_timezone
 
+from pipeline.connectors.geckoterminal import (
+    DIRECT_URL, _next_base_url, override_gateway_urls,
+)
 from pipeline.orchestration.utils import (
     get_coins_to_process,
     load_universe_config,
@@ -258,3 +261,113 @@ class RunPoolMappingHandlerTest(TestCase):
         self.assertIn('dexscreener_mapped', result)
         self.assertIn('geckoterminal_mapped', result)
         self.assertIn('unmapped', result)
+
+
+# --- Concurrent execution tests ---------------------------------------------
+
+class ConcurrentExecutionTest(TestCase):
+    """Tests for _run_concurrent in the orchestrator."""
+
+    def setUp(self):
+        self.coins = []
+        for i in range(3):
+            coin = MigratedCoin.objects.create(
+                mint_address=f'CONC_COIN_{i}', anchor_event=T0,
+            )
+            self.coins.append(coin)
+            PoolMapping.objects.create(
+                coin_id=f'CONC_COIN_{i}',
+                pool_address=f'POOL_CONC_{i}',
+                dex='pumpswap',
+                source='dexpaprika',
+            )
+
+    @patch('pipeline.management.commands.orchestrate.update_pipeline_status')
+    @patch('pipeline.management.commands.orchestrate.call_handler')
+    def test_concurrent_processes_all_coins(self, mock_handler, mock_status):
+        """All coins processed with workers > 1."""
+        mock_handler.return_value = {
+            'records_loaded': 1,
+            'status': PipelineCompleteness.WINDOW_COMPLETE,
+            'error_message': None,
+        }
+        out = io.StringIO()
+        call_command(
+            'orchestrate', universe='u001', steps='ohlcv',
+            workers=2, coins=3, stdout=out,
+        )
+        output = out.getvalue()
+        self.assertIn('workers=2', output)
+        batch = PipelineBatchRun.objects.last()
+        self.assertEqual(batch.status, RunStatus.COMPLETE)
+        # Handler called once per coin
+        self.assertEqual(mock_handler.call_count, 3)
+
+    @patch('pipeline.management.commands.orchestrate.mark_error')
+    @patch('pipeline.management.commands.orchestrate.update_pipeline_status')
+    @patch('pipeline.management.commands.orchestrate.call_handler')
+    def test_concurrent_handles_per_coin_failure(self, mock_handler, mock_status, mock_mark):
+        """One coin fails, others succeed — failure is isolated."""
+        def _side_effect(handler_path, coin, config):
+            if coin.mint_address == 'CONC_COIN_1':
+                raise RuntimeError("Simulated failure")
+            return {
+                'records_loaded': 1,
+                'status': PipelineCompleteness.WINDOW_COMPLETE,
+                'error_message': None,
+            }
+
+        mock_handler.side_effect = _side_effect
+        out = io.StringIO()
+        call_command(
+            'orchestrate', universe='u001', steps='ohlcv',
+            workers=2, coins=3, stdout=out,
+        )
+        # Batch should complete (not crash)
+        batch = PipelineBatchRun.objects.last()
+        self.assertEqual(batch.status, RunStatus.COMPLETE)
+        # mark_error called for the failed coin
+        self.assertEqual(mock_mark.call_count, 1)
+        failed_coin = mock_mark.call_args[0][0]
+        self.assertEqual(failed_coin.mint_address, 'CONC_COIN_1')
+
+
+# --- Gateway override context manager tests ----------------------------------
+
+class OverrideGatewayUrlsTest(TestCase):
+    """Tests for the override_gateway_urls context manager."""
+
+    def test_override_changes_active_pool(self):
+        test_url = 'https://test-gateway.example.com'
+        with override_gateway_urls([test_url]):
+            url = _next_base_url()
+            self.assertEqual(url, test_url)
+
+    def test_override_restores_on_exit(self):
+        original_url = _next_base_url()
+        test_url = 'https://test-gateway.example.com'
+
+        with override_gateway_urls([test_url]):
+            self.assertEqual(_next_base_url(), test_url)
+
+        # After exiting, the pool should cycle back to its previous state
+        # (not necessarily the exact same position, but not the override)
+        restored_url = _next_base_url()
+        self.assertNotEqual(restored_url, test_url)
+
+    def test_override_restores_on_exception(self):
+        test_url = 'https://test-gateway.example.com'
+
+        with self.assertRaises(ValueError):
+            with override_gateway_urls([test_url]):
+                self.assertEqual(_next_base_url(), test_url)
+                raise ValueError("boom")
+
+        # Pool should be restored even after exception
+        restored_url = _next_base_url()
+        self.assertNotEqual(restored_url, test_url)
+
+    def test_override_with_empty_list_uses_direct(self):
+        with override_gateway_urls([]):
+            url = _next_base_url()
+            self.assertEqual(url, DIRECT_URL)

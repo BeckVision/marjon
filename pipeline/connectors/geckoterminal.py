@@ -1,5 +1,6 @@
 """GeckoTerminal source connector for FL-001 OHLCV data."""
 
+import contextlib
 import itertools
 import logging
 import threading
@@ -31,6 +32,26 @@ def configure_gateway_urls(urls):
     global _gateway_pool
     with _gateway_lock:
         _gateway_pool = itertools.cycle(urls if urls else [DIRECT_URL])
+
+
+@contextlib.contextmanager
+def override_gateway_urls(urls):
+    """Temporarily replace the gateway pool, restoring it on exit.
+
+    Usage:
+        with override_gateway_urls([DIRECT_URL]):
+            fetch_ohlcv(...)  # uses only direct URL
+        # original pool is restored here
+    """
+    global _gateway_pool
+    with _gateway_lock:
+        previous = _gateway_pool
+        _gateway_pool = itertools.cycle(urls if urls else [DIRECT_URL])
+    try:
+        yield
+    finally:
+        with _gateway_lock:
+            _gateway_pool = previous
 
 
 def _next_base_url():
@@ -79,6 +100,10 @@ def fetch_ohlcv(pool_address, start, end):
         try:
             page = data['data']['attributes']['ohlcv_list']
         except (KeyError, TypeError):
+            logger.warning(
+                "Unexpected response structure for pool %s, stopping pagination",
+                pool_address,
+            )
             break
         if not page:
             break
@@ -145,4 +170,4 @@ def fetch_token_pools_batch(mint_addresses):
         url, params={'include': 'top_pools'}, headers=HEADERS,
     )
 
-    return response_dict, {'api_calls': 1}
+    return response_dict, {'api_calls': 1, 'gateways_used': [base_url]}

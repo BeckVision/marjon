@@ -98,7 +98,7 @@ def request_with_retry(url, params, headers=None, timeout=30, max_retries=3,
             time.sleep(wait)
             continue
 
-        except (httpx.TimeoutException, httpx.ConnectError):
+        except (httpx.TimeoutException, httpx.NetworkError):
             wait = 2 ** (attempt + 1)
             logger.warning(
                 "Network error, waiting %ds (url=%s)",

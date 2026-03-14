@@ -11,6 +11,7 @@ Usage:
     python manage.py orchestrate --universe u001 --steps ohlcv --workers 6
 """
 
+import importlib
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -27,9 +28,7 @@ from pipeline.orchestration.utils import (
     should_skip,
     update_pipeline_status,
 )
-from warehouse.models import (
-    MigratedCoin, PipelineBatchRun, RunMode, RunStatus,
-)
+from warehouse.models import PipelineBatchRun, RunMode, RunStatus
 
 logger = logging.getLogger(__name__)
 
@@ -96,9 +95,14 @@ class Command(BaseCommand):
             return
 
         # 4. Create PipelineBatchRun
+        # Resolve universe model from config to avoid paradigm leak
+        model_path = config['model']
+        module_path, class_name = model_path.rsplit('.', 1)
+        universe_model = getattr(importlib.import_module(module_path), class_name)
+
         batch = PipelineBatchRun.objects.create(
             pipeline_id=config['id'],
-            mode=RunMode.BOOTSTRAP if not MigratedCoin.objects.exists() else RunMode.STEADY_STATE,
+            mode=RunMode.BOOTSTRAP if not universe_model.objects.exists() else RunMode.STEADY_STATE,
             status=RunStatus.STARTED,
             started_at=timezone.now(),
         )
@@ -158,8 +162,8 @@ class Command(BaseCommand):
 
                     try:
                         result = call_handler(step['handler'], batch_coins, config)
-                        mapped = result.get('dexscreener_mapped', 0) + result.get('geckoterminal_mapped', 0)
-                        unmapped = result.get('unmapped', 0)
+                        mapped = result['dexscreener_mapped'] + result['geckoterminal_mapped']
+                        unmapped = result['unmapped']
                         total_succeeded += mapped
                         logger.info(
                             "%s: %d mapped, %d unmapped",
