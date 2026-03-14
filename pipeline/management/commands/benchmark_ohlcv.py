@@ -17,14 +17,13 @@ import threading
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import timedelta
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from pipeline.connectors.geckoterminal import DIRECT_URL, HEADERS
+from pipeline.connectors.geckoterminal import DIRECT_URL, HEADERS, MAX_PER_PAGE
 from pipeline.connectors.http import request_with_retry
-from warehouse.models import PoolMapping
+from warehouse.models import MigratedCoin, PoolMapping
 
 # Region labels for nicer output
 REGION_LABELS = {
@@ -118,7 +117,7 @@ class Command(BaseCommand):
             coin = mapping.coin
 
             start = coin.anchor_event
-            end = start + timedelta(minutes=5000)
+            end = start + MigratedCoin.OBSERVATION_WINDOW_END
 
             base_url = next_gateway()
             path = f"/api/v2/networks/solana/pools/{pool_address}/ohlcv/minute"
@@ -127,7 +126,7 @@ class Command(BaseCommand):
             params = {
                 'aggregate': '5',
                 'before_timestamp': str(int(end.timestamp())),
-                'limit': 1000,
+                'limit': MAX_PER_PAGE,
                 'currency': 'usd',
             }
 
