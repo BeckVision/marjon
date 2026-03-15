@@ -11,7 +11,7 @@ from decimal import Decimal
 
 from warehouse.models import SkipReason, TradeType
 
-from pipeline.conformance.utils import parse_iso_timestamp
+from pipeline.conformance.utils import make_skipped, parse_iso_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ def conform(raw_transactions, mint_address, pool_address):
 
         # 1. Failed transactions go to skipped
         if tx.get('status') != 'Success':
-            skipped_records.append(_make_skipped(
+            skipped_records.append(make_skipped(
                 tx_signature, timestamp, mint_address, pool_address,
                 tx, SkipReason.FAILED,
             ))
@@ -47,7 +47,7 @@ def conform(raw_transactions, mint_address, pool_address):
         # 2. Find first BuyEvent or SellEvent
         trade_event = _find_trade_event(tx.get('events', []))
         if trade_event is None:
-            skipped_records.append(_make_skipped(
+            skipped_records.append(make_skipped(
                 tx_signature, timestamp, mint_address, pool_address,
                 tx, SkipReason.NO_TRADE_EVENT,
             ))
@@ -65,7 +65,7 @@ def conform(raw_transactions, mint_address, pool_address):
                 tx_signature,
                 exc_info=True,
             )
-            skipped_records.append(_make_skipped(
+            skipped_records.append(make_skipped(
                 tx_signature, timestamp, mint_address, pool_address,
                 tx, SkipReason.PARSE_ERROR,
             ))
@@ -120,15 +120,3 @@ def _extract_record(tx, trade_event, tx_signature, timestamp, mint_address):
     }
 
 
-def _make_skipped(tx_signature, timestamp, mint_address, pool_address, tx, reason):
-    """Build a SkippedTransaction dict."""
-    return {
-        'tx_signature': tx_signature,
-        'timestamp': timestamp,
-        'coin_id': mint_address,
-        'pool_address': pool_address,
-        'tx_type': tx.get('type', 'UNKNOWN'),
-        'tx_status': tx.get('status', 'UNKNOWN'),
-        'skip_reason': reason,
-        'raw_json': tx,
-    }

@@ -70,3 +70,19 @@ def get_watermark(mint_address):
         coin_id=mint_address,
     ).aggregate(Max('timestamp'))
     return result['timestamp__max']
+
+
+def get_last_signature(mint_address):
+    """Return the tx_signature of the most recent transaction for a mint.
+
+    Used as the 'until' cursor for incremental signature discovery
+    via batch RPC (daily automation). Returns None if no data.
+    """
+    row = (
+        RawTransaction.objects
+        .filter(coin_id=mint_address)
+        .order_by('-timestamp')
+        .values_list('tx_signature', flat=True)
+        .first()
+    )
+    return row

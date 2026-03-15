@@ -60,7 +60,9 @@ def run_ohlcv(coin, config):
 def run_raw_transactions(coin, config):
     """Fetch raw transactions for one coin.
 
-    Reuses fetch_transactions command logic.
+    Reuses fetch_transactions command logic. Source selection is automatic
+    by default (recent coins → Shyft, old coins → Helius), or can be
+    overridden via config['source'].
 
     Returns:
         dict with 'status', 'records_loaded', 'records_skipped',
@@ -69,7 +71,8 @@ def run_raw_transactions(coin, config):
     from pipeline.management.commands.fetch_transactions import (
         fetch_transactions_for_coin,
     )
-    return fetch_transactions_for_coin(coin.mint_address)
+    source = config.get('source', 'auto')
+    return fetch_transactions_for_coin(coin.mint_address, source=source)
 
 
 def run_holders(coin, config):

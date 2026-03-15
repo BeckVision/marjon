@@ -364,7 +364,7 @@ class RawTransaction(ReferenceTableBase):
     RECORD_TYPE = "Single trade (buy or sell)"
     AVAILABILITY_RULE = "event-time"
     ACCESS_PATTERN = "Get all trades for coin X between T1 and T2"
-    DATA_SOURCE = "Shyft"
+    DATA_SOURCE = "Shyft, Helius"
     REFRESH_POLICY = "Daily"
     VERSION = "1.0"
 
@@ -384,8 +384,8 @@ class RawTransaction(ReferenceTableBase):
     lp_fee = models.BigIntegerField()
     protocol_fee = models.BigIntegerField()
     coin_creator_fee = models.BigIntegerField()
-    pool_token_reserves = models.BigIntegerField()
-    pool_sol_reserves = models.BigIntegerField()
+    pool_token_reserves = models.BigIntegerField(null=True, blank=True)
+    pool_sol_reserves = models.BigIntegerField(null=True, blank=True)
     ingested_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

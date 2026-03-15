@@ -1,4 +1,10 @@
-"""Management command to fetch raw transactions for a token."""
+"""Management command to fetch raw transactions for a token.
+
+Supports two sources:
+  - shyft: Primary source for recent coins (within 3-4 day retention)
+  - helius: Secondary source for historical backfill (full history)
+  - auto: Selects based on coin age (default)
+"""
 
 import logging
 from datetime import datetime, timedelta, timezone
@@ -7,8 +13,6 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Max
 from django.utils import timezone as dj_timezone
 
-from pipeline.conformance.rd001_shyft import conform
-from pipeline.connectors.shyft import fetch_transactions
 from pipeline.loaders.rd001 import get_watermark, load
 
 from warehouse.models import (
@@ -20,6 +24,34 @@ logger = logging.getLogger(__name__)
 
 # PDP1: 5-minute overlap for incremental runs (from Session B spec)
 OVERLAP = timedelta(minutes=5)
+
+# Source selection: safe margin below Shyft's documented 3-4 day retention
+SHYFT_RETENTION_DAYS = 3
+
+
+def _select_source(coin):
+    """Auto-select source based on coin age.
+
+    Coins within Shyft's retention window use Shyft (full 13 fields).
+    Older coins use Helius (11 fields, pool reserves = NULL).
+    """
+    age = (datetime.now(timezone.utc) - coin.anchor_event).total_seconds()
+    if age < SHYFT_RETENTION_DAYS * 86400:
+        return 'shyft'
+    return 'helius'
+
+
+def _get_connector_and_conformance(source):
+    """Import and return the (fetch_fn, conform_fn) for the given source."""
+    if source == 'shyft':
+        from pipeline.connectors.shyft import fetch_transactions
+        from pipeline.conformance.rd001_shyft import conform
+    elif source == 'helius':
+        from pipeline.connectors.helius import fetch_transactions
+        from pipeline.conformance.rd001_helius import conform
+    else:
+        raise ValueError(f"Unknown source: {source}")
+    return fetch_transactions, conform
 
 
 def _compute_completeness(coin, mint_address, watermark=None):
@@ -45,13 +77,15 @@ def _compute_completeness(coin, mint_address, watermark=None):
     return PipelineCompleteness.PARTIAL
 
 
-def fetch_transactions_for_coin(mint_address, start=None, end=None):
+def fetch_transactions_for_coin(mint_address, start=None, end=None,
+                                source='auto'):
     """Core transaction fetch logic for one coin.
 
     Args:
         mint_address: Token mint address.
         start: Optional start datetime. If omitted, derived from watermark.
         end: Optional end datetime. If omitted, derived from observation window.
+        source: 'shyft', 'helius', or 'auto' (default).
 
     Returns:
         dict with 'status', 'records_loaded', 'records_skipped',
@@ -67,6 +101,12 @@ def fetch_transactions_for_coin(mint_address, start=None, end=None):
             f"No PoolMapping for {mint_address}. "
             f"Run populate_pool_mapping first."
         )
+
+    # Source selection
+    if source == 'auto':
+        source = _select_source(coin)
+    fetch_transactions, conform = _get_connector_and_conformance(source)
+    logger.info("Source: %s for %s", source, mint_address)
 
     # Determine time range and mode
     if start and end:
@@ -113,14 +153,14 @@ def fetch_transactions_for_coin(mint_address, start=None, end=None):
 
     # Connector
     logger.info(
-        "Fetching from Shyft for pool %s...", pool.pool_address,
+        "Fetching from %s for pool %s...", source, pool.pool_address,
     )
     try:
         raw, meta = fetch_transactions(pool.pool_address, start, end)
     except Exception as e:
         logger.error(
-            "Connector failed for %s (pool %s)",
-            mint_address, pool.pool_address, exc_info=True,
+            "Connector (%s) failed for %s (pool %s)",
+            source, mint_address, pool.pool_address, exc_info=True,
         )
         run.status = RunStatus.ERROR
         run.completed_at = dj_timezone.now()
@@ -133,12 +173,14 @@ def fetch_transactions_for_coin(mint_address, start=None, end=None):
                       'last_run_at': run.completed_at,
                       'last_error': str(e)},
         )
-        raise RuntimeError(f"Shyft connector failed for {mint_address}") from e
+        raise RuntimeError(
+            f"{source} connector failed for {mint_address}"
+        ) from e
 
     if not raw:
         logger.info(
-            "Zero transactions from API for %s (pool %s) in [%s, %s]",
-            mint_address, pool.pool_address, start, end,
+            "Zero transactions from %s for %s (pool %s) in [%s, %s]",
+            source, mint_address, pool.pool_address, start, end,
         )
         run.status = RunStatus.COMPLETE
         run.completed_at = dj_timezone.now()
@@ -161,15 +203,18 @@ def fetch_transactions_for_coin(mint_address, start=None, end=None):
             'mode': mode, 'run_id': run.id, 'error_message': None,
         }
 
-    logger.info("Received %d raw transactions for %s", len(raw), mint_address)
+    logger.info(
+        "Received %d raw transactions from %s for %s",
+        len(raw), source, mint_address,
+    )
 
     # Conformance (returns two lists)
     try:
         parsed, skipped = conform(raw, mint_address, pool.pool_address)
     except Exception as e:
         logger.error(
-            "Conformance failed for %s (%d raw transactions)",
-            mint_address, len(raw), exc_info=True,
+            "Conformance (%s) failed for %s (%d raw transactions)",
+            source, mint_address, len(raw), exc_info=True,
         )
         run.status = RunStatus.ERROR
         run.completed_at = dj_timezone.now()
@@ -183,16 +228,18 @@ def fetch_transactions_for_coin(mint_address, start=None, end=None):
                       'last_run_at': run.completed_at,
                       'last_error': str(e)},
         )
-        raise RuntimeError(f"Conformance failed for {mint_address}") from e
+        raise RuntimeError(
+            f"Conformance ({source}) failed for {mint_address}"
+        ) from e
 
     # Loader (writes both parsed + skipped)
     load(mint_address, start, end, parsed, skipped)
 
     # Reconciliation logging (informational — trade count varies)
     logger.info(
-        "Reconciliation for %s: raw=%d, parsed=%d, skipped=%d, "
+        "Reconciliation for %s [%s]: raw=%d, parsed=%d, skipped=%d, "
         "api_calls=%d",
-        mint_address, len(raw), len(parsed), len(skipped),
+        mint_address, source, len(raw), len(parsed), len(skipped),
         meta['api_calls'],
     )
 
@@ -233,10 +280,15 @@ def fetch_transactions_for_coin(mint_address, start=None, end=None):
 
 
 class Command(BaseCommand):
-    help = "Fetch raw transactions from Shyft and load into warehouse"
+    help = "Fetch raw transactions and load into warehouse"
 
     def add_arguments(self, parser):
         parser.add_argument('--coin', required=True, help='Mint address')
+        parser.add_argument(
+            '--source', type=str, default='auto',
+            choices=['shyft', 'helius', 'auto'],
+            help='Data source (default: auto — selects by coin age)',
+        )
         parser.add_argument(
             '--start', type=str, default=None,
             help='Start datetime (ISO format)',
@@ -248,6 +300,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         mint = options['coin']
+        source = options['source']
 
         try:
             MigratedCoin.objects.get(mint_address=mint)
@@ -277,12 +330,15 @@ class Command(BaseCommand):
                 )
 
         try:
-            result = fetch_transactions_for_coin(mint, start, end)
+            result = fetch_transactions_for_coin(
+                mint, start, end, source=source,
+            )
         except (ValueError, RuntimeError) as e:
             raise CommandError(str(e))
 
         self.stdout.write(
             f"Loaded {result['records_loaded']} transactions, "
             f"skipped {result['records_skipped']} "
-            f"({result['mode']}, {result['api_calls']} API calls)"
+            f"({result['mode']}, {result['api_calls']} API calls, "
+            f"source={source})"
         )

@@ -49,9 +49,9 @@ UNIVERSE = {
             'handler': 'pipeline.orchestration.handlers.run_raw_transactions',
             'depends_on': 'pool_mapping',
             'per_coin': True,
-            'source': 'shyft',
+            'source': 'auto',
             'rate_limit_sleep': 1,
-            'workers': 3,
+            'workers': 4,
             'skip_if': 'window_complete',
         },
         # Uncomment when ready:

@@ -34,15 +34,16 @@ def shutdown_sessions():
         _session_pool.clear()
 
 
-def request_with_retry(url, params, headers=None, timeout=30, max_retries=3,
-                       validate_response=None):
-    """Make GET request with exponential backoff retry.
+def request_with_retry(url, params=None, headers=None, timeout=30,
+                       max_retries=3, validate_response=None,
+                       method='GET', json_body=None):
+    """Make HTTP request with exponential backoff retry.
 
     Uses a per-host session pool for TCP/TLS connection reuse (HTTP/2).
 
     Args:
         url: Request URL.
-        params: Query parameters dict.
+        params: Query parameters dict (used for GET, also sent with POST).
         headers: Optional HTTP headers dict.
         timeout: Request timeout in seconds.
         max_retries: Maximum retry attempts.
@@ -50,6 +51,8 @@ def request_with_retry(url, params, headers=None, timeout=30, max_retries=3,
             invalid response bodies (e.g. Moralis 200-with-error).
             Called after successful JSON parse. If it raises, the request
             is retried.
+        method: HTTP method — 'GET' (default) or 'POST'.
+        json_body: JSON-serializable body for POST requests.
 
     Returns:
         Parsed JSON response.
@@ -61,9 +64,15 @@ def request_with_retry(url, params, headers=None, timeout=30, max_retries=3,
 
     for attempt in range(max_retries):
         try:
-            resp = session.get(
-                url, params=params, headers=headers, timeout=timeout,
-            )
+            if method == 'POST':
+                resp = session.post(
+                    url, params=params, json=json_body,
+                    headers=headers, timeout=timeout,
+                )
+            else:
+                resp = session.get(
+                    url, params=params, headers=headers, timeout=timeout,
+                )
 
             if resp.status_code == 429:
                 wait = 2 ** (attempt + 1)
@@ -122,3 +131,46 @@ def request_with_retry(url, params, headers=None, timeout=30, max_retries=3,
     raise RuntimeError(
         f"Failed after {max_retries} retries: {url}"
     )
+
+
+def validate_jsonrpc_response(data, source_name="RPC"):
+    """Raise if a JSON-RPC response contains an error.
+
+    Reusable validator for any Solana RPC endpoint (Shyft, Helius, etc.).
+    Pass as `validate_response` to `request_with_retry`.
+    """
+    if isinstance(data, dict) and 'error' in data:
+        err = data['error']
+        msg = err.get('message', str(err)) if isinstance(err, dict) else str(err)
+        raise ValueError(f"{source_name} error: {msg}")
+
+
+def filter_rpc_signatures(sigs, start=None, end=None):
+    """Filter getSignaturesForAddress results: drop failed and out-of-window.
+
+    Works with any Solana RPC provider (Shyft, Helius, etc.) since the
+    response format is standard.
+
+    Args:
+        sigs: List of sig dicts from getSignaturesForAddress.
+        start: Optional datetime (UTC) — drop sigs before this.
+        end: Optional datetime (UTC) — drop sigs after this.
+
+    Returns:
+        List of signature strings (just the sig hashes).
+    """
+    start_ts = int(start.timestamp()) if start else None
+    end_ts = int(end.timestamp()) if end else None
+
+    filtered = []
+    for s in sigs:
+        if s.get('err') is not None:
+            continue
+        block_time = s.get('blockTime', 0)
+        if start_ts and block_time < start_ts:
+            continue
+        if end_ts and block_time > end_ts:
+            continue
+        filtered.append(s['signature'])
+
+    return filtered
