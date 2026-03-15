@@ -178,53 +178,59 @@ class Command(BaseCommand):
             self.stdout.write("Nothing to process.")
             return
 
-        # Step 2: Batch RPC — discover new signatures for all pools
-        self.stdout.write("Phase 1: Batch signature discovery...")
-        pool_watermarks, pool_to_mint = _build_pool_watermarks(coins)
-        self.stdout.write(f"  Pools to check: {len(pool_watermarks)}")
+        # Step 2: Discover which coins need processing
+        if source == 'helius':
+            # Helius mode: skip Shyft batch RPC discovery entirely.
+            # Just queue all coins — each fetch_transactions_for_coin
+            # handles its own discovery via Helius RPC.
+            self.stdout.write(
+                "Phase 1: Skipped (Helius handles discovery per coin)"
+            )
+            work_queue = [c.mint_address for c in coins]
+        else:
+            # Shyft/auto mode: batch RPC discovery for efficiency
+            self.stdout.write("Phase 1: Batch signature discovery...")
+            pool_watermarks, pool_to_mint = _build_pool_watermarks(coins)
+            self.stdout.write(f"  Pools to check: {len(pool_watermarks)}")
 
-        new_sigs = discover_new_signatures(pool_watermarks)
+            new_sigs = discover_new_signatures(pool_watermarks)
 
-        # Map back to mints and count
-        mint_sig_counts = {}
-        for pool, sigs in new_sigs.items():
-            mint = pool_to_mint.get(pool)
-            if mint and len(sigs) >= min_sigs:
-                mint_sig_counts[mint] = len(sigs)
+            # Map back to mints and count
+            mint_sig_counts = {}
+            for pool, sigs in new_sigs.items():
+                mint = pool_to_mint.get(pool)
+                if mint and len(sigs) >= min_sigs:
+                    mint_sig_counts[mint] = len(sigs)
 
-        total_new_sigs = sum(mint_sig_counts.values())
-        self.stdout.write(
-            f"  Discovered {total_new_sigs} new signatures "
-            f"across {len(mint_sig_counts)} coins"
-        )
+            total_new_sigs = sum(mint_sig_counts.values())
+            self.stdout.write(
+                f"  Discovered {total_new_sigs} new signatures "
+                f"across {len(mint_sig_counts)} coins"
+            )
 
-        if not mint_sig_counts:
-            self.stdout.write("No new signatures found. Nothing to process.")
-            return
+            if not mint_sig_counts:
+                self.stdout.write("No new signatures found. Nothing to process.")
+                return
 
-        # Sort by sig count descending (process busiest coins first)
-        work_queue = sorted(
-            mint_sig_counts.keys(),
-            key=lambda m: mint_sig_counts[m],
-            reverse=True,
-        )
+            # Sort by sig count descending (process busiest coins first)
+            work_queue = sorted(
+                mint_sig_counts.keys(),
+                key=lambda m: mint_sig_counts[m],
+                reverse=True,
+            )
 
         if max_coins:
             work_queue = work_queue[:max_coins]
 
-        self.stdout.write(
-            f"  Processing {len(work_queue)} coins "
-            f"(top sigs: {[mint_sig_counts[m] for m in work_queue[:5]]})"
-        )
+        self.stdout.write(f"  Processing {len(work_queue)} coins")
 
         if dry_run:
             self.stdout.write("\n--- DRY RUN: would process ---")
             for mint in work_queue[:20]:
                 coin = MigratedCoin.objects.get(mint_address=mint)
-                auto_source = _select_source(coin) if source == 'auto' else source
+                coin_source = _select_source(coin) if source == 'auto' else source
                 self.stdout.write(
-                    f"  {mint[:30]}... "
-                    f"{mint_sig_counts[mint]} sigs, source={auto_source}"
+                    f"  {mint[:30]}... source={coin_source}"
                 )
             if len(work_queue) > 20:
                 self.stdout.write(f"  ... and {len(work_queue) - 20} more")
