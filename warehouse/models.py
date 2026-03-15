@@ -155,6 +155,17 @@ class RunMode(models.TextChoices):
     REFILL = 'refill', 'Re-fill'
 
 
+class TradeType(models.TextChoices):
+    BUY = 'BUY', 'Buy'
+    SELL = 'SELL', 'Sell'
+
+
+class SkipReason(models.TextChoices):
+    NO_TRADE_EVENT = 'no_trade_event', 'No Trade Event'
+    FAILED = 'failed', 'Failed Transaction'
+    PARSE_ERROR = 'parse_error', 'Parse Error'
+
+
 # ---------------------------------------------------------------------------
 # Concrete models — U-001
 # ---------------------------------------------------------------------------
@@ -353,9 +364,9 @@ class RawTransaction(ReferenceTableBase):
     RECORD_TYPE = "Single trade (buy or sell)"
     AVAILABILITY_RULE = "event-time"
     ACCESS_PATTERN = "Get all trades for coin X between T1 and T2"
-    DATA_SOURCE = "TBD"
-    REFRESH_POLICY = "TBD"
-    VERSION = "0.1"
+    DATA_SOURCE = "Shyft"
+    REFRESH_POLICY = "Daily"
+    VERSION = "1.0"
 
     coin = models.ForeignKey(
         MigratedCoin,
@@ -363,15 +374,98 @@ class RawTransaction(ReferenceTableBase):
         on_delete=models.CASCADE,
         related_name='raw_transactions',
     )
+    tx_signature = models.CharField(max_length=128)
+    trade_type = models.CharField(max_length=4, choices=TradeType.choices)
+    wallet_address = models.CharField(max_length=64)
+    token_amount = models.BigIntegerField()
+    sol_amount = models.BigIntegerField()
+    pool_address = models.CharField(max_length=64)
+    tx_fee = models.DecimalField(max_digits=38, decimal_places=18)
+    lp_fee = models.BigIntegerField()
+    protocol_fee = models.BigIntegerField()
+    coin_creator_fee = models.BigIntegerField()
+    pool_token_reserves = models.BigIntegerField()
+    pool_sol_reserves = models.BigIntegerField()
     ingested_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         indexes = [
-            models.Index(fields=['timestamp']),
+            models.Index(fields=['coin', 'timestamp']),
+            models.Index(fields=['tx_signature']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['coin', 'tx_signature'],
+                name='rd001_unique_tx_per_coin',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(token_amount__gt=0),
+                name='rd001_token_amount_positive',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(sol_amount__gte=0),
+                name='rd001_sol_amount_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(trade_type__in=['BUY', 'SELL']),
+                name='rd001_trade_type_valid',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(pool_token_reserves__gte=0),
+                name='rd001_pool_token_reserves_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(pool_sol_reserves__gte=0),
+                name='rd001_pool_sol_reserves_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(lp_fee__gte=0),
+                name='rd001_lp_fee_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(protocol_fee__gte=0),
+                name='rd001_protocol_fee_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(coin_creator_fee__gte=0),
+                name='rd001_coin_creator_fee_non_negative',
+            ),
         ]
 
     def __str__(self):
-        return f"{self.coin_id} @ {self.timestamp}"
+        return f"{self.coin_id} {self.tx_signature[:12]}… @ {self.timestamp}"
+
+
+class SkippedTransaction(models.Model):
+    """
+    Not a paradigm table — operational infrastructure for storing
+    unparsed/skipped transactions from the Shyft API.
+    """
+    tx_signature = models.CharField(max_length=128)
+    timestamp = models.DateTimeField()
+    coin = models.ForeignKey(
+        MigratedCoin,
+        to_field='mint_address',
+        on_delete=models.CASCADE,
+        related_name='skipped_transactions',
+    )
+    pool_address = models.CharField(max_length=64)
+    tx_type = models.CharField(max_length=64)
+    tx_status = models.CharField(max_length=32)
+    skip_reason = models.CharField(max_length=32, choices=SkipReason.choices)
+    raw_json = models.JSONField()
+    ingested_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['coin', 'tx_signature'],
+                name='rd001_skipped_unique_tx_per_coin',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.coin_id} {self.tx_signature[:12]}… skipped ({self.skip_reason})"
 
 
 # ---------------------------------------------------------------------------

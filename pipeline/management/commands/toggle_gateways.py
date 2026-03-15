@@ -3,12 +3,12 @@
 import os
 import re
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from pipeline.connectors.geckoterminal import configure_gateway_urls
 
-ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', '.env')
-ENV_PATH = os.path.normpath(ENV_PATH)
+ENV_PATH = os.path.join(settings.BASE_DIR, '.env')
 
 GATEWAY_LINE_RE = re.compile(r'^(#\s*)?(GATEWAY_URL_\d+=.+)$')
 
@@ -49,7 +49,7 @@ def _read_env():
 
 
 def _write_env(content):
-    """Write .env file content atomically (read all, modify, write all)."""
+    """Write .env file content."""
     with open(ENV_PATH, 'w') as f:
         f.write(content)
 

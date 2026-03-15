@@ -3,7 +3,7 @@
 Pure function — no side effects, no DB writes, no API calls.
 """
 
-from datetime import datetime
+from pipeline.conformance.utils import parse_iso_timestamp
 
 
 def conform_moralis_graduated(raw_tokens):
@@ -22,10 +22,7 @@ def conform_moralis_graduated(raw_tokens):
         mint_address = raw['tokenAddress']
         graduated_at_str = raw['graduatedAt']
 
-        # Normalize Z suffix to +00:00 for fromisoformat compatibility
-        if graduated_at_str.endswith('Z'):
-            graduated_at_str = graduated_at_str[:-1] + '+00:00'
-        anchor_event = datetime.fromisoformat(graduated_at_str)
+        anchor_event = parse_iso_timestamp(graduated_at_str)
         anchor_event = anchor_event.replace(microsecond=0)
 
         # decimals is a string in the API ("6"), convert to int

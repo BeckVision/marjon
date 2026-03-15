@@ -6,7 +6,9 @@ with what constraints. This is the single source of truth for U-001's
 pipeline chain.
 """
 
-from warehouse.models import HolderSnapshot, MigratedCoin, OHLCVCandle
+from warehouse.models import (
+    HolderSnapshot, MigratedCoin, OHLCVCandle, RawTransaction,
+)
 
 UNIVERSE = {
     'id': MigratedCoin.UNIVERSE_ID,
@@ -40,6 +42,17 @@ UNIVERSE = {
             'rate_limit_sleep': 0,
             'workers': 6,
             'skip_if': 'window_complete_or_immature',
+        },
+        {
+            'name': 'raw_transactions',
+            'layer_id': RawTransaction.REFERENCE_ID,
+            'handler': 'pipeline.orchestration.handlers.run_raw_transactions',
+            'depends_on': 'pool_mapping',
+            'per_coin': True,
+            'source': 'shyft',
+            'rate_limit_sleep': 1,
+            'workers': 3,
+            'skip_if': 'window_complete',
         },
         # Uncomment when ready:
         # {

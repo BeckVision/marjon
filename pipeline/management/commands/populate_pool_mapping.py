@@ -43,6 +43,43 @@ def _process_gt_batch(batch):
     return canonical, meta['api_calls']
 
 
+def _run_stage(process_fn, batches, workers, throttle=0):
+    """Run batches through process_fn, optionally concurrent. Returns (mapped_set, api_calls).
+
+    Args:
+        process_fn: Callable(batch) -> (canonical_list, api_calls_int).
+        batches: List of batch lists.
+        workers: Number of concurrent workers. 1 = serial.
+        throttle: Seconds to sleep between serial batches (ignored when concurrent).
+    """
+    mapped = set()
+    api_calls = 0
+
+    if workers > 1:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(process_fn, batch): batch
+                for batch in batches
+            }
+            for future in as_completed(futures):
+                canonical, calls = future.result()
+                api_calls += calls
+                if canonical:
+                    load_pool_mappings(canonical)
+                    mapped.update(r['coin_id'] for r in canonical)
+    else:
+        for idx, batch in enumerate(batches):
+            canonical, calls = process_fn(batch)
+            api_calls += calls
+            if canonical:
+                load_pool_mappings(canonical)
+                mapped.update(r['coin_id'] for r in canonical)
+            if throttle and idx < len(batches) - 1:
+                time.sleep(throttle)
+
+    return mapped, api_calls
+
+
 def run_fallback_chain(mint_addresses=None, workers=1):
     """Execute the Dexscreener -> GeckoTerminal fallback chain.
 
@@ -67,34 +104,14 @@ def run_fallback_chain(mint_addresses=None, workers=1):
             'api_calls': 0,
         }
 
-    total_api_calls = 0
-    dex_mapped = set()
-
     # Stage 1 — Dexscreener
     batches = [
         mint_addresses[i:i + BATCH_SIZE]
         for i in range(0, len(mint_addresses), BATCH_SIZE)
     ]
-
-    if workers > 1:
-        with ThreadPoolExecutor(max_workers=workers) as executor:
-            futures = {
-                executor.submit(_process_dex_batch, batch): batch
-                for batch in batches
-            }
-            for future in as_completed(futures):
-                canonical, api_calls = future.result()
-                total_api_calls += api_calls
-                if canonical:
-                    load_pool_mappings(canonical)
-                    dex_mapped.update(r['coin_id'] for r in canonical)
-    else:
-        for batch in batches:
-            canonical, api_calls = _process_dex_batch(batch)
-            total_api_calls += api_calls
-            if canonical:
-                load_pool_mappings(canonical)
-                dex_mapped.update(r['coin_id'] for r in canonical)
+    dex_mapped, total_api_calls = _run_stage(
+        _process_dex_batch, batches, workers,
+    )
 
     still_unmapped = [m for m in mint_addresses if m not in dex_mapped]
 
@@ -112,29 +129,9 @@ def run_fallback_chain(mint_addresses=None, workers=1):
             still_unmapped[i:i + BATCH_SIZE]
             for i in range(0, len(still_unmapped), BATCH_SIZE)
         ]
-
-        if workers > 1:
-            with ThreadPoolExecutor(max_workers=workers) as executor:
-                futures = {
-                    executor.submit(_process_gt_batch, batch): batch
-                    for batch in gt_batches
-                }
-                for future in as_completed(futures):
-                    canonical, api_calls = future.result()
-                    gt_api_calls += api_calls
-                    if canonical:
-                        load_pool_mappings(canonical)
-                        gt_mapped.update(r['coin_id'] for r in canonical)
-        else:
-            for idx, batch in enumerate(gt_batches):
-                canonical, api_calls = _process_gt_batch(batch)
-                gt_api_calls += api_calls
-                if canonical:
-                    load_pool_mappings(canonical)
-                    gt_mapped.update(r['coin_id'] for r in canonical)
-
-                if idx < len(gt_batches) - 1:
-                    time.sleep(0.1)
+        gt_mapped, gt_api_calls = _run_stage(
+            _process_gt_batch, gt_batches, workers, throttle=0.1,
+        )
 
     total_api_calls += gt_api_calls
 

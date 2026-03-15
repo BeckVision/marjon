@@ -3,8 +3,9 @@
 Pure function — no side effects, no DB writes, no API calls.
 """
 
-from datetime import datetime
 from decimal import Decimal
+
+from pipeline.conformance.utils import parse_iso_timestamp
 
 
 def conform(raw_response, mint_address):
@@ -21,11 +22,7 @@ def conform(raw_response, mint_address):
     records = []
 
     for raw in raw_response:
-        ts_str = raw['timestamp']
-        # Normalize Z suffix to +00:00 for fromisoformat compatibility
-        if ts_str.endswith('Z'):
-            ts_str = ts_str[:-1] + '+00:00'
-        ts = datetime.fromisoformat(ts_str)
+        ts = parse_iso_timestamp(raw['timestamp'])
         # Drop sub-second precision — warehouse resolution is 5 minutes
         ts = ts.replace(microsecond=0)
 

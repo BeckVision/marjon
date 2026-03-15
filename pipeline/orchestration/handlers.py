@@ -57,6 +57,21 @@ def run_ohlcv(coin, config):
     return fetch_ohlcv_for_coin(coin.mint_address)
 
 
+def run_raw_transactions(coin, config):
+    """Fetch raw transactions for one coin.
+
+    Reuses fetch_transactions command logic.
+
+    Returns:
+        dict with 'status', 'records_loaded', 'records_skipped',
+        'api_calls', 'error_message'.
+    """
+    from pipeline.management.commands.fetch_transactions import (
+        fetch_transactions_for_coin,
+    )
+    return fetch_transactions_for_coin(coin.mint_address)
+
+
 def run_holders(coin, config):
     """Fetch holders for one coin.
 

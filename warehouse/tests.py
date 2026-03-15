@@ -129,10 +129,22 @@ class ReferenceDataHappyPathTest(TestCase):
             mint_address='REF_HAPPY', anchor_event=T0,
         )
         # Create 3 transactions at different times
-        for offset in [10, 30, 60]:
+        for i, offset in enumerate([10, 30, 60]):
             RawTransaction.objects.create(
                 coin=self.coin,
                 timestamp=T0 + timedelta(minutes=offset),
+                tx_signature=f'SIG_REF_{i}',
+                trade_type='BUY',
+                wallet_address='WALLET_REF',
+                token_amount=1000,
+                sol_amount=500,
+                pool_address='POOL_REF',
+                tx_fee=Decimal('0.001'),
+                lp_fee=10,
+                protocol_fee=5,
+                coin_creator_fee=3,
+                pool_token_reserves=100000,
+                pool_sol_reserves=50000,
             )
 
     def test_returns_all_in_range(self):
