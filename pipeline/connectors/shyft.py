@@ -36,13 +36,49 @@ PARSE_BATCH_SIZE = 100    # max signatures per parse_selected call (hard limit)
 RPC_BATCH_SIZE = 250      # max calls per batch RPC request (tested)
 RATE_LIMIT_SLEEP = 1.0    # seconds between REST calls per key
 
-# Round-robin iterator over Shyft API keys (thread-safe)
-_key_pool = itertools.cycle(settings.SHYFT_API_KEYS)
+# Round-robin iterator over Shyft API keys (thread-safe).
+# Invalid keys are filtered out at import time to avoid repeated
+# auth failures in the rotation.
+_validated_keys = None
+_key_pool = None
 _key_lock = threading.Lock()
+
+
+def _init_key_pool():
+    """Lazily validate and initialize the key pool on first use."""
+    global _validated_keys, _key_pool
+    if _validated_keys is not None:
+        return
+
+    import httpx
+    _validated_keys = []
+    for key in settings.SHYFT_API_KEYS:
+        try:
+            resp = httpx.post(
+                f"{RPC_URL}?api_key={key}",
+                json={"jsonrpc": "2.0", "id": 0, "method": "getHealth", "params": []},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                _validated_keys.append(key)
+            else:
+                logger.warning("Shyft key %s... invalid (HTTP %d), excluding",
+                               key[:8], resp.status_code)
+        except Exception:
+            logger.warning("Shyft key %s... unreachable, excluding", key[:8])
+
+    if not _validated_keys:
+        logger.error("No valid Shyft API keys found!")
+        _validated_keys = settings.SHYFT_API_KEYS  # fallback to all
+
+    _key_pool = itertools.cycle(_validated_keys)
+    logger.info("Shyft key pool: %d/%d keys valid",
+                len(_validated_keys), len(settings.SHYFT_API_KEYS))
 
 
 def _next_api_key():
     """Return the next API key from the rotation (thread-safe)."""
+    _init_key_pool()
     with _key_lock:
         return next(_key_pool)
 
@@ -65,7 +101,7 @@ def _fetch_signatures(pool_address, start=None, end=None, until_sig=None):
     """Fetch transaction signatures for a pool via getSignaturesForAddress.
 
     Paginates backward from newest. Stops when blockTime < start or
-    all signatures are exhausted.
+    all signatures are exhausted. Retries with next key on auth failures.
 
     Args:
         pool_address: Pumpswap pool address.
@@ -185,7 +221,7 @@ def discover_new_signatures(pool_watermarks):
     """Batch discover new signatures for multiple pools since their last watermark.
 
     Uses batch RPC with `until` cursor per pool for efficient incremental
-    discovery. Designed for daily automation.
+    discovery. Designed for hourly automation.
 
     Args:
         pool_watermarks: Dict of {pool_address: last_processed_signature}.
@@ -230,18 +266,16 @@ def discover_new_signatures(pool_watermarks):
                     valid = [s for s in sigs if s.get('err') is None]
                     results[pool] = valid
 
-    # Check for truncation: if any pool returned exactly SIG_LIMIT sigs,
-    # there may be more. Fall back to paginated fetch for those pools.
+    # Note: pools with >= SIG_LIMIT sigs may have more (truncated).
+    # We do NOT paginate here — the caller's fetch_transactions_for_coin
+    # handles full pagination during processing. The batch discovery's
+    # job is only to identify which pools have new activity.
     truncated = [p for p, sigs in results.items() if len(sigs) >= SIG_LIMIT]
     if truncated:
         logger.info(
-            "%d pools hit sig limit (%d), using paginated fetch",
+            "%d pools hit sig limit (%d) — will be fully fetched during processing",
             len(truncated), SIG_LIMIT,
         )
-        for pool in truncated:
-            until_sig = pool_watermarks[pool]
-            all_sigs = _fetch_signatures(pool, until_sig=until_sig)
-            results[pool] = [s for s in all_sigs if s.get('err') is None]
 
     logger.info(
         "Batch discovered signatures for %d pools (%d total sigs)",
