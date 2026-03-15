@@ -44,36 +44,45 @@ _key_pool = None
 _key_lock = threading.Lock()
 
 
+_init_lock = threading.Lock()
+
+
 def _init_key_pool():
-    """Lazily validate and initialize the key pool on first use."""
+    """Lazily validate and initialize the key pool on first use (thread-safe)."""
     global _validated_keys, _key_pool
-    if _validated_keys is not None:
+    if _key_pool is not None:
         return
 
-    import httpx
-    _validated_keys = []
-    for key in settings.SHYFT_API_KEYS:
-        try:
-            resp = httpx.post(
-                f"{RPC_URL}?api_key={key}",
-                json={"jsonrpc": "2.0", "id": 0, "method": "getHealth", "params": []},
-                timeout=10,
-            )
-            if resp.status_code == 200:
-                _validated_keys.append(key)
-            else:
-                logger.warning("Shyft key %s... invalid (HTTP %d), excluding",
-                               key[:8], resp.status_code)
-        except Exception:
-            logger.warning("Shyft key %s... unreachable, excluding", key[:8])
+    with _init_lock:
+        # Double-check after acquiring lock
+        if _key_pool is not None:
+            return
 
-    if not _validated_keys:
-        logger.error("No valid Shyft API keys found!")
-        _validated_keys = settings.SHYFT_API_KEYS  # fallback to all
+        import httpx
+        valid = []
+        for key in settings.SHYFT_API_KEYS:
+            try:
+                resp = httpx.post(
+                    f"{RPC_URL}?api_key={key}",
+                    json={"jsonrpc": "2.0", "id": 0, "method": "getHealth", "params": []},
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    valid.append(key)
+                else:
+                    logger.warning("Shyft key %s... invalid (HTTP %d), excluding",
+                                   key[:8], resp.status_code)
+            except Exception:
+                logger.warning("Shyft key %s... unreachable, excluding", key[:8])
 
-    _key_pool = itertools.cycle(_validated_keys)
-    logger.info("Shyft key pool: %d/%d keys valid",
-                len(_validated_keys), len(settings.SHYFT_API_KEYS))
+        if not valid:
+            logger.error("No valid Shyft API keys found!")
+            valid = settings.SHYFT_API_KEYS  # fallback to all
+
+        _validated_keys = valid
+        _key_pool = itertools.cycle(valid)
+        logger.info("Shyft key pool: %d/%d keys valid",
+                     len(valid), len(settings.SHYFT_API_KEYS))
 
 
 def _next_api_key():
