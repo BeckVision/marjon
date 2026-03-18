@@ -36,7 +36,6 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone as dj_timezone
 
 from pipeline.connectors.shyft import discover_new_signatures
-from pipeline.loaders.rd001 import get_last_signature
 from pipeline.management.commands.fetch_transactions import (
     SHYFT_RETENTION_DAYS,
     _select_source,
@@ -95,25 +94,39 @@ def _build_pool_watermarks(coins):
         - pool_watermarks: {pool_address: last_sig_or_None}
         - pool_to_mint: {pool_address: mint_address}
     """
-    pool_watermarks = {}
-    pool_to_mint = {}
+    from django.db.models import Subquery, OuterRef
+    from warehouse.models import RawTransaction
+
+    mint_ids = [c.mint_address for c in coins]
 
     pool_mappings = PoolMapping.objects.filter(
-        coin_id__in=[c.mint_address for c in coins],
+        coin_id__in=mint_ids,
     ).select_related('coin')
 
-    for pm in pool_mappings:
-        last_sig = get_last_signature(pm.coin_id)
-        pool_watermarks[pm.pool_address] = last_sig
+    # Single query: annotate each pool mapping with its coin's latest tx_signature
+    latest_sig_subquery = Subquery(
+        RawTransaction.objects
+        .filter(coin_id=OuterRef('coin_id'))
+        .order_by('-timestamp')
+        .values('tx_signature')[:1]
+    )
+    annotated = pool_mappings.annotate(last_sig=latest_sig_subquery)
+
+    pool_watermarks = {}
+    pool_to_mint = {}
+    for pm in annotated:
+        pool_watermarks[pm.pool_address] = pm.last_sig
         pool_to_mint[pm.pool_address] = pm.coin_id
 
     return pool_watermarks, pool_to_mint
 
 
-def _process_coin(mint_address, source):
+def _process_coin(mint_address, source, parse_workers=1):
     """Process one coin. Called from thread pool."""
     try:
-        result = fetch_transactions_for_coin(mint_address, source=source)
+        result = fetch_transactions_for_coin(
+            mint_address, source=source, parse_workers=parse_workers,
+        )
         return mint_address, result, None
     except Exception as e:
         return mint_address, None, str(e)
@@ -152,6 +165,10 @@ class Command(BaseCommand):
             '--sleep', type=float, default=0.5,
             help='Seconds between coins in sequential mode (default: 0.5)',
         )
+        parser.add_argument(
+            '--parse-workers', type=int, default=8,
+            help='Concurrent workers for Phase 2 parsing per coin (default: 8)',
+        )
 
     def handle(self, *args, **options):
         workers = options['workers']
@@ -162,10 +179,13 @@ class Command(BaseCommand):
         min_sigs = options['min_sigs']
         sleep_between = options['sleep']
 
+        parse_workers = options['parse_workers']
+
         started = dj_timezone.now()
         self.stdout.write(f"Batch run started at {started}")
         self.stdout.write(
-            f"Config: workers={workers}, rpc_batch={rpc_batch_size}, "
+            f"Config: workers={workers}, parse_workers={parse_workers}, "
+            f"rpc_batch={rpc_batch_size}, "
             f"source={source}, max_coins={max_coins or 'all'}, "
             f"min_sigs={min_sigs}, dry_run={dry_run}"
         )
@@ -224,11 +244,23 @@ class Command(BaseCommand):
 
         self.stdout.write(f"  Processing {len(work_queue)} coins")
 
+        # Pre-fetch all coins to avoid N+1 queries in processing loops
+        coins_by_mint = {
+            c.mint_address: c
+            for c in MigratedCoin.objects.filter(mint_address__in=work_queue)
+        }
+
+        # Pre-resolve source per coin (one pass, not per-iteration)
+        def _resolve_source(mint):
+            if source != 'auto':
+                return source
+            coin = coins_by_mint.get(mint)
+            return _select_source(coin) if coin else source
+
         if dry_run:
             self.stdout.write("\n--- DRY RUN: would process ---")
             for mint in work_queue[:20]:
-                coin = MigratedCoin.objects.get(mint_address=mint)
-                coin_source = _select_source(coin) if source == 'auto' else source
+                coin_source = _resolve_source(mint)
                 self.stdout.write(
                     f"  {mint[:30]}... source={coin_source}"
                 )
@@ -252,11 +284,10 @@ class Command(BaseCommand):
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 futures = {}
                 for mint in work_queue:
-                    coin = MigratedCoin.objects.get(mint_address=mint)
-                    coin_source = (
-                        _select_source(coin) if source == 'auto' else source
+                    coin_source = _resolve_source(mint)
+                    future = executor.submit(
+                        _process_coin, mint, coin_source, parse_workers,
                     )
-                    future = executor.submit(_process_coin, mint, coin_source)
                     futures[future] = mint
 
                 for future in as_completed(futures):
@@ -289,13 +320,10 @@ class Command(BaseCommand):
         else:
             # Sequential mode
             for mint in work_queue:
-                coin = MigratedCoin.objects.get(mint_address=mint)
-                coin_source = (
-                    _select_source(coin) if source == 'auto' else source
-                )
+                coin_source = _resolve_source(mint)
                 mint_short = mint[:20]
 
-                _, result, error = _process_coin(mint, coin_source)
+                _, result, error = _process_coin(mint, coin_source, parse_workers)
                 if error:
                     failed += 1
                     logger.error(
