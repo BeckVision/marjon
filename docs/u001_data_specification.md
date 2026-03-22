@@ -97,7 +97,7 @@
 | Attribute | Value |
 |---|---|
 | **PIT ID** | PIT-001 |
-| **Layer ID** | FL-001, FL-002 |
+| **Layer ID** | FL-001, FL-002, RD-001 |
 | **Lag** | None (not meaningful at 5-minute resolution) |
 | **Look-ahead protection** | Strategy can only access observations whose availability rule has been satisfied at the current simulated time |
 | **Knowledge time assumption** | Knowledge time equals as-of time — data is not revised or delayed after the interval closes |
@@ -118,14 +118,21 @@
 | **DQ-004** | FL-001 | `volume >= 0` | Hard reject | Row-level check |
 | **DQ-005** | FL-001 | Candle timestamp must fall within observation window (T0 to T0+5000min) | Hard reject | Range check against MigratedCoin.anchor_event |
 | **DQ-006** | All layers | First observation must be at or near T0 | Hard reject | Compare first row timestamp to anchor event |
+| **DQ-007** | RD-001 | No duplicate rows per coin per tx_signature | Hard reject | unique_together DB constraint |
+| **DQ-008** | RD-001 | `token_amount > 0` | Hard reject | DB CHECK constraint |
+| **DQ-009** | RD-001 | `sol_amount >= 0` | Hard reject | DB CHECK constraint |
+| **DQ-010** | RD-001 | `trade_type IN ('BUY', 'SELL')` | Hard reject | DB CHECK constraint |
+| **DQ-011** | RD-001 | `pool_token_reserves >= 0` (when present) | Hard reject | DB CHECK constraint |
+| **DQ-012** | RD-001 | `pool_sol_reserves >= 0` (when present) | Hard reject | DB CHECK constraint |
+| **DQ-013** | RD-001 | `lp_fee >= 0`, `protocol_fee >= 0`, `coin_creator_fee >= 0` | Hard reject | DB CHECK constraints |
 
 **Important:** Sparse data is NOT a quality violation. A coin with 12 candles out of 1000 possible is not corrupt — the coin just died. This is expected behavior for memecoins.
 
 ---
 
-### RD-001: Raw Transaction Data (planned)
+### RD-001: Raw Transaction Data
 
-**Version:** 0.1
+**Version:** 1.0
 
 | Attribute | Value |
 |---|---|
@@ -133,13 +140,13 @@
 | **Universe ID** | U-001 |
 | **Name** | Raw Transaction Data |
 | **Record type** | Single trade (buy or sell) |
-| **Feature set** | TBD |
+| **Feature set** | tx_signature, trade_type (BUY/SELL), wallet_address, token_amount, sol_amount, pool_address, tx_fee, lp_fee, protocol_fee, coin_creator_fee, pool_token_reserves (nullable), pool_sol_reserves (nullable) |
 | **Timestamp field** | Exact transaction timestamp |
 | **Availability rule** | Event-time — a transaction becomes visible at the exact moment it occurs |
 | **Access pattern** | "Get all trades for coin X between T1 and T2" |
-| **Data source** | TBD |
-| **Refresh policy** | TBD |
-| **Version** | 0.1 |
+| **Data source** | Shyft (primary, recent coins within 3-4 day retention), Helius (secondary, full historical backfill) |
+| **Refresh policy** | Daily |
+| **Version** | 1.0 |
 
 Aggregated summaries (tx_count, buy_volume, sell_volume per 5-min) may be created as FL-003 in a future version.
 

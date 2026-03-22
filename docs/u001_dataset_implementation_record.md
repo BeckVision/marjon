@@ -103,9 +103,9 @@ Values for the per-definition constants declared on each abstract base.
 | `RECORD_TYPE` | `"Single trade (buy or sell)"` |
 | `AVAILABILITY_RULE` | `"event-time"` |
 | `ACCESS_PATTERN` | `"Get all trades for coin X between T1 and T2"` |
-| `DATA_SOURCE` | `"TBD"` |
-| `REFRESH_POLICY` | `"TBD"` |
-| `VERSION` | `"0.1"` |
+| `DATA_SOURCE` | `"Shyft, Helius"` |
+| `REFRESH_POLICY` | `"Daily"` |
+| `VERSION` | `"1.0"` |
 
 ---
 
@@ -116,7 +116,7 @@ Values for the per-definition constants declared on each abstract base.
 | Universe (master data) | `UniverseBase` | `MigratedCoin` | U-001 | `mint_address` (unique natural identifier), `anchor_event` (inherited from base, mapped to graduation time) |
 | Feature layer (time series facts) | `FeatureLayerBase` | `OHLCVCandle` | FL-001 | FK to `MigratedCoin` via mint_address, `timestamp` (inherited from base), features: open_price, high_price, low_price, close_price, volume (all in USD) |
 | Feature layer (time series facts) | `FeatureLayerBase` | `HolderSnapshot` | FL-002 | FK to `MigratedCoin` via mint_address, `timestamp` (inherited from base), features: total_holders, net_holder_change, holder_percent_change, acquisition method breakdowns, size tier breakdowns |
-| Reference (event facts) | `ReferenceTableBase` | `RawTransaction` | RD-001 | FK to `MigratedCoin` via mint_address, `timestamp` (inherited from base), event identifier (TBD). Planned — feature set not yet defined. |
+| Reference (event facts) | `ReferenceTableBase` | `RawTransaction` | RD-001 | FK to `MigratedCoin` via mint_address, `timestamp` (inherited from base), tx_signature, trade_type (BUY/SELL), wallet_address, token_amount, sol_amount, pool_address, tx_fee, lp_fee, protocol_fee, coin_creator_fee, pool_token_reserves (nullable), pool_sol_reserves (nullable) |
 | | | | | *Operational models below — not paradigm. Infrastructure for pipeline tracking (PDP8).* |
 | Operational (batch tracking) | — | `PipelineBatchRun` | — | `pipeline_id`, `mode`, `status`, `coins_attempted`, `coins_succeeded`, `coins_failed`, `cu_consumed`, `api_calls` |
 | Operational (run tracking) | `PipelineRunBase` | `U001PipelineRun` | — | FK to `MigratedCoin` via mint_address, `layer_id`, `mode`, `status`, `started_at`, `completed_at`, `records_loaded`, `error_message`, `cu_consumed`, `api_calls` |
