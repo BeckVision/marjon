@@ -26,16 +26,17 @@ def _load(mint, start, end, canonical, skipped):
 
 def _pre_flight(coin, pool, start, end, **kw):
     """CU budget guard — abort if insufficient daily budget."""
+    from pipeline.exceptions import BudgetExhausted
     import pipeline.management.commands.fetch_holders as cmd
     estimated_cu = cmd.estimate_cu_cost(start, end)
     daily_used = cmd.get_daily_cu_used()
     if daily_used + estimated_cu > cmd.DAILY_CU_LIMIT:
         logger.warning(
             "CU budget guard: estimated %d CU for this run, "
-            "%d already used today (limit: %d). Aborting.",
+            "%d already used today (limit: %d). Stopping step.",
             estimated_cu, daily_used, cmd.DAILY_CU_LIMIT,
         )
-        raise ValueError(
+        raise BudgetExhausted(
             f"Would exceed daily CU limit. "
             f"Estimated={estimated_cu}, used={daily_used}, "
             f"limit={cmd.DAILY_CU_LIMIT}"

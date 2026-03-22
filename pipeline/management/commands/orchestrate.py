@@ -19,6 +19,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
+from pipeline.exceptions import BudgetExhausted
 from pipeline.orchestration.utils import (
     call_handler,
     get_coins_to_process,
@@ -277,6 +278,13 @@ class Command(BaseCommand):
                         "%s %s: %d records loaded",
                         step_name, coin.mint_address, records,
                     )
+            except BudgetExhausted as e:
+                self.stdout.write(
+                    f"Step '{step_name}': budget exhausted — stopping step. "
+                    f"({succeeded} succeeded so far)"
+                )
+                logger.warning("%s: budget exhausted after %d coins", step_name, succeeded)
+                break
             except Exception as e:
                 logger.error(
                     "%s failed for %s: %s",

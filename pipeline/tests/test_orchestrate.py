@@ -431,3 +431,59 @@ class ConsecutiveFailureSkipTest(TestCase):
         for i in range(3):
             self._create_run(RunStatus.ERROR, minutes_ago=i * 10)
         self.assertFalse(should_skip(self.coin, self.STEP, retry_failed=True))
+
+
+# --- Requires layer complete tests ------------------------------------------
+
+class RequiresLayerCompleteTest(TestCase):
+    """Tests for requires_layer_complete prerequisite in should_skip."""
+
+    STEP = {
+        'name': 'holders',
+        'layer_id': 'FL-002',
+        'requires_layer_complete': 'FL-001',
+        'skip_if': 'window_complete_or_immature',
+    }
+
+    def setUp(self):
+        self.coin = MigratedCoin.objects.create(
+            mint_address='REQ_LAYER_COIN',
+            anchor_event=T0 - timedelta(days=6),
+        )
+
+    def test_skip_when_dependency_not_started(self):
+        """No FL-001 status at all → skip."""
+        self.assertTrue(should_skip(self.coin, self.STEP))
+
+    def test_skip_when_dependency_partial(self):
+        """FL-001 is PARTIAL → skip."""
+        U001PipelineStatus.objects.create(
+            coin_id='REQ_LAYER_COIN',
+            layer_id='FL-001',
+            status=PipelineCompleteness.PARTIAL,
+        )
+        self.assertTrue(should_skip(self.coin, self.STEP))
+
+    def test_no_skip_when_dependency_complete(self):
+        """FL-001 is WINDOW_COMPLETE → don't skip (proceed to skip_if checks)."""
+        U001PipelineStatus.objects.create(
+            coin_id='REQ_LAYER_COIN',
+            layer_id='FL-001',
+            status=PipelineCompleteness.WINDOW_COMPLETE,
+        )
+        # Coin is mature and FL-002 not started — should_skip returns False
+        self.assertFalse(should_skip(self.coin, self.STEP))
+
+    def test_still_skips_if_own_layer_complete(self):
+        """FL-001 complete AND FL-002 complete → skip (already done)."""
+        U001PipelineStatus.objects.create(
+            coin_id='REQ_LAYER_COIN',
+            layer_id='FL-001',
+            status=PipelineCompleteness.WINDOW_COMPLETE,
+        )
+        U001PipelineStatus.objects.create(
+            coin_id='REQ_LAYER_COIN',
+            layer_id='FL-002',
+            status=PipelineCompleteness.WINDOW_COMPLETE,
+        )
+        self.assertTrue(should_skip(self.coin, self.STEP))

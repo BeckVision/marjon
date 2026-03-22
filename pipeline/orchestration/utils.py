@@ -165,6 +165,19 @@ def should_skip(coin, step, retry_failed=False):
     Returns:
         True if the coin should be skipped.
     """
+    # Prerequisite: another layer must be complete before this step runs
+    requires = step.get('requires_layer_complete')
+    if requires:
+        try:
+            dep_status = U001PipelineStatus.objects.get(
+                coin_id=coin.mint_address,
+                layer_id=requires,
+            )
+            if dep_status.status != PipelineCompleteness.WINDOW_COMPLETE:
+                return True
+        except U001PipelineStatus.DoesNotExist:
+            return True
+
     skip_if = step.get('skip_if')
     if not skip_if:
         return False

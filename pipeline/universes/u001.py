@@ -67,6 +67,7 @@ UNIVERSE = {
             'rate_limit_sleep': 1,
             'workers': 1,
             'max_consecutive_failures': 5,
+            'requires_layer_complete': OHLCVCandle.LAYER_ID,
             'skip_if': 'window_complete_or_immature',
         },
     ],
