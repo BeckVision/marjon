@@ -111,16 +111,19 @@ class Command(BaseCommand):
                 f"\n  {layer_id}: {total:,} records across {coin_count} coins"
             )
 
-        # Coins with no data at all
-        coin_ids = {c.mint_address for c in coins}
+        # Mature coins with no data (immature coins are expected to have none)
+        mature_ids = {c.mint_address for c in coins if c.is_mature}
+        immature_count = len(coins) - len(mature_ids)
+        if immature_count:
+            self.stdout.write(f"\n  ({immature_count} immature coins excluded from zero-data check)")
         for layer_id, model in layers.items():
             coins_with_data = set(
-                model.objects.filter(coin_id__in=coin_ids)
+                model.objects.filter(coin_id__in=mature_ids)
                 .values_list('coin_id', flat=True).distinct()
             )
-            no_data = len(coin_ids) - len(coins_with_data)
+            no_data = len(mature_ids) - len(coins_with_data)
             if no_data:
-                self.stdout.write(f"  {layer_id}: {no_data} coins have zero records")
+                self.stdout.write(f"  {layer_id}: {no_data} mature coins have zero records")
 
     def _check_sparse(self, coins, layers):
         """Flag coins with very few records relative to observation window."""
