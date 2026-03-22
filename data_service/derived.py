@@ -133,3 +133,54 @@ register(DerivedFeatureSpec(
     parameters={'window_size': 20},
     warm_up=19,
 ))
+
+
+# ---------------------------------------------------------------------------
+# DF-002: Volume Ratio — current volume vs rolling mean
+# ---------------------------------------------------------------------------
+
+def _compute_volume_ratio(rows, lookback=20):
+    """Volume ratio: current candle volume / mean volume over last N candles.
+
+    Values > 1 indicate above-average activity. A spike to 5x means
+    the current candle has 5 times the recent average volume.
+
+    Warm-up period: first `lookback` rows get None (need N candles
+    to establish the baseline mean). The current candle is NOT included
+    in the mean — it's compared against the prior N candles.
+
+    Rows with null volume are excluded from the mean. If all prior
+    candles have null/zero volume, ratio is None.
+    """
+    for i, row in enumerate(rows):
+        current_vol = row.get('volume')
+
+        if i < lookback or current_vol is None:
+            row['volume_ratio'] = None
+            continue
+
+        # Mean of the previous `lookback` candles (not including current)
+        window = rows[i - lookback:i]
+        volumes = [w.get('volume') for w in window if w.get('volume') is not None]
+
+        if not volumes:
+            row['volume_ratio'] = None
+            continue
+
+        mean_vol = sum(volumes) / len(volumes)
+
+        if mean_vol == 0:
+            row['volume_ratio'] = None
+        else:
+            row['volume_ratio'] = current_vol / mean_vol
+
+
+register(DerivedFeatureSpec(
+    derived_id='DF-002',
+    name='Volume Ratio (current vs rolling mean)',
+    source_layers=['FL-001'],
+    formula=_compute_volume_ratio,
+    output_fields=['volume_ratio'],
+    parameters={'lookback': 20},
+    warm_up=20,
+))
