@@ -6,6 +6,8 @@ They reuse existing connector/conformance/loader logic — no duplication.
 
 import logging
 
+from pipeline.runner import run_for_coin
+
 logger = logging.getLogger(__name__)
 
 
@@ -46,38 +48,33 @@ def run_pool_mapping(coins, config):
 def run_ohlcv(coin, config):
     """Fetch OHLCV for one coin.
 
-    Reuses fetch_ohlcv command logic.
-
     Returns:
         dict with 'status', 'records_loaded', 'api_calls', 'error_message'.
     """
-    from pipeline.management.commands.fetch_ohlcv import (
-        fetch_ohlcv_for_coin,
-    )
-    return fetch_ohlcv_for_coin(coin.mint_address)
+    from pipeline.pipelines.fl001 import FL001
+    return run_for_coin(FL001, coin.mint_address)
 
 
 def run_raw_transactions(coin, config):
     """Fetch raw transactions for one coin.
 
-    Reuses fetch_transactions command logic. Source selection is automatic
-    by default (recent coins → Shyft, old coins → Helius), or can be
-    overridden via config['source'].
-
     Returns:
         dict with 'status', 'records_loaded', 'records_skipped',
         'api_calls', 'error_message'.
     """
-    from pipeline.management.commands.fetch_transactions import (
-        fetch_transactions_for_coin,
-    )
+    from pipeline.pipelines.rd001 import RD001
     source = config.get('source', 'auto')
-    return fetch_transactions_for_coin(coin.mint_address, source=source)
+    parse_workers = config.get('parse_workers', 1)
+    return run_for_coin(
+        RD001, coin.mint_address, source=source, parse_workers=parse_workers,
+    )
 
 
 def run_holders(coin, config):
     """Fetch holders for one coin.
 
-    Placeholder — not yet wired up. Holders step is commented out in config.
+    Returns:
+        dict with 'status', 'records_loaded', 'api_calls', 'error_message'.
     """
-    raise NotImplementedError("Holder pipeline not yet wired into orchestrator")
+    from pipeline.pipelines.fl002 import FL002
+    return run_for_coin(FL002, coin.mint_address)
