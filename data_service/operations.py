@@ -14,6 +14,7 @@ from warehouse.models import (
 )
 
 from .alignment import align_layers
+from .derived import DERIVED_REGISTRY, compute_derived
 
 logger = logging.getLogger(__name__)
 
@@ -40,27 +41,29 @@ def get_universe_members(simulation_time):
     return qs
 
 
-def get_panel_slice(asset_ids, layer_ids, simulation_time):
+def get_panel_slice(asset_ids, layer_ids, simulation_time, derived_ids=None):
     """Return a merged panel of feature layer data with PIT enforcement.
 
-    Five-step query pipeline:
-    1. Scope — validate assets and time range
+    Six-step query pipeline:
+    1. Scope — validate assets, time range, and derived IDs
     2. Fetch — pull rows from each layer
     3. Time filter — apply .as_of() (PIT enforcement)
     4. Align — inner join on (asset, timestamp)
-    5. Return
+    5. Compute derived features (if requested)
+    6. Return
 
     Args:
         asset_ids: List of mint_address strings.
         layer_ids: List of layer ID strings (e.g. ['FL-001', 'FL-002']).
         simulation_time: datetime (UTC).
+        derived_ids: Optional list of derived feature IDs (e.g. ['DF-001']).
 
     Returns:
         List of dicts in wide format — one dict per (asset, timestamp).
 
     Raises:
         ValueError: If any asset doesn't exist in universe, or if
-            layer_id is not registered.
+            layer_id / derived_id is not registered.
     """
     # Step 1: Scope validation
     for asset_id in asset_ids:
@@ -89,6 +92,11 @@ def get_panel_slice(asset_ids, layer_ids, simulation_time):
         if layer_id not in LAYER_REGISTRY:
             raise ValueError(f"Unknown layer ID: '{layer_id}'")
 
+    if derived_ids:
+        for derived_id in derived_ids:
+            if derived_id not in DERIVED_REGISTRY:
+                raise ValueError(f"Unknown derived feature: '{derived_id}'")
+
     # Step 2+3: Fetch and time filter
     layer_data = {}
     for layer_id in layer_ids:
@@ -114,12 +122,16 @@ def get_panel_slice(asset_ids, layer_ids, simulation_time):
     # Step 4: Align
     result = align_layers(layer_data)
 
+    # Step 5: Compute derived features
+    if derived_ids:
+        result = compute_derived(result, derived_ids)
+
     logger.info(
-        "get_panel_slice(assets=%s, layers=%s, sim=%s): %d rows",
-        asset_ids, layer_ids, simulation_time, len(result),
+        "get_panel_slice(assets=%s, layers=%s, derived=%s, sim=%s): %d rows",
+        asset_ids, layer_ids, derived_ids, simulation_time, len(result),
     )
 
-    # Step 5: Return
+    # Step 6: Return
     return result
 
 
