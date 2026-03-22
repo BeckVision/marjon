@@ -188,3 +188,29 @@ class VWAPIntegrationTest(TestCase):
         # Default window is 20, we only have 5 candles → all None
         for row in result:
             self.assertIsNone(row['vwap'])
+
+    def test_param_override_changes_window(self):
+        """Override window_size=3 → last 3 candles produce a value."""
+        sim = T0 + timedelta(minutes=30)
+        result = get_panel_slice(
+            ['VWAP_COIN'], ['FL-001'], sim,
+            derived_ids=['DF-001'],
+            derived_params={'DF-001': {'window_size': 3}},
+        )
+        # 5 candles, window=3: first 2 are None, last 3 have values
+        none_count = sum(1 for r in result if r['vwap'] is None)
+        value_count = sum(1 for r in result if r['vwap'] is not None)
+        self.assertEqual(none_count, 2)
+        self.assertEqual(value_count, 3)
+
+    def test_param_override_does_not_mutate_spec(self):
+        """Overriding params doesn't change the registered spec defaults."""
+        from data_service.derived import DERIVED_REGISTRY
+        sim = T0 + timedelta(minutes=30)
+        get_panel_slice(
+            ['VWAP_COIN'], ['FL-001'], sim,
+            derived_ids=['DF-001'],
+            derived_params={'DF-001': {'window_size': 3}},
+        )
+        # Spec default should still be 20
+        self.assertEqual(DERIVED_REGISTRY['DF-001'].parameters['window_size'], 20)

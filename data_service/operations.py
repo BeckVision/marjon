@@ -41,7 +41,8 @@ def get_universe_members(simulation_time):
     return qs
 
 
-def get_panel_slice(asset_ids, layer_ids, simulation_time, derived_ids=None):
+def get_panel_slice(asset_ids, layer_ids, simulation_time,
+                    derived_ids=None, derived_params=None):
     """Return a merged panel of feature layer data with PIT enforcement.
 
     Six-step query pipeline:
@@ -57,6 +58,8 @@ def get_panel_slice(asset_ids, layer_ids, simulation_time, derived_ids=None):
         layer_ids: List of layer ID strings (e.g. ['FL-001', 'FL-002']).
         simulation_time: datetime (UTC).
         derived_ids: Optional list of derived feature IDs (e.g. ['DF-001']).
+        derived_params: Optional dict of {derived_id: {param: value}}
+                        overrides. Merged on top of spec defaults.
 
     Returns:
         List of dicts in wide format — one dict per (asset, timestamp).
@@ -124,7 +127,7 @@ def get_panel_slice(asset_ids, layer_ids, simulation_time, derived_ids=None):
 
     # Step 5: Compute derived features
     if derived_ids:
-        result = compute_derived(result, derived_ids)
+        result = compute_derived(result, derived_ids, derived_params)
 
     logger.info(
         "get_panel_slice(assets=%s, layers=%s, derived=%s, sim=%s): %d rows",

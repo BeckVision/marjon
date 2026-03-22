@@ -41,13 +41,15 @@ def register(spec):
 # Computation engine
 # ---------------------------------------------------------------------------
 
-def compute_derived(panel_rows, derived_ids):
+def compute_derived(panel_rows, derived_ids, derived_params=None):
     """Apply derived features to aligned panel rows.
 
     Args:
         panel_rows: List of dicts from align_layers (wide format,
                     sorted by (coin_id, timestamp)).
         derived_ids: List of derived feature IDs to compute.
+        derived_params: Optional dict of {derived_id: {param: value}}
+                        overrides. Merged on top of spec defaults.
 
     Returns:
         panel_rows with derived columns added in place.
@@ -55,6 +57,8 @@ def compute_derived(panel_rows, derived_ids):
     Raises:
         ValueError: If a derived_id is not registered.
     """
+    derived_params = derived_params or {}
+
     for derived_id in derived_ids:
         if derived_id not in DERIVED_REGISTRY:
             raise ValueError(f"Unknown derived feature: '{derived_id}'")
@@ -66,9 +70,10 @@ def compute_derived(panel_rows, derived_ids):
 
     for derived_id in derived_ids:
         spec = DERIVED_REGISTRY[derived_id]
+        params = {**spec.parameters, **derived_params.get(derived_id, {})}
         for coin_id, rows in by_coin.items():
             # Rows are already sorted by timestamp from alignment
-            spec.formula(rows, **spec.parameters)
+            spec.formula(rows, **params)
 
     return panel_rows
 
