@@ -6,12 +6,17 @@ Two-phase architecture:
 
 Batch RPC support for daily automation: discover new signatures for
 multiple pools in a single HTTP request (up to 250 pools per batch).
+
+Phase 2 supports concurrent parsing via _parse_selected(sigs, max_workers).
+Per-key rate limiting ensures each API key respects its cooldown even
+when multiple threads share the pool.
 """
 
 import itertools
 import logging
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 from django.conf import settings
@@ -34,7 +39,7 @@ REST_URL = "https://api.shyft.to/sol/v1"
 SIG_LIMIT = 1000          # max signatures per getSignaturesForAddress call
 PARSE_BATCH_SIZE = 100    # max signatures per parse_selected call (hard limit)
 RPC_BATCH_SIZE = 250      # max calls per batch RPC request (tested)
-RATE_LIMIT_SLEEP = 1.0    # seconds between REST calls per key
+RATE_LIMIT_SLEEP = 0.6    # min seconds between REST calls on the SAME key
 
 # Round-robin iterator over Shyft API keys (thread-safe).
 # Invalid keys are filtered out at import time to avoid repeated
@@ -43,6 +48,9 @@ _validated_keys = None
 _key_pool = None
 _key_lock = threading.Lock()
 
+# Per-key rate limiting: tracks last-used timestamp per key.
+_key_last_used = {}       # {key: monotonic_time}
+_rate_lock = threading.Lock()
 
 _init_lock = threading.Lock()
 
@@ -90,6 +98,33 @@ def _next_api_key():
     _init_key_pool()
     with _key_lock:
         return next(_key_pool)
+
+
+def _acquire_rate_limited_key():
+    """Acquire the least-recently-used key, sleeping if needed for rate limit.
+
+    Thread-safe. With N keys and RATE_LIMIT_SLEEP=S, sustains N/S calls/sec.
+    """
+    _init_key_pool()
+
+    while True:
+        with _rate_lock:
+            now = time.monotonic()
+            best_key = None
+            best_wait = float('inf')
+            for key in _validated_keys:
+                last = _key_last_used.get(key, 0)
+                wait = max(0, RATE_LIMIT_SLEEP - (now - last))
+                if wait < best_wait:
+                    best_wait = wait
+                    best_key = key
+
+            if best_wait <= 0:
+                _key_last_used[best_key] = now
+                return best_key
+
+        # All keys on cooldown — sleep until soonest is ready, then retry
+        time.sleep(best_wait)
 
 
 def _validate_shyft_response(data):
@@ -301,61 +336,81 @@ _filter_signatures = filter_rpc_signatures
 # Phase 2: Transaction parsing via REST
 # ---------------------------------------------------------------------------
 
-def _parse_selected(signatures):
+def _parse_one_batch(chunk):
+    """Parse a single batch of ≤100 signatures via Shyft REST (thread-safe).
+
+    Acquires a rate-limited key, makes the request, retries with other
+    keys on auth failures.
+
+    Returns:
+        List of parsed Shyft transaction dicts.
+    """
+    _init_key_pool()
+    key_retries = len(_validated_keys)
+
+    payload = {
+        'network': 'mainnet-beta',
+        'transaction_signatures': chunk,
+        'enable_events': True,
+        'enable_raw': False,
+    }
+
+    for attempt in range(key_retries):
+        api_key = _acquire_rate_limited_key()
+        try:
+            data = request_with_retry(
+                f"{REST_URL}/transaction/parse_selected",
+                headers={'x-api-key': api_key},
+                method='POST',
+                json_body=payload,
+                validate_response=_validate_shyft_response,
+            )
+            return data.get('result', [])
+        except Exception:
+            if attempt < key_retries - 1:
+                logger.warning(
+                    "Key %s... failed, trying next key",
+                    api_key[:8],
+                )
+                continue
+            raise
+
+
+def _parse_selected(signatures, max_workers=1):
     """Parse transaction signatures via Shyft's parse_selected endpoint.
 
     Batches signatures into chunks of PARSE_BATCH_SIZE (100 max).
-    Rotates API keys across batches. If a key returns an auth error,
-    retries with the next key (handles invalid/expired keys).
+    Uses per-key rate limiting to maximize throughput across keys.
+
+    With max_workers > 1, batches are processed concurrently using a
+    thread pool. Each thread acquires its own rate-limited key.
 
     Args:
         signatures: List of signature strings.
+        max_workers: Concurrent parse threads (default 1 = sequential).
 
     Returns:
-        List of parsed Shyft transaction dicts (same format as
-        /transaction/history).
+        List of parsed Shyft transaction dicts.
     """
+    batches = [
+        signatures[i:i + PARSE_BATCH_SIZE]
+        for i in range(0, len(signatures), PARSE_BATCH_SIZE)
+    ]
+
+    if not batches:
+        return []
+
+    if max_workers <= 1:
+        all_parsed = []
+        for batch in batches:
+            all_parsed.extend(_parse_one_batch(batch))
+        return all_parsed
+
     all_parsed = []
-    key_retries = len(settings.SHYFT_API_KEYS)
-
-    for chunk_start in range(0, len(signatures), PARSE_BATCH_SIZE):
-        chunk = signatures[chunk_start:chunk_start + PARSE_BATCH_SIZE]
-
-        payload = {
-            'network': 'mainnet-beta',
-            'transaction_signatures': chunk,
-            'enable_events': True,
-            'enable_raw': False,
-        }
-
-        # Try keys until one works (skip bad keys)
-        for attempt in range(key_retries):
-            api_key = _next_api_key()
-            try:
-                data = request_with_retry(
-                    f"{REST_URL}/transaction/parse_selected",
-                    headers={'x-api-key': api_key},
-                    method='POST',
-                    json_body=payload,
-                    validate_response=_validate_shyft_response,
-                )
-                break
-            except Exception:
-                if attempt < key_retries - 1:
-                    logger.warning(
-                        "Key %s... failed, trying next key",
-                        api_key[:8],
-                    )
-                    continue
-                raise
-
-        result = data.get('result', [])
-        all_parsed.extend(result)
-
-        # Rate limit: sleep between REST calls
-        if chunk_start + PARSE_BATCH_SIZE < len(signatures):
-            time.sleep(RATE_LIMIT_SLEEP)
-
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(_parse_one_batch, b) for b in batches]
+        for future in as_completed(futures):
+            all_parsed.extend(future.result())
     return all_parsed
 
 
@@ -363,7 +418,7 @@ def _parse_selected(signatures):
 # Public API
 # ---------------------------------------------------------------------------
 
-def fetch_transactions(pool_address, start=None, end=None):
+def fetch_transactions(pool_address, start=None, end=None, max_workers=1):
     """Fetch and parse transactions for a Pumpswap pool from Shyft.
 
     Two-phase approach:
@@ -374,6 +429,7 @@ def fetch_transactions(pool_address, start=None, end=None):
         pool_address: Pumpswap pool address string.
         start: Optional datetime (UTC) — filter sigs before this.
         end: Optional datetime (UTC) — filter sigs after this.
+        max_workers: Concurrent parse threads for Phase 2 (default 1).
 
     Returns:
         Tuple of (transactions, metadata) where transactions is a list of
@@ -406,7 +462,7 @@ def fetch_transactions(pool_address, start=None, end=None):
         return [], {'api_calls': rpc_pages}
 
     # Phase 2: parse selected
-    transactions = _parse_selected(filtered)
+    transactions = _parse_selected(filtered, max_workers=max_workers)
     rest_calls = (len(filtered) + PARSE_BATCH_SIZE - 1) // PARSE_BATCH_SIZE
 
     logger.info(

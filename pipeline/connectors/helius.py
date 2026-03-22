@@ -6,12 +6,16 @@ Two-phase architecture (same pattern as Shyft connector):
 
 Used for coins whose observation windows have expired beyond Shyft's
 3-4 day retention limit. Helius provides full historical access.
+
+Phase 2 supports concurrent parsing via _parse_transactions(sigs, max_workers).
+Per-key rate limiting ensures each API key respects its cooldown.
 """
 
 import itertools
 import logging
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 from django.conf import settings
@@ -33,7 +37,7 @@ ENHANCED_URL = "https://api-mainnet.helius-rpc.com"
 # Limits
 SIG_LIMIT = 1000          # max signatures per getSignaturesForAddress call
 PARSE_BATCH_SIZE = 100    # max signatures per POST /v0/transactions call
-RATE_LIMIT_SLEEP = 0.5    # 2 req/sec free tier for Enhanced APIs
+RATE_LIMIT_SLEEP = 0.3    # min seconds between calls on the SAME key
 
 # Credit costs (for logging/tracking)
 RPC_CREDITS = 10
@@ -43,11 +47,39 @@ ENHANCED_CREDITS = 100
 _key_pool = itertools.cycle(settings.HELIUS_API_KEYS)
 _key_lock = threading.Lock()
 
+# Per-key rate limiting
+_key_last_used = {}       # {key: monotonic_time}
+_rate_lock = threading.Lock()
+
 
 def _next_api_key():
     """Return the next API key from the rotation (thread-safe)."""
     with _key_lock:
         return next(_key_pool)
+
+
+def _acquire_rate_limited_key():
+    """Acquire the least-recently-used key, sleeping if needed for rate limit.
+
+    Thread-safe. With N keys and RATE_LIMIT_SLEEP=S, sustains N/S calls/sec.
+    """
+    while True:
+        with _rate_lock:
+            now = time.monotonic()
+            best_key = None
+            best_wait = float('inf')
+            for key in settings.HELIUS_API_KEYS:
+                last = _key_last_used.get(key, 0)
+                wait = max(0, RATE_LIMIT_SLEEP - (now - last))
+                if wait < best_wait:
+                    best_wait = wait
+                    best_key = key
+
+            if best_wait <= 0:
+                _key_last_used[best_key] = now
+                return best_key
+
+        time.sleep(best_wait)
 
 
 _validate_rpc_response = partial(validate_jsonrpc_response, source_name="Helius RPC")
@@ -126,46 +158,72 @@ _filter_signatures = filter_rpc_signatures
 # Phase 2: Transaction parsing via Enhanced API
 # ---------------------------------------------------------------------------
 
-def _parse_transactions(signatures):
+def _parse_one_batch(chunk):
+    """Parse a single batch of ≤100 signatures via Helius Enhanced API.
+
+    Acquires a rate-limited key and makes the request. Thread-safe.
+
+    Returns:
+        Tuple of (parsed_list, credits_used).
+    """
+    api_key = _acquire_rate_limited_key()
+    url = f"{ENHANCED_URL}/v0/transactions"
+    params = {'api-key': api_key}
+    payload = {"transactions": chunk}
+
+    data = request_with_retry(
+        url, params=params, method='POST', json_body=payload,
+    )
+
+    if isinstance(data, list):
+        return data, ENHANCED_CREDITS
+    else:
+        logger.warning(
+            "Helius parse returned non-array: %s",
+            str(data)[:200],
+        )
+        return [], ENHANCED_CREDITS
+
+
+def _parse_transactions(signatures, max_workers=1):
     """Parse transaction signatures via Helius Enhanced API.
 
     POST /v0/transactions with batches of PARSE_BATCH_SIZE (100 max).
-    Rotates API keys across batches.
+    Uses per-key rate limiting for throughput.
+
+    With max_workers > 1, batches are processed concurrently.
 
     Args:
         signatures: List of signature strings.
+        max_workers: Concurrent parse threads (default 1 = sequential).
 
     Returns:
-        List of Helius EnhancedTransaction dicts.
+        Tuple of (parsed_list, credits_used).
     """
+    batches = [
+        signatures[i:i + PARSE_BATCH_SIZE]
+        for i in range(0, len(signatures), PARSE_BATCH_SIZE)
+    ]
+
+    if not batches:
+        return [], 0
+
     all_parsed = []
     credits_used = 0
 
-    for chunk_start in range(0, len(signatures), PARSE_BATCH_SIZE):
-        chunk = signatures[chunk_start:chunk_start + PARSE_BATCH_SIZE]
+    if max_workers <= 1:
+        for batch in batches:
+            parsed, credits = _parse_one_batch(batch)
+            all_parsed.extend(parsed)
+            credits_used += credits
+        return all_parsed, credits_used
 
-        api_key = _next_api_key()
-        url = f"{ENHANCED_URL}/v0/transactions"
-        params = {'api-key': api_key}
-        payload = {"transactions": chunk}
-
-        data = request_with_retry(
-            url, params=params, method='POST', json_body=payload,
-        )
-        credits_used += ENHANCED_CREDITS
-
-        if isinstance(data, list):
-            all_parsed.extend(data)
-        else:
-            logger.warning(
-                "Helius parse returned non-array: %s",
-                str(data)[:200],
-            )
-
-        # Rate limit
-        if chunk_start + PARSE_BATCH_SIZE < len(signatures):
-            time.sleep(RATE_LIMIT_SLEEP)
-
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(_parse_one_batch, b) for b in batches]
+        for future in as_completed(futures):
+            parsed, credits = future.result()
+            all_parsed.extend(parsed)
+            credits_used += credits
     return all_parsed, credits_used
 
 
@@ -173,7 +231,7 @@ def _parse_transactions(signatures):
 # Public API
 # ---------------------------------------------------------------------------
 
-def fetch_transactions(pool_address, start=None, end=None):
+def fetch_transactions(pool_address, start=None, end=None, max_workers=1):
     """Fetch and parse transactions for a Pumpswap pool from Helius.
 
     Two-phase approach with full historical access:
@@ -184,6 +242,7 @@ def fetch_transactions(pool_address, start=None, end=None):
         pool_address: Pumpswap pool address string.
         start: Optional datetime (UTC) — filter sigs before this.
         end: Optional datetime (UTC) — filter sigs after this.
+        max_workers: Concurrent parse threads for Phase 2 (default 1).
 
     Returns:
         Tuple of (transactions, metadata) where transactions is a list of
@@ -217,7 +276,9 @@ def fetch_transactions(pool_address, start=None, end=None):
         return [], {'api_calls': rpc_calls, 'credits_used': rpc_credits}
 
     # Phase 2: parse transactions
-    transactions, parse_credits = _parse_transactions(filtered)
+    transactions, parse_credits = _parse_transactions(
+        filtered, max_workers=max_workers,
+    )
     rest_calls = (len(filtered) + PARSE_BATCH_SIZE - 1) // PARSE_BATCH_SIZE
 
     total_credits = rpc_credits + parse_credits

@@ -50,8 +50,9 @@ UNIVERSE = {
             'depends_on': 'pool_mapping',
             'per_coin': True,
             'source': 'auto',
-            'rate_limit_sleep': 1,
-            'workers': 4,
+            'rate_limit_sleep': 0,      # per-key rate limiting in connector handles pacing
+            'workers': 1,               # coin-level; parse_workers handles concurrency
+            'parse_workers': 8,         # intra-coin Phase 2 threads (SSOT for this value)
             'skip_if': 'window_complete',
         },
         # Uncomment when ready:
