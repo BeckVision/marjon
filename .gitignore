@@ -11,3 +11,5 @@ venv/
 .moralis_bootstrap_state.json
 marjon.log
 source_comparison*.json
+.claude/
+logs/

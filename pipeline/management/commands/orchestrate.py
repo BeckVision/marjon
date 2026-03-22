@@ -22,6 +22,7 @@ from django.utils import timezone
 from pipeline.orchestration.utils import (
     call_handler,
     get_coins_to_process,
+    get_persistent_failures,
     load_universe_config,
     mark_error,
     resolve_step_order,
@@ -65,6 +66,10 @@ class Command(BaseCommand):
             '--dry-run', action='store_true',
             help='Show what would be executed without doing it',
         )
+        parser.add_argument(
+            '--retry-failed', action='store_true',
+            help='Bypass consecutive failure skip — retry persistently failing coins',
+        )
 
     def handle(self, *args, **options):
         # 1. Load universe config
@@ -82,6 +87,7 @@ class Command(BaseCommand):
             requested_steps.discard('discovery')
 
         dry_run = options['dry_run']
+        retry_failed = options.get('retry_failed', False)
 
         # 2. Resolve step order
         try:
@@ -91,7 +97,7 @@ class Command(BaseCommand):
 
         # 3. Dry run — show plan and exit
         if dry_run:
-            self._dry_run(config, steps, run_discovery, options)
+            self._dry_run(config, steps, run_discovery, options, retry_failed)
             return
 
         # 4. Create PipelineBatchRun
@@ -155,7 +161,7 @@ class Command(BaseCommand):
                     self.stdout.write(f"\nStep '{step_name}': batch mode")
 
                     # Filter to coins that shouldn't be skipped
-                    batch_coins = [c for c in coins if not should_skip(c, step)]
+                    batch_coins = [c for c in coins if not should_skip(c, step, retry_failed)]
                     if not batch_coins:
                         self.stdout.write(f"Step '{step_name}': all coins skipped")
                         continue
@@ -191,7 +197,7 @@ class Command(BaseCommand):
                 )
 
                 # Filter coins that should be skipped
-                work_coins = [c for c in coins if not should_skip(c, step)]
+                work_coins = [c for c in coins if not should_skip(c, step, retry_failed)]
                 skipped = len(coins) - len(work_coins)
 
                 if workers > 1:
@@ -231,6 +237,22 @@ class Command(BaseCommand):
             batch.coins_failed = total_failed
             batch.save()
             raise CommandError(f"Orchestrator failed: {e}")
+
+        # Failure summary — surface persistently failing coins
+        layer_ids = [s['layer_id'] for s in steps if s.get('layer_id')]
+        if layer_ids:
+            persistent = get_persistent_failures(layer_ids)
+            if persistent:
+                self.stdout.write("\n--- Persistent failures ---")
+                for pf in persistent:
+                    self.stdout.write(
+                        f"  {pf['coin_id']} / {pf['layer_id']}: "
+                        f"{pf['consecutive_errors']} consecutive errors"
+                    )
+                self.stdout.write(
+                    f"Total: {len(persistent)} coin/layer pairs stuck in error. "
+                    f"Use --retry-failed to force retry."
+                )
 
         self.stdout.write(
             f"\nComplete: {total_succeeded} succeeded, "
@@ -316,9 +338,12 @@ class Command(BaseCommand):
 
         return succeeded, failed
 
-    def _dry_run(self, config, steps, run_discovery, options):
+    def _dry_run(self, config, steps, run_discovery, options, retry_failed=False):
         """Show what would be executed without doing it."""
         self.stdout.write(f"=== DRY RUN: {config['id']} — {config['name']} ===\n")
+
+        if retry_failed:
+            self.stdout.write("  (--retry-failed: bypassing consecutive failure skip)")
 
         if run_discovery:
             self.stdout.write(
@@ -341,7 +366,7 @@ class Command(BaseCommand):
         workers_override = options.get('workers')
 
         for i, step in enumerate(steps, start=2 if run_discovery else 1):
-            skip_count = sum(1 for c in coins if should_skip(c, step))
+            skip_count = sum(1 for c in coins if should_skip(c, step, retry_failed))
             process_count = len(coins) - skip_count
             step_workers = workers_override or step.get('workers', 1)
             self.stdout.write(

@@ -41,6 +41,7 @@ UNIVERSE = {
             'source': 'geckoterminal',
             'rate_limit_sleep': 0,
             'workers': 6,
+            'max_consecutive_failures': 5,
             'skip_if': 'window_complete_or_immature',
         },
         {
@@ -53,19 +54,20 @@ UNIVERSE = {
             'rate_limit_sleep': 0,      # per-key rate limiting in connector handles pacing
             'workers': 1,               # coin-level; parse_workers handles concurrency
             'parse_workers': 8,         # intra-coin Phase 2 threads (SSOT for this value)
+            'max_consecutive_failures': 5,
             'skip_if': 'window_complete',
         },
-        # Uncomment when ready:
-        # {
-        #     'name': 'holders',
-        #     'layer_id': HolderSnapshot.LAYER_ID,
-        #     'handler': 'pipeline.orchestration.handlers.run_holders',
-        #     'depends_on': 'discovery',
-        #     'per_coin': True,
-        #     'source': 'moralis',
-        #     'rate_limit_sleep': 1,
-        #     'api_keys': ['MORALIS_API_KEY_1', 'MORALIS_API_KEY_2', 'MORALIS_API_KEY_3', 'MORALIS_API_KEY_4'],
-        #     'skip_if': 'window_complete_or_immature',
-        # },
+        {
+            'name': 'holders',
+            'layer_id': HolderSnapshot.LAYER_ID,
+            'handler': 'pipeline.orchestration.handlers.run_holders',
+            'depends_on': 'discovery',
+            'per_coin': True,
+            'source': 'moralis',
+            'rate_limit_sleep': 1,
+            'workers': 1,
+            'max_consecutive_failures': 5,
+            'skip_if': 'window_complete_or_immature',
+        },
     ],
 }

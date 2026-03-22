@@ -19,7 +19,7 @@ from pipeline.orchestration.utils import (
 )
 from warehouse.models import (
     MigratedCoin, OHLCVCandle, PipelineBatchRun, PipelineCompleteness,
-    PoolMapping, RunStatus, U001PipelineStatus,
+    PoolMapping, RunMode, RunStatus, U001PipelineRun, U001PipelineStatus,
 )
 
 T0 = datetime(2026, 3, 1, 10, 0, tzinfo=timezone.utc)
@@ -371,3 +371,63 @@ class OverrideGatewayUrlsTest(TestCase):
         with override_gateway_urls([]):
             url = _next_base_url()
             self.assertEqual(url, DIRECT_URL)
+
+
+# --- Consecutive failure skip tests -----------------------------------------
+
+class ConsecutiveFailureSkipTest(TestCase):
+    """Tests for consecutive failure detection in should_skip."""
+
+    STEP = {
+        'name': 'ohlcv',
+        'layer_id': 'FL-001',
+        'max_consecutive_failures': 3,
+        'skip_if': 'window_complete',
+    }
+
+    def setUp(self):
+        self.coin = MigratedCoin.objects.create(
+            mint_address='FAIL_TEST_COIN',
+            anchor_event=T0 - timedelta(days=6),
+        )
+        self.batch = PipelineBatchRun.objects.create(
+            pipeline_id='U-001',
+            mode=RunMode.STEADY_STATE,
+            status=RunStatus.COMPLETE,
+            started_at=T0,
+        )
+
+    def _create_run(self, status, minutes_ago):
+        U001PipelineRun.objects.create(
+            coin=self.coin,
+            batch=self.batch,
+            layer_id='FL-001',
+            mode=RunMode.STEADY_STATE,
+            status=status,
+            started_at=T0 - timedelta(minutes=minutes_ago),
+        )
+
+    def test_skip_after_consecutive_failures(self):
+        """3 consecutive ERROR runs → skip."""
+        for i in range(3):
+            self._create_run(RunStatus.ERROR, minutes_ago=i * 10)
+        self.assertTrue(should_skip(self.coin, self.STEP))
+
+    def test_no_skip_if_recent_success_mixed_in(self):
+        """ERROR, COMPLETE, ERROR → not consecutive, don't skip."""
+        self._create_run(RunStatus.ERROR, minutes_ago=0)
+        self._create_run(RunStatus.COMPLETE, minutes_ago=10)
+        self._create_run(RunStatus.ERROR, minutes_ago=20)
+        self.assertFalse(should_skip(self.coin, self.STEP))
+
+    def test_no_skip_with_fewer_than_n_runs(self):
+        """Only 2 runs (threshold is 3) → don't skip."""
+        self._create_run(RunStatus.ERROR, minutes_ago=0)
+        self._create_run(RunStatus.ERROR, minutes_ago=10)
+        self.assertFalse(should_skip(self.coin, self.STEP))
+
+    def test_retry_failed_bypasses_check(self):
+        """3 consecutive errors but retry_failed=True → don't skip."""
+        for i in range(3):
+            self._create_run(RunStatus.ERROR, minutes_ago=i * 10)
+        self.assertFalse(should_skip(self.coin, self.STEP, retry_failed=True))
