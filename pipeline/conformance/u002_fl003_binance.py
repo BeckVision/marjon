@@ -2,9 +2,20 @@
 
 Pure function — no DB access, no API calls. Crashes on malformed input.
 Input from binance_csv.fetch_futures_metrics_csv (DictReader rows).
+
+Note: ratio fields can be empty strings in Binance CSVs (documented as
+nullable in the data spec). Empty strings → None.
 """
 
 from decimal import Decimal
+
+
+def _to_decimal_or_none(value):
+    """Convert to Decimal, or None if empty/missing."""
+    s = str(value).strip()
+    if not s:
+        return None
+    return Decimal(s)
 
 
 def conform(raw_rows, symbol, pool_address=None, **kwargs):
@@ -23,11 +34,11 @@ def conform(raw_rows, symbol, pool_address=None, **kwargs):
         canonical.append({
             'asset_id': symbol,
             'timestamp': row['timestamp'],
-            'sum_open_interest': Decimal(str(row['sum_open_interest'])),
-            'sum_open_interest_value': Decimal(str(row['sum_open_interest_value'])),
-            'count_toptrader_long_short_ratio': Decimal(str(row['count_toptrader_long_short_ratio'])),
-            'sum_toptrader_long_short_ratio': Decimal(str(row['sum_toptrader_long_short_ratio'])),
-            'count_long_short_ratio': Decimal(str(row['count_long_short_ratio'])),
-            'sum_taker_long_short_vol_ratio': Decimal(str(row['sum_taker_long_short_vol_ratio'])),
+            'sum_open_interest': _to_decimal_or_none(row['sum_open_interest']),
+            'sum_open_interest_value': _to_decimal_or_none(row['sum_open_interest_value']),
+            'count_toptrader_long_short_ratio': _to_decimal_or_none(row['count_toptrader_long_short_ratio']),
+            'sum_toptrader_long_short_ratio': _to_decimal_or_none(row['sum_toptrader_long_short_ratio']),
+            'count_long_short_ratio': _to_decimal_or_none(row['count_long_short_ratio']),
+            'sum_taker_long_short_vol_ratio': _to_decimal_or_none(row['sum_taker_long_short_vol_ratio']),
         })
     return canonical
