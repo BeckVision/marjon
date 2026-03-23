@@ -6,11 +6,17 @@ warehouse models. Enforces PIT semantics and cross-layer alignment.
 
 import logging
 
+from django.db import models as dj_models
+
 from warehouse.models import (
+    BinanceAsset,
     MigratedCoin,
     OHLCVCandle,
     HolderSnapshot,
     RawTransaction,
+    U002FundingRate,
+    U002FuturesMetrics,
+    U002OHLCVCandle,
 )
 
 from .alignment import align_layers
@@ -22,11 +28,15 @@ logger = logging.getLogger(__name__)
 LAYER_REGISTRY = {
     OHLCVCandle.LAYER_ID: OHLCVCandle,
     HolderSnapshot.LAYER_ID: HolderSnapshot,
+    U002OHLCVCandle.LAYER_ID: U002OHLCVCandle,
+    U002FuturesMetrics.LAYER_ID: U002FuturesMetrics,
+    U002FundingRate.LAYER_ID: U002FundingRate,
 }
 
 # Universe ID -> model class mapping
 UNIVERSE_REGISTRY = {
     MigratedCoin.UNIVERSE_ID: MigratedCoin,
+    BinanceAsset.UNIVERSE_ID: BinanceAsset,
 }
 
 # Reference ID -> model class mapping
@@ -193,12 +203,20 @@ def get_reference_data(asset_id, start, end, simulation_time):
 # ---------------------------------------------------------------------------
 
 def _lookup_asset(asset_id):
-    """Look up an asset across all registered universes."""
+    """Look up an asset across all registered universes.
+
+    Tries each universe model's unique CharField (the natural key).
+    """
     for universe_model in UNIVERSE_REGISTRY.values():
-        try:
-            return universe_model.objects.get(mint_address=asset_id)
-        except universe_model.DoesNotExist:
-            continue
+        # Find the unique CharField that serves as the natural key
+        for field in universe_model._meta.get_fields():
+            if (hasattr(field, 'unique') and field.unique
+                    and isinstance(field, dj_models.CharField)
+                    and field.name != 'id'):
+                try:
+                    return universe_model.objects.get(**{field.name: asset_id})
+                except universe_model.DoesNotExist:
+                    break
     raise ValueError(
         f"Asset '{asset_id}' does not exist in any registered universe"
     )
@@ -226,7 +244,7 @@ def _validate_simulation_time(asset, simulation_time):
 
 def _get_feature_fields(model):
     """Return list of feature field names for a model (exclude FK, timestamps, PK)."""
-    skip = {'id', 'coin', 'coin_id', 'timestamp', 'ingested_at'}
+    skip = {'id', 'coin', 'coin_id', 'asset', 'asset_id', 'timestamp', 'ingested_at'}
     fields = []
     for f in model._meta.get_fields():
         if hasattr(f, 'column') and f.name not in skip:

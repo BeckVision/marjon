@@ -667,3 +667,234 @@ class U001PipelineStatus(PipelineStatusBase):
 
     def __str__(self):
         return f"{self.coin_id} {self.layer_id} {self.status}"
+
+
+# ---------------------------------------------------------------------------
+# Concrete models — U-002 (Major Crypto Assets)
+# ---------------------------------------------------------------------------
+
+class BinanceAsset(UniverseBase):
+    UNIVERSE_ID = "U-002"
+    NAME = "Major Crypto Assets"
+    INCLUSION_CRITERIA = "Fixed list: BTCUSDT, ETHUSDT, SOLUSDT"
+    UNIVERSE_TYPE = "calendar-driven"
+    OBSERVATION_WINDOW_START = None  # open-ended
+    OBSERVATION_WINDOW_END = None    # open-ended (perpetual)
+    EXCLUSION_CRITERIA = None
+    VERSION = "1.0"
+
+    symbol = models.CharField(max_length=20, unique=True)
+    base_asset = models.CharField(max_length=10)
+    quote_asset = models.CharField(max_length=10)
+    ingested_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.symbol
+
+
+class U002OHLCVCandle(FeatureLayerBase):
+    """OHLCV+ spot klines from Binance (1-minute candles)."""
+    LAYER_ID = "U002-FL-001"
+    UNIVERSE_ID = "U-002"
+    NAME = "OHLCV+ (Spot Klines)"
+    TEMPORAL_RESOLUTION = timedelta(minutes=1)
+    AVAILABILITY_RULE = "end-of-interval"
+    GAP_HANDLING = "No candle if exchange returns no data for that interval"
+    DATA_SOURCE = "Binance"
+    REFRESH_POLICY = "Daily"
+    VERSION = "1.0"
+
+    asset = models.ForeignKey(
+        BinanceAsset,
+        to_field='symbol',
+        on_delete=models.CASCADE,
+        related_name='ohlcv_candles',
+    )
+    open_price = models.DecimalField(max_digits=20, decimal_places=8, null=True)
+    high_price = models.DecimalField(max_digits=20, decimal_places=8, null=True)
+    low_price = models.DecimalField(max_digits=20, decimal_places=8, null=True)
+    close_price = models.DecimalField(max_digits=20, decimal_places=8, null=True)
+    volume = models.DecimalField(max_digits=20, decimal_places=8, null=True)
+    quote_volume = models.DecimalField(max_digits=20, decimal_places=8, null=True)
+    trade_count = models.IntegerField(null=True)
+    taker_buy_volume = models.DecimalField(max_digits=20, decimal_places=8, null=True)
+    taker_buy_quote_volume = models.DecimalField(max_digits=20, decimal_places=8, null=True)
+
+    class Meta:
+        unique_together = [('asset', 'timestamp')]
+        indexes = [
+            models.Index(fields=['timestamp']),
+            models.Index(
+                fields=['asset', '-timestamp'],
+                name='idx_u002ohlcv_asset_ts',
+            ),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(high_price__gte=models.F('low_price')),
+                name='u002_ohlcv_high_gte_low',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(volume__gte=0),
+                name='u002_ohlcv_volume_non_neg',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(quote_volume__gte=0),
+                name='u002_ohlcv_quote_vol_non_neg',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(taker_buy_volume__lte=models.F('volume')),
+                name='u002_ohlcv_taker_lte_vol',
+            ),
+        ]
+
+
+class U002FuturesMetrics(FeatureLayerBase):
+    """Open interest + long/short ratios from Binance futures (5-minute)."""
+    LAYER_ID = "U002-FL-003"
+    UNIVERSE_ID = "U-002"
+    NAME = "Futures Metrics"
+    TEMPORAL_RESOLUTION = timedelta(minutes=5)
+    AVAILABILITY_RULE = "publication-time"
+    GAP_HANDLING = "No row if data missing for interval"
+    DATA_SOURCE = "Binance"
+    REFRESH_POLICY = "Daily (next-day CSV)"
+    VERSION = "1.0"
+
+    asset = models.ForeignKey(
+        BinanceAsset,
+        to_field='symbol',
+        on_delete=models.CASCADE,
+        related_name='futures_metrics',
+    )
+    sum_open_interest = models.DecimalField(
+        max_digits=20, decimal_places=10, null=True,
+        help_text="Total OI in base asset",
+    )
+    sum_open_interest_value = models.DecimalField(
+        max_digits=24, decimal_places=10, null=True,
+        help_text="Total OI in USDT",
+    )
+    count_toptrader_long_short_ratio = models.DecimalField(
+        max_digits=12, decimal_places=8, null=True,
+    )
+    sum_toptrader_long_short_ratio = models.DecimalField(
+        max_digits=12, decimal_places=8, null=True,
+    )
+    count_long_short_ratio = models.DecimalField(
+        max_digits=12, decimal_places=8, null=True,
+    )
+    sum_taker_long_short_vol_ratio = models.DecimalField(
+        max_digits=12, decimal_places=8, null=True,
+    )
+
+    class Meta:
+        unique_together = [('asset', 'timestamp')]
+        indexes = [
+            models.Index(fields=['timestamp']),
+            models.Index(
+                fields=['asset', '-timestamp'],
+                name='idx_u002metrics_asset_ts',
+            ),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(sum_open_interest__gte=0),
+                name='u002_metrics_oi_non_neg',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(sum_open_interest_value__gte=0),
+                name='u002_metrics_oi_val_non_neg',
+            ),
+        ]
+
+
+class U002FundingRate(FeatureLayerBase):
+    """Perpetual futures funding rate from Binance (every 8 hours)."""
+    LAYER_ID = "U002-FL-004"
+    UNIVERSE_ID = "U-002"
+    NAME = "Funding Rate"
+    TEMPORAL_RESOLUTION = timedelta(hours=8)
+    AVAILABILITY_RULE = "publication-time"
+    GAP_HANDLING = "Missing funding events indicate exchange issues"
+    DATA_SOURCE = "Binance"
+    REFRESH_POLICY = "Daily (monthly CSV)"
+    VERSION = "1.0"
+
+    asset = models.ForeignKey(
+        BinanceAsset,
+        to_field='symbol',
+        on_delete=models.CASCADE,
+        related_name='funding_rates',
+    )
+    funding_interval_hours = models.IntegerField(null=True)
+    last_funding_rate = models.DecimalField(
+        max_digits=12, decimal_places=10, null=True,
+    )
+
+    class Meta:
+        unique_together = [('asset', 'timestamp')]
+        indexes = [
+            models.Index(fields=['timestamp']),
+            models.Index(
+                fields=['asset', '-timestamp'],
+                name='idx_u002funding_asset_ts',
+            ),
+        ]
+
+
+# ---------------------------------------------------------------------------
+# Operational models — U-002 pipeline tracking
+# ---------------------------------------------------------------------------
+
+class U002PipelineRun(PipelineRunBase):
+    """Pipeline run tracking for U-002 (Major Crypto Assets)."""
+    asset = models.ForeignKey(
+        BinanceAsset, to_field='symbol',
+        on_delete=models.CASCADE,
+        related_name='pipeline_runs',
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=['asset', 'layer_id', '-started_at'],
+                name='idx_u002run_asset_layer',
+            ),
+            models.Index(fields=['-started_at'], name='idx_u002run_started'),
+            models.Index(fields=['status'], name='idx_u002run_status'),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.asset_id} {self.layer_id} {self.status} "
+            f"({self.started_at:%Y-%m-%d %H:%M})"
+        )
+
+
+class U002PipelineStatus(PipelineStatusBase):
+    """Pipeline status cache for U-002 (Major Crypto Assets)."""
+    asset = models.ForeignKey(
+        BinanceAsset, to_field='symbol',
+        on_delete=models.CASCADE,
+        related_name='pipeline_statuses',
+    )
+    last_run = models.ForeignKey(
+        U002PipelineRun,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='+',
+    )
+
+    class Meta:
+        unique_together = [('asset', 'layer_id')]
+        indexes = [
+            models.Index(fields=['status'], name='idx_u002status_status'),
+            models.Index(
+                fields=['layer_id', 'status'],
+                name='idx_u002status_layer_status',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.asset_id} {self.layer_id} {self.status}"

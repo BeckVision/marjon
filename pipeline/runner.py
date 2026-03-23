@@ -8,12 +8,14 @@ to resolve models. Falls back to U-001 models when spec fields are None
 import logging
 from datetime import datetime, timezone
 
+from django.db import models as dj_models
 from django.db.models import Max
 from django.utils import timezone as dj_timezone
 
 from warehouse.models import (
     MigratedCoin, PipelineCompleteness, PoolMapping,
     RunMode, RunStatus, U001PipelineRun, U001PipelineStatus,
+    UniverseBase,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,6 +27,17 @@ def _resolve_models(spec):
     run_model = spec.run_model or U001PipelineRun
     status_model = spec.status_model or U001PipelineStatus
     return universe_model, run_model, status_model
+
+
+def _find_universe_fk(model):
+    """Find the FK field name on a model that points to a UniverseBase subclass.
+
+    Returns the Django field attname (e.g. 'coin_id', 'asset_id').
+    """
+    for field in model._meta.get_fields():
+        if isinstance(field, dj_models.ForeignKey) and issubclass(field.related_model, UniverseBase):
+            return field.attname  # e.g. 'coin_id', 'asset_id'
+    raise ValueError(f"No FK to UniverseBase found on {model.__name__}")
 
 
 def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
@@ -44,6 +57,9 @@ def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
     """
     universe_model, run_model, status_model = _resolve_models(spec)
     asset_field = spec.asset_field
+    run_fk = _find_universe_fk(run_model)
+    status_fk = _find_universe_fk(status_model)
+    feature_fk = _find_universe_fk(spec.model)
 
     # Step 1: Asset lookup
     asset = universe_model.objects.get(**{asset_field: asset_id})
@@ -77,7 +93,7 @@ def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
                 f"calendar-driven universe has no OBSERVATION_WINDOW_START"
             )
 
-        watermark = _query_watermark(spec.model, asset_id)
+        watermark = _query_watermark(spec.model, asset_id, feature_fk)
         now = datetime.now(timezone.utc)
         end = min(we, now) if we is not None else now
 
@@ -103,7 +119,7 @@ def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
     # Step 5: Create pipeline run + mark IN_PROGRESS
     layer_id = spec.layer_id
     run = run_model.objects.create(
-        coin_id=asset_id,
+        **{run_fk: asset_id},
         layer_id=layer_id,
         mode=mode,
         status=RunStatus.STARTED,
@@ -111,7 +127,7 @@ def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
         time_range_start=start,
         time_range_end=end,
     )
-    _update_status(status_model, asset_id, layer_id, {
+    _update_status(status_model, status_fk, asset_id, layer_id, {
         'status': PipelineCompleteness.IN_PROGRESS,
         'last_run_at': dj_timezone.now(),
     })
@@ -121,7 +137,7 @@ def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
         raw, meta = spec.fetch(asset_id, pool_address, start, end, **kwargs)
     except Exception as e:
         logger.error("Connector failed for %s", asset_id, exc_info=True)
-        _mark_error(run, status_model, layer_id, asset_id, e)
+        _mark_error(run, status_model, status_fk, layer_id, asset_id, e)
         raise RuntimeError(f"Connector failed for {asset_id}") from e
 
     # Step 7: Empty raw check
@@ -130,8 +146,8 @@ def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
             "Zero results from API for %s in [%s, %s]",
             asset_id, start, end,
         )
-        return _mark_complete_empty(spec, asset, run, status_model,
-                                    layer_id, asset_id, meta, mode)
+        return _mark_complete_empty(spec, asset, run, status_model, status_fk,
+                                    feature_fk, layer_id, asset_id, meta, mode)
 
     logger.info("Received %d raw records for %s", len(raw), asset_id)
 
@@ -147,7 +163,7 @@ def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
             "Conformance failed for %s (%d raw records)",
             asset_id, len(raw), exc_info=True,
         )
-        _mark_error(run, status_model, layer_id, asset_id, e, meta=meta)
+        _mark_error(run, status_model, status_fk, layer_id, asset_id, e, meta=meta)
         raise RuntimeError(f"Conformance failed for {asset_id}") from e
 
     # Step 9: Empty canonical check
@@ -156,8 +172,8 @@ def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
             "All %d records filtered during conformance for %s",
             len(raw), asset_id,
         )
-        return _mark_complete_empty(spec, asset, run, status_model,
-                                    layer_id, asset_id, meta, mode)
+        return _mark_complete_empty(spec, asset, run, status_model, status_fk,
+                                    feature_fk, layer_id, asset_id, meta, mode)
 
     # Step 10: Load
     spec.load(asset_id, start, end, canonical, skipped)
@@ -180,7 +196,7 @@ def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
     run.save()
 
     # Step 13: Watermark
-    new_watermark = _query_watermark(spec.model, asset_id)
+    new_watermark = _query_watermark(spec.model, asset_id, feature_fk)
 
     # Step 14: Completeness + update status
     if spec.compute_completeness:
@@ -188,9 +204,9 @@ def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
             asset, asset_id, new_watermark,
         )
     else:
-        completeness = _default_completeness(spec, asset, new_watermark)
+        completeness = _default_completeness(spec, asset, feature_fk, new_watermark)
 
-    _update_status(status_model, asset_id, layer_id, {
+    _update_status(status_model, status_fk, asset_id, layer_id, {
         'status': completeness,
         'watermark': new_watermark,
         'last_run': run,
@@ -213,15 +229,15 @@ def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _update_status(status_model, asset_id, layer_id, defaults):
+def _update_status(status_model, status_fk, asset_id, layer_id, defaults):
     """Update or create a pipeline status row."""
     status_model.objects.update_or_create(
-        coin_id=asset_id, layer_id=layer_id,
+        **{status_fk: asset_id}, layer_id=layer_id,
         defaults=defaults,
     )
 
 
-def _mark_error(run, status_model, layer_id, asset_id, error, meta=None):
+def _mark_error(run, status_model, status_fk, layer_id, asset_id, error, meta=None):
     """Mark run as ERROR and update pipeline status."""
     run.status = RunStatus.ERROR
     run.completed_at = dj_timezone.now()
@@ -230,7 +246,7 @@ def _mark_error(run, status_model, layer_id, asset_id, error, meta=None):
         run.api_calls = meta.get('api_calls', 0)
         run.cu_consumed = meta.get('cu_consumed', 0)
     run.save()
-    _update_status(status_model, asset_id, layer_id, {
+    _update_status(status_model, status_fk, asset_id, layer_id, {
         'status': PipelineCompleteness.ERROR,
         'last_run': run,
         'last_run_at': run.completed_at,
@@ -238,8 +254,8 @@ def _mark_error(run, status_model, layer_id, asset_id, error, meta=None):
     })
 
 
-def _mark_complete_empty(spec, asset, run, status_model, layer_id,
-                         asset_id, meta, mode):
+def _mark_complete_empty(spec, asset, run, status_model, status_fk,
+                         feature_fk, layer_id, asset_id, meta, mode):
     """Mark run complete with 0 records and compute completeness."""
     run.status = RunStatus.COMPLETE
     run.completed_at = dj_timezone.now()
@@ -251,9 +267,9 @@ def _mark_complete_empty(spec, asset, run, status_model, layer_id,
     if spec.compute_completeness:
         completeness = spec.compute_completeness(asset, asset_id)
     else:
-        completeness = _default_completeness(spec, asset)
+        completeness = _default_completeness(spec, asset, feature_fk)
 
-    _update_status(status_model, asset_id, layer_id, {
+    _update_status(status_model, status_fk, asset_id, layer_id, {
         'status': completeness,
         'last_run': run,
         'last_run_at': run.completed_at,
@@ -267,12 +283,12 @@ def _mark_complete_empty(spec, asset, run, status_model, layer_id,
     }
 
 
-def _default_completeness(spec, asset, watermark=None):
+def _default_completeness(spec, asset, feature_fk, watermark=None):
     """Default completeness for feature layers and reference tables."""
     asset_field = spec.asset_field
     asset_id = getattr(asset, asset_field)
     if watermark is None:
-        watermark = _query_watermark(spec.model, asset_id)
+        watermark = _query_watermark(spec.model, asset_id, feature_fk)
 
     temporal_resolution = getattr(spec.model, 'TEMPORAL_RESOLUTION', None)
     we = asset.window_end_time
@@ -290,8 +306,8 @@ def _default_completeness(spec, asset, watermark=None):
     return PipelineCompleteness.PARTIAL
 
 
-def _query_watermark(model, asset_id):
+def _query_watermark(model, asset_id, asset_fk):
     """Return MAX(timestamp) for an asset, or None."""
     return model.objects.filter(
-        coin_id=asset_id,
+        **{asset_fk: asset_id},
     ).aggregate(Max('timestamp'))['timestamp__max']
