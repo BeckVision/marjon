@@ -8,13 +8,26 @@ class UniverseQuerySet(models.QuerySet):
     def as_of(self, simulation_time):
         """Return assets that were universe members at simulation_time.
 
-        Event-driven: anchor_event <= T AND (membership_end IS NULL OR membership_end > T)
+        Dispatches on the concrete model's UNIVERSE_TYPE:
+        - event-driven: anchor_event <= T AND (membership_end IS NULL OR > T)
+        - calendar-driven: all assets (no anchor filter), respecting membership_end
         """
-        return self.filter(
-            anchor_event__lte=simulation_time,
-        ).exclude(
-            membership_end__lte=simulation_time,
-        )
+        universe_type = self.model.UNIVERSE_TYPE
+        if universe_type == 'event-driven':
+            return self.filter(
+                anchor_event__lte=simulation_time,
+            ).exclude(
+                membership_end__lte=simulation_time,
+            )
+        elif universe_type == 'calendar-driven':
+            return self.exclude(
+                membership_end__lte=simulation_time,
+            )
+        else:
+            raise ValueError(
+                f"Unknown UNIVERSE_TYPE on {self.model.__name__}: "
+                f"{universe_type!r}"
+            )
 
 
 class FeatureLayerQuerySet(models.QuerySet):

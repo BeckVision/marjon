@@ -1,4 +1,9 @@
-"""Universal run_for_coin() — executes the 14-step pipeline scaffolding once."""
+"""Universal run_for_coin() — executes the 14-step pipeline scaffolding once.
+
+Universe-agnostic: uses spec.universe_model, spec.run_model, spec.status_model
+to resolve models. Falls back to U-001 models when spec fields are None
+(backward compatibility).
+"""
 
 import logging
 from datetime import datetime, timezone
@@ -14,12 +19,20 @@ from warehouse.models import (
 logger = logging.getLogger(__name__)
 
 
-def run_for_coin(spec, mint_address, start=None, end=None, **kwargs):
-    """Execute a full pipeline run for one coin.
+def _resolve_models(spec):
+    """Resolve universe/run/status models from spec, falling back to U-001."""
+    universe_model = spec.universe_model or MigratedCoin
+    run_model = spec.run_model or U001PipelineRun
+    status_model = spec.status_model or U001PipelineStatus
+    return universe_model, run_model, status_model
+
+
+def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
+    """Execute a full pipeline run for one asset.
 
     Args:
         spec: PipelineSpec instance defining the pipeline.
-        mint_address: Token mint address.
+        asset_id: Asset identifier (e.g. mint_address, symbol).
         start: Optional start datetime (refill mode).
         end: Optional end datetime (refill mode).
         **kwargs: Extra arguments forwarded to spec callables
@@ -29,60 +42,68 @@ def run_for_coin(spec, mint_address, start=None, end=None, **kwargs):
         dict with 'status', 'records_loaded', 'records_skipped',
         'api_calls', 'mode', 'run_id', 'error_message'.
     """
-    # Step 1: Coin lookup
-    coin = MigratedCoin.objects.get(mint_address=mint_address)
-    kwargs['coin'] = coin
+    universe_model, run_model, status_model = _resolve_models(spec)
+    asset_field = spec.asset_field
+
+    # Step 1: Asset lookup
+    asset = universe_model.objects.get(**{asset_field: asset_id})
+    kwargs['coin'] = asset  # backward compat key name
 
     # Step 2: Pool lookup if needed
     pool_address = None
     if spec.requires_pool:
         pool = PoolMapping.objects.filter(
-            coin_id=mint_address,
+            coin_id=asset_id,
         ).order_by('created_at').first()
         if not pool:
             raise ValueError(
-                f"No PoolMapping for {mint_address}. "
+                f"No PoolMapping for {asset_id}. "
                 f"Run populate_pool_mapping first."
             )
         pool_address = pool.pool_address
 
-    # Step 3: Mode detection from watermark + overlap
+    # Step 3: Mode detection from watermark + window properties
     if start and end:
         mode = RunMode.REFILL
-        logger.info("Re-fill mode: %s to %s for %s", start, end, mint_address)
+        logger.info("Re-fill mode: %s to %s for %s", start, end, asset_id)
     else:
-        if coin.anchor_event is None:
-            raise ValueError("Coin has no anchor_event set")
+        ws = asset.window_start_time
+        we = asset.window_end_time
 
-        watermark = _query_watermark(spec.model, mint_address)
-        window_end = coin.anchor_event + MigratedCoin.OBSERVATION_WINDOW_END
+        if ws is None:
+            raise ValueError(
+                f"Cannot determine window start for {asset_id} — "
+                f"event-driven asset missing anchor_event, or "
+                f"calendar-driven universe has no OBSERVATION_WINDOW_START"
+            )
+
+        watermark = _query_watermark(spec.model, asset_id)
         now = datetime.now(timezone.utc)
-        end = min(window_end, now)
+        end = min(we, now) if we is not None else now
 
         if watermark is None:
-            start = coin.anchor_event
+            start = ws
             mode = RunMode.BOOTSTRAP
             logger.info(
-                "Bootstrap mode: %s to %s for %s", start, end, mint_address,
+                "Bootstrap mode: %s to %s for %s", start, end, asset_id,
             )
         else:
-            start = max(watermark - spec.overlap, coin.anchor_event)
+            start = max(watermark - spec.overlap, ws)
             mode = RunMode.STEADY_STATE
             logger.info(
                 "Steady-state mode: %s to %s (overlap=%s) for %s",
-                start, end, spec.overlap, mint_address,
+                start, end, spec.overlap, asset_id,
             )
 
     # Step 4: Pre-flight hook (runs BEFORE creating run — no phantom runs)
     if spec.pre_flight:
-        # Filter 'coin' from kwargs — it's passed positionally
         pf_kw = {k: v for k, v in kwargs.items() if k != 'coin'}
-        spec.pre_flight(coin, pool_address, start, end, **pf_kw)
+        spec.pre_flight(asset, pool_address, start, end, **pf_kw)
 
     # Step 5: Create pipeline run + mark IN_PROGRESS
     layer_id = spec.layer_id
-    run = U001PipelineRun.objects.create(
-        coin_id=mint_address,
+    run = run_model.objects.create(
+        coin_id=asset_id,
         layer_id=layer_id,
         mode=mode,
         status=RunStatus.STARTED,
@@ -90,34 +111,33 @@ def run_for_coin(spec, mint_address, start=None, end=None, **kwargs):
         time_range_start=start,
         time_range_end=end,
     )
-    U001PipelineStatus.objects.update_or_create(
-        coin_id=mint_address, layer_id=layer_id,
-        defaults={'status': PipelineCompleteness.IN_PROGRESS,
-                  'last_run_at': dj_timezone.now()},
-    )
+    _update_status(status_model, asset_id, layer_id, {
+        'status': PipelineCompleteness.IN_PROGRESS,
+        'last_run_at': dj_timezone.now(),
+    })
 
     # Step 6: Fetch
     try:
-        raw, meta = spec.fetch(mint_address, pool_address, start, end, **kwargs)
+        raw, meta = spec.fetch(asset_id, pool_address, start, end, **kwargs)
     except Exception as e:
-        logger.error("Connector failed for %s", mint_address, exc_info=True)
-        _mark_error(run, layer_id, mint_address, e)
-        raise RuntimeError(f"Connector failed for {mint_address}") from e
+        logger.error("Connector failed for %s", asset_id, exc_info=True)
+        _mark_error(run, status_model, layer_id, asset_id, e)
+        raise RuntimeError(f"Connector failed for {asset_id}") from e
 
     # Step 7: Empty raw check
     if not raw:
         logger.info(
             "Zero results from API for %s in [%s, %s]",
-            mint_address, start, end,
+            asset_id, start, end,
         )
-        return _mark_complete_empty(spec, coin, run, layer_id, mint_address,
-                                    meta, mode)
+        return _mark_complete_empty(spec, asset, run, status_model,
+                                    layer_id, asset_id, meta, mode)
 
-    logger.info("Received %d raw records for %s", len(raw), mint_address)
+    logger.info("Received %d raw records for %s", len(raw), asset_id)
 
     # Step 8: Conform
     try:
-        result = spec.conform(raw, mint_address, pool_address, **kwargs)
+        result = spec.conform(raw, asset_id, pool_address, **kwargs)
         if spec.conform_returns_tuple:
             canonical, skipped = result
         else:
@@ -125,28 +145,28 @@ def run_for_coin(spec, mint_address, start=None, end=None, **kwargs):
     except Exception as e:
         logger.error(
             "Conformance failed for %s (%d raw records)",
-            mint_address, len(raw), exc_info=True,
+            asset_id, len(raw), exc_info=True,
         )
-        _mark_error(run, layer_id, mint_address, e, meta=meta)
-        raise RuntimeError(f"Conformance failed for {mint_address}") from e
+        _mark_error(run, status_model, layer_id, asset_id, e, meta=meta)
+        raise RuntimeError(f"Conformance failed for {asset_id}") from e
 
     # Step 9: Empty canonical check
     if not canonical:
         logger.warning(
             "All %d records filtered during conformance for %s",
-            len(raw), mint_address,
+            len(raw), asset_id,
         )
-        return _mark_complete_empty(spec, coin, run, layer_id, mint_address,
-                                    meta, mode)
+        return _mark_complete_empty(spec, asset, run, status_model,
+                                    layer_id, asset_id, meta, mode)
 
     # Step 10: Load
-    spec.load(mint_address, start, end, canonical, skipped)
+    spec.load(asset_id, start, end, canonical, skipped)
 
     # Step 11: Reconcile
     reconcile_data = {}
     if spec.reconcile:
         reconcile_data = spec.reconcile(
-            canonical, skipped, start, end, meta, mint_address, **kwargs,
+            canonical, skipped, start, end, meta, asset_id, **kwargs,
         )
 
     # Step 12: Update run
@@ -160,26 +180,23 @@ def run_for_coin(spec, mint_address, start=None, end=None, **kwargs):
     run.save()
 
     # Step 13: Watermark
-    new_watermark = _query_watermark(spec.model, mint_address)
+    new_watermark = _query_watermark(spec.model, asset_id)
 
     # Step 14: Completeness + update status
     if spec.compute_completeness:
         completeness = spec.compute_completeness(
-            coin, mint_address, new_watermark,
+            asset, asset_id, new_watermark,
         )
     else:
-        completeness = _default_completeness(spec, coin, new_watermark)
+        completeness = _default_completeness(spec, asset, new_watermark)
 
-    U001PipelineStatus.objects.update_or_create(
-        coin_id=mint_address, layer_id=layer_id,
-        defaults={
-            'status': completeness,
-            'watermark': new_watermark,
-            'last_run': run,
-            'last_run_at': run.completed_at,
-            'last_error': None,
-        },
-    )
+    _update_status(status_model, asset_id, layer_id, {
+        'status': completeness,
+        'watermark': new_watermark,
+        'last_run': run,
+        'last_run_at': run.completed_at,
+        'last_error': None,
+    })
 
     return {
         'status': completeness,
@@ -196,7 +213,15 @@ def run_for_coin(spec, mint_address, start=None, end=None, **kwargs):
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _mark_error(run, layer_id, mint_address, error, meta=None):
+def _update_status(status_model, asset_id, layer_id, defaults):
+    """Update or create a pipeline status row."""
+    status_model.objects.update_or_create(
+        coin_id=asset_id, layer_id=layer_id,
+        defaults=defaults,
+    )
+
+
+def _mark_error(run, status_model, layer_id, asset_id, error, meta=None):
     """Mark run as ERROR and update pipeline status."""
     run.status = RunStatus.ERROR
     run.completed_at = dj_timezone.now()
@@ -205,18 +230,16 @@ def _mark_error(run, layer_id, mint_address, error, meta=None):
         run.api_calls = meta.get('api_calls', 0)
         run.cu_consumed = meta.get('cu_consumed', 0)
     run.save()
-    U001PipelineStatus.objects.update_or_create(
-        coin_id=mint_address, layer_id=layer_id,
-        defaults={
-            'status': PipelineCompleteness.ERROR,
-            'last_run': run,
-            'last_run_at': run.completed_at,
-            'last_error': str(error),
-        },
-    )
+    _update_status(status_model, asset_id, layer_id, {
+        'status': PipelineCompleteness.ERROR,
+        'last_run': run,
+        'last_run_at': run.completed_at,
+        'last_error': str(error),
+    })
 
 
-def _mark_complete_empty(spec, coin, run, layer_id, mint_address, meta, mode):
+def _mark_complete_empty(spec, asset, run, status_model, layer_id,
+                         asset_id, meta, mode):
     """Mark run complete with 0 records and compute completeness."""
     run.status = RunStatus.COMPLETE
     run.completed_at = dj_timezone.now()
@@ -226,19 +249,16 @@ def _mark_complete_empty(spec, coin, run, layer_id, mint_address, meta, mode):
     run.save()
 
     if spec.compute_completeness:
-        completeness = spec.compute_completeness(coin, mint_address)
+        completeness = spec.compute_completeness(asset, asset_id)
     else:
-        completeness = _default_completeness(spec, coin)
+        completeness = _default_completeness(spec, asset)
 
-    U001PipelineStatus.objects.update_or_create(
-        coin_id=mint_address, layer_id=layer_id,
-        defaults={
-            'status': completeness,
-            'last_run': run,
-            'last_run_at': run.completed_at,
-            'last_error': None,
-        },
-    )
+    _update_status(status_model, asset_id, layer_id, {
+        'status': completeness,
+        'last_run': run,
+        'last_run_at': run.completed_at,
+        'last_error': None,
+    })
 
     return {
         'status': completeness, 'records_loaded': 0,
@@ -247,30 +267,31 @@ def _mark_complete_empty(spec, coin, run, layer_id, mint_address, meta, mode):
     }
 
 
-def _default_completeness(spec, coin, watermark=None):
+def _default_completeness(spec, asset, watermark=None):
     """Default completeness for feature layers and reference tables."""
+    asset_field = spec.asset_field
+    asset_id = getattr(asset, asset_field)
     if watermark is None:
-        watermark = _query_watermark(spec.model, coin.mint_address)
+        watermark = _query_watermark(spec.model, asset_id)
 
     temporal_resolution = getattr(spec.model, 'TEMPORAL_RESOLUTION', None)
+    we = asset.window_end_time
 
-    if temporal_resolution and watermark:
-        # Feature layer: watermark near window end
-        if watermark >= coin.window_end_time - temporal_resolution:
+    if temporal_resolution and watermark and we:
+        if watermark >= we - temporal_resolution:
             return PipelineCompleteness.WINDOW_COMPLETE
-    elif watermark:
-        # Reference table: watermark past window end
-        if coin.window_end_time and watermark >= coin.window_end_time:
+    elif watermark and we:
+        if watermark >= we:
             return PipelineCompleteness.WINDOW_COMPLETE
 
-    if coin.is_mature:
+    if asset.is_mature:
         return PipelineCompleteness.WINDOW_COMPLETE
 
     return PipelineCompleteness.PARTIAL
 
 
-def _query_watermark(model, mint_address):
-    """Return MAX(timestamp) for a mint, or None."""
+def _query_watermark(model, asset_id):
+    """Return MAX(timestamp) for an asset, or None."""
     return model.objects.filter(
-        coin_id=mint_address,
+        coin_id=asset_id,
     ).aggregate(Max('timestamp'))['timestamp__max']

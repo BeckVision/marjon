@@ -24,19 +24,38 @@ LAYER_REGISTRY = {
     HolderSnapshot.LAYER_ID: HolderSnapshot,
 }
 
+# Universe ID -> model class mapping
+UNIVERSE_REGISTRY = {
+    MigratedCoin.UNIVERSE_ID: MigratedCoin,
+}
 
-def get_universe_members(simulation_time):
+# Reference ID -> model class mapping
+REFERENCE_REGISTRY = {
+    RawTransaction.REFERENCE_ID: RawTransaction,
+}
+
+
+def get_universe_members(simulation_time, universe_id=None):
     """Return assets that were universe members at simulation_time.
 
     Args:
         simulation_time: datetime (UTC).
+        universe_id: Universe ID string. Defaults to first registered universe.
 
     Returns:
-        QuerySet of MigratedCoin rows.
+        QuerySet of universe model rows.
     """
-    qs = MigratedCoin.objects.as_of(simulation_time)
+    if universe_id is None:
+        universe_model = MigratedCoin
+    else:
+        if universe_id not in UNIVERSE_REGISTRY:
+            raise ValueError(f"Unknown universe ID: '{universe_id}'")
+        universe_model = UNIVERSE_REGISTRY[universe_id]
+
+    qs = universe_model.objects.as_of(simulation_time)
     logger.info(
-        "get_universe_members(sim=%s): %d members", simulation_time, qs.count(),
+        "get_universe_members(sim=%s, universe=%s): %d members",
+        simulation_time, universe_model.UNIVERSE_ID, qs.count(),
     )
     return qs
 
@@ -54,7 +73,7 @@ def get_panel_slice(asset_ids, layer_ids, simulation_time,
     6. Return
 
     Args:
-        asset_ids: List of mint_address strings.
+        asset_ids: List of asset identifier strings.
         layer_ids: List of layer ID strings (e.g. ['FL-001', 'FL-002']).
         simulation_time: datetime (UTC).
         derived_ids: Optional list of derived feature IDs (e.g. ['DF-001']).
@@ -70,26 +89,9 @@ def get_panel_slice(asset_ids, layer_ids, simulation_time,
     """
     # Step 1: Scope validation
     for asset_id in asset_ids:
-        try:
-            coin = MigratedCoin.objects.get(mint_address=asset_id)
-        except MigratedCoin.DoesNotExist:
-            raise ValueError(
-                f"Asset '{asset_id}' does not exist in the universe"
-            )
-
-        if coin.anchor_event:
-            window_start = (
-                coin.anchor_event + MigratedCoin.OBSERVATION_WINDOW_START
-            )
-            window_end = (
-                coin.anchor_event + MigratedCoin.OBSERVATION_WINDOW_END
-            )
-            if not (window_start <= simulation_time <= window_end):
-                raise ValueError(
-                    f"simulation_time {simulation_time} is outside "
-                    f"observation window [{window_start}, {window_end}] "
-                    f"for asset '{asset_id}'"
-                )
+        # Try each registered universe to find the asset
+        asset = _lookup_asset(asset_id)
+        _validate_simulation_time(asset, simulation_time)
 
     for layer_id in layer_ids:
         if layer_id not in LAYER_REGISTRY:
@@ -142,36 +144,34 @@ def get_reference_data(asset_id, start, end, simulation_time):
     """Return reference data for an asset within a time range.
 
     Args:
-        asset_id: Mint address string.
+        asset_id: Asset identifier string.
         start: datetime (UTC) — start of range.
         end: datetime (UTC) — end of range.
         simulation_time: datetime (UTC) — PIT cutoff.
 
     Returns:
-        QuerySet of RawTransaction rows, ordered by timestamp.
+        QuerySet of reference table rows, ordered by timestamp.
 
     Raises:
         ValueError: If asset doesn't exist in universe.
     """
-    try:
-        coin = MigratedCoin.objects.get(mint_address=asset_id)
-    except MigratedCoin.DoesNotExist:
-        raise ValueError(
-            f"Asset '{asset_id}' does not exist in the universe"
-        )
+    asset = _lookup_asset(asset_id)
 
     # Validate time range against observation window
-    if coin.anchor_event:
-        window_start = (
-            coin.anchor_event + MigratedCoin.OBSERVATION_WINDOW_START
-        )
-        window_end = (
-            coin.anchor_event + MigratedCoin.OBSERVATION_WINDOW_END
-        )
-        if start < window_start or end > window_end:
+    ws = asset.window_start_time
+    we = asset.window_end_time
+    if ws is not None and we is not None:
+        if start < ws or end > we:
             raise ValueError(
                 f"Time range [{start}, {end}] is outside "
-                f"observation window [{window_start}, {window_end}] "
+                f"observation window [{ws}, {we}] "
+                f"for asset '{asset_id}'"
+            )
+    elif ws is not None:
+        if start < ws:
+            raise ValueError(
+                f"Time range start {start} is before "
+                f"observation window start {ws} "
                 f"for asset '{asset_id}'"
             )
 
@@ -186,6 +186,42 @@ def get_reference_data(asset_id, start, end, simulation_time):
         asset_id, start, end, simulation_time, qs.count(),
     )
     return qs
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _lookup_asset(asset_id):
+    """Look up an asset across all registered universes."""
+    for universe_model in UNIVERSE_REGISTRY.values():
+        try:
+            return universe_model.objects.get(mint_address=asset_id)
+        except universe_model.DoesNotExist:
+            continue
+    raise ValueError(
+        f"Asset '{asset_id}' does not exist in any registered universe"
+    )
+
+
+def _validate_simulation_time(asset, simulation_time):
+    """Validate simulation_time is within the asset's observation window."""
+    ws = asset.window_start_time
+    we = asset.window_end_time
+    if ws is not None and we is not None:
+        if not (ws <= simulation_time <= we):
+            raise ValueError(
+                f"simulation_time {simulation_time} is outside "
+                f"observation window [{ws}, {we}] "
+                f"for asset '{asset.pk}'"
+            )
+    elif ws is not None:
+        if simulation_time < ws:
+            raise ValueError(
+                f"simulation_time {simulation_time} is before "
+                f"observation window start {ws} "
+                f"for asset '{asset.pk}'"
+            )
 
 
 def _get_feature_fields(model):

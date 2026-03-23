@@ -27,21 +27,21 @@ Generated 2026-03-10. Covers the full path from current documentation state to a
 
 **Curriculum status:** Lesson 1 (base rate vs conditional probability) done. Lesson 2 (expected value + NumPy) is next.
 
-**Code status:** Zero. No Django project, no pipeline code, no data in any database.
+**Code status (updated 2026-03-23):** 4 Django apps (warehouse, data_service, pipeline, strategy). Phases 1–4 done. RD-001 done. Phase 5–6 in progress.
 
 ---
 
 ## Phase Overview
 
-| Phase | Delivers | Complexity | Prerequisites | Phase Doc |
+| Phase | Delivers | Complexity | Prerequisites | Status |
 |---|---|---|---|---|
-| **1** | Running Django project with empty database tables | Medium | Basic Django knowledge | `phase_1.md` |
-| **2** | FL-001 pipeline: real OHLCV data flowing into the warehouse | Large | Phase 1 | `phase_2.md` |
-| **3** | FL-002 pipeline: real holder data flowing into the warehouse | Medium | Phase 1 (can run parallel with Phase 2) | `phase_3.md` |
-| **4** | Data service: three read operations with PIT enforcement and alignment | Medium | Phase 2 or 3 (needs data to test against) | `phase_4.md` |
-| **5** | First analysis: derived features, data exploration, basic signals | Medium | Phase 4, Curriculum Lessons 2-4 | Master roadmap only |
-| **6** | Strategy specification + backtesting framework | Large | Phase 5, Curriculum Lessons 5+ | Master roadmap only |
-| **7** | Execution specification | Large | Phase 6 | Master roadmap only |
+| **1** | Running Django project with empty database tables | Medium | Basic Django knowledge | **Done** |
+| **2** | FL-001 pipeline: real OHLCV data flowing into the warehouse | Large | Phase 1 | **Done** |
+| **3** | FL-002 pipeline: real holder data flowing into the warehouse | Medium | Phase 1 (can run parallel with Phase 2) | **Done** |
+| **4** | Data service: three read operations with PIT enforcement and alignment | Medium | Phase 2 or 3 (needs data to test against) | **Done** |
+| **5** | First analysis: derived features, data exploration, basic signals | Medium | Phase 4 | **In progress** |
+| **6** | Strategy specification + backtesting framework | Large | Phase 5 | **In progress** |
+| **7** | Execution specification | Large | Phase 6 | Not started |
 
 ```
 Phase 1: Django + models ──> Phase 2: FL-001 pipeline ──┐
@@ -81,9 +81,9 @@ Phase 4 ──> Phase 5: Analysis ──> Phase 6: Strategy ──> Phase 7: Exe
 
 ---
 
-## Phase 6: Strategy Specification (Future — Layer 3)
+## Phase 6: Strategy Specification (In Progress)
 
-**Status:** Zero work done. Exists as a concept in the four-layer documentation structure.
+**Status:** Strategy app landed — backtest engine, signals, sweep, walk-forward, path-dependent evaluation, leaderboard, signal effectiveness analysis.
 
 **Prerequisites:** Phase 5 (data exploration experience). Curriculum through Lesson 5+ (linear algebra for portfolio optimization; basic strategies need only statistics).
 

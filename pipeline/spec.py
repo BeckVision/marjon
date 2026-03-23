@@ -20,3 +20,8 @@ class PipelineSpec:
     pre_flight: Callable | None = None   # (coin, pool, start, end, **kw) -> None
     reconcile: Callable | None = None    # (canonical, skipped, start, end, meta, mint, **kw) -> dict
     compute_completeness: Callable | None = None  # override default
+    # Universe/tracking models — defaults resolve to U-001 at runtime for backward compat
+    universe_model: type | None = None   # MigratedCoin, CryptoMajor, etc.
+    asset_field: str = 'mint_address'    # field used as FK target / lookup
+    run_model: type | None = None        # U001PipelineRun, etc.
+    status_model: type | None = None     # U001PipelineStatus, etc.

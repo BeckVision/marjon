@@ -44,6 +44,39 @@ class UniverseBase(models.Model):
     class Meta:
         abstract = True
 
+    # -- Window properties (dispatch on UNIVERSE_TYPE) --
+
+    @property
+    def window_start_time(self):
+        """Absolute datetime when this asset's observation window opens."""
+        if self.UNIVERSE_TYPE == 'event-driven':
+            if self.anchor_event is None:
+                return None
+            return self.anchor_event + self.OBSERVATION_WINDOW_START
+        elif self.UNIVERSE_TYPE == 'calendar-driven':
+            return self.OBSERVATION_WINDOW_START  # absolute datetime or None
+        return None
+
+    @property
+    def window_end_time(self):
+        """Absolute datetime when this asset's observation window closes."""
+        if self.UNIVERSE_TYPE == 'event-driven':
+            if self.anchor_event is None:
+                return None
+            return self.anchor_event + self.OBSERVATION_WINDOW_END
+        elif self.UNIVERSE_TYPE == 'calendar-driven':
+            return self.OBSERVATION_WINDOW_END  # absolute datetime or None
+        return None
+
+    @property
+    def is_mature(self):
+        """True if the observation window has closed (current time past window end)."""
+        from django.utils import timezone
+        we = self.window_end_time
+        if we is None:
+            return False  # unbounded or missing anchor — not mature
+        return timezone.now() >= we
+
 
 class FeatureLayerBase(models.Model):
     LAYER_ID = None
@@ -70,7 +103,11 @@ class FeatureLayerBase(models.Model):
         ]
 
     def clean(self):
-        """Validate timestamp is within the asset's observation window (DQ-005)."""
+        """Validate timestamp is within the asset's observation window (DQ-005).
+
+        Uses the asset's window_start_time/window_end_time properties which
+        dispatch on UNIVERSE_TYPE — works for both event-driven and calendar-driven.
+        """
         super().clean()
         if not self.timestamp:
             return
@@ -85,24 +122,31 @@ class FeatureLayerBase(models.Model):
         fk_value = getattr(self, fk_field.attname, None)
         if not fk_value:
             return
-        UniverseModel = fk_field.related_model
-        window_start = getattr(UniverseModel, 'OBSERVATION_WINDOW_START', None)
-        window_end = getattr(UniverseModel, 'OBSERVATION_WINDOW_END', None)
-        if window_start is None or window_end is None:
-            return
         try:
-            asset = UniverseModel.objects.get(
+            asset = fk_field.related_model.objects.get(
                 **{fk_field.remote_field.field_name: fk_value}
             )
-        except UniverseModel.DoesNotExist:
+        except fk_field.related_model.DoesNotExist:
             return
-        if asset.anchor_event:
-            ws = asset.anchor_event + window_start
-            we = asset.anchor_event + window_end
+        ws = asset.window_start_time
+        we = asset.window_end_time
+        if ws is not None and we is not None:
             if not (ws <= self.timestamp <= we):
                 raise ValidationError(
                     f"Timestamp {self.timestamp} is outside the "
                     f"observation window [{ws}, {we}]"
+                )
+        elif ws is not None:
+            if self.timestamp < ws:
+                raise ValidationError(
+                    f"Timestamp {self.timestamp} is before "
+                    f"observation window start {ws}"
+                )
+        elif we is not None:
+            if self.timestamp > we:
+                raise ValidationError(
+                    f"Timestamp {self.timestamp} is after "
+                    f"observation window end {we}"
                 )
 
 
@@ -188,21 +232,6 @@ class MigratedCoin(UniverseBase):
     decimals = models.PositiveSmallIntegerField(null=True, blank=True, help_text="SPL token decimals (usually 6, but not always)")
     logo_url = models.URLField(max_length=500, null=True, blank=True, help_text="Token logo URL from Moralis")
     ingested_at = models.DateTimeField(auto_now_add=True)
-
-    @property
-    def is_mature(self):
-        """True if the observation window has closed (current time past window end)."""
-        if self.anchor_event is None:
-            return False
-        from django.utils import timezone
-        return timezone.now() >= self.anchor_event + self.OBSERVATION_WINDOW_END
-
-    @property
-    def window_end_time(self):
-        """Absolute datetime when this coin's observation window closes."""
-        if self.anchor_event is None:
-            return None
-        return self.anchor_event + self.OBSERVATION_WINDOW_END
 
     def __str__(self):
         return self.mint_address
