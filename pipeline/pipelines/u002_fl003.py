@@ -17,9 +17,17 @@ def _fetch(symbol, pool, start, end, **kw):
     """Fetch futures metrics CSV — 1 day per call."""
     from pipeline.connectors.binance_csv import fetch_futures_metrics_csv
     capped_end = min(end, start + MAX_FETCH)
-    rows, meta = fetch_futures_metrics_csv(symbol, start.date().isoformat())
-    rows = [r for r in rows if start <= r['timestamp'] <= capped_end]
-    return rows, meta
+    all_rows = []
+    total_calls = 0
+    current_date = start.date()
+    end_date = capped_end.date()
+    while current_date <= end_date:
+        rows, meta = fetch_futures_metrics_csv(symbol, current_date.isoformat())
+        all_rows.extend(rows)
+        total_calls += meta['api_calls']
+        current_date += timedelta(days=1)
+    all_rows = [r for r in all_rows if start <= r['timestamp'] <= capped_end]
+    return all_rows, {'api_calls': total_calls, 'source': 'binance_csv'}
 
 
 def _conform(raw, symbol, pool, **kw):

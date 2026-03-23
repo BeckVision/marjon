@@ -103,7 +103,7 @@ def _download_and_extract_csv(url, max_retries=3):
                     return None
                 return zf.read(csv_names[0]).decode('utf-8')
 
-        except (httpx.TimeoutException, httpx.NetworkError) as e:
+        except (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError) as e:
             wait = 2 ** (attempt + 1)
             logger.warning("Network error for %s: %s, retrying in %ds",
                            url, e, wait)

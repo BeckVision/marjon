@@ -26,11 +26,19 @@ def _fetch(symbol, pool, start, end, **kw):
         return fetch_klines_api(symbol, start, capped_end)
     else:
         from pipeline.connectors.binance_csv import fetch_spot_klines_csv
-        # 1 day = 1 CSV file
-        rows, meta = fetch_spot_klines_csv(symbol, start.date().isoformat())
-        # Filter to actual range (overlap region may pull earlier data)
-        rows = [r for r in rows if start <= r['timestamp'] <= capped_end]
-        return rows, meta
+        # Download CSVs for all dates that overlap [start, capped_end]
+        all_rows = []
+        total_calls = 0
+        current_date = start.date()
+        end_date = capped_end.date()
+        while current_date <= end_date:
+            rows, meta = fetch_spot_klines_csv(symbol, current_date.isoformat())
+            all_rows.extend(rows)
+            total_calls += meta['api_calls']
+            current_date += timedelta(days=1)
+        # Filter to actual range
+        all_rows = [r for r in all_rows if start <= r['timestamp'] <= capped_end]
+        return all_rows, {'api_calls': total_calls, 'source': 'binance_csv'}
 
 
 def _conform(raw, symbol, pool, **kw):

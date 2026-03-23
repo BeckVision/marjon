@@ -19,10 +19,22 @@ def _fetch(symbol, pool, start, end, **kw):
     """Fetch funding rate CSV — 1 month per call."""
     from pipeline.connectors.binance_csv import fetch_funding_rate_csv
     capped_end = min(end, start + MAX_FETCH)
-    year_month = f"{start.year}-{start.month:02d}"
-    rows, meta = fetch_funding_rate_csv(symbol, year_month)
-    rows = [r for r in rows if start <= r['timestamp'] <= capped_end]
-    return rows, meta
+    all_rows = []
+    total_calls = 0
+    # Iterate months that overlap [start, capped_end]
+    cy, cm = start.year, start.month
+    ey, em = capped_end.year, capped_end.month
+    while (cy, cm) <= (ey, em):
+        year_month = f"{cy}-{cm:02d}"
+        rows, meta = fetch_funding_rate_csv(symbol, year_month)
+        all_rows.extend(rows)
+        total_calls += meta['api_calls']
+        cm += 1
+        if cm > 12:
+            cy += 1
+            cm = 1
+    all_rows = [r for r in all_rows if start <= r['timestamp'] <= capped_end]
+    return all_rows, {'api_calls': total_calls, 'source': 'binance_csv'}
 
 
 def _conform(raw, symbol, pool, **kw):
