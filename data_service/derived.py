@@ -184,3 +184,126 @@ register(DerivedFeatureSpec(
     parameters={'lookback': 20},
     warm_up=20,
 ))
+
+
+# ---------------------------------------------------------------------------
+# DF-003: CVD — Cumulative Volume Delta
+# ---------------------------------------------------------------------------
+
+def _compute_cvd(rows, reset_period=None):
+    """Cumulative Volume Delta: running sum of (buy_volume - sell_volume).
+
+    For each candle:
+        delta = taker_buy_volume - (volume - taker_buy_volume)
+              = 2 * taker_buy_volume - volume
+
+    CVD is the running sum of delta from the start of the series
+    (or from the last reset point if reset_period is set).
+
+    Positive CVD = net buying pressure. Negative = net selling pressure.
+    Divergence between price and CVD is a classic signal.
+
+    Works with U-002 klines (which have taker_buy_volume).
+    For U-001 klines (no taker data), all rows get None.
+    """
+    cumulative = Decimal('0')
+
+    for row in rows:
+        vol = row.get('volume')
+        tbv = row.get('taker_buy_volume')
+
+        if vol is None or tbv is None:
+            row['cvd'] = None
+            row['volume_delta'] = None
+            continue
+
+        delta = tbv + tbv - vol  # 2 * taker_buy_volume - volume
+        cumulative += delta
+        row['volume_delta'] = delta
+        row['cvd'] = cumulative
+
+
+register(DerivedFeatureSpec(
+    derived_id='DF-003',
+    name='Cumulative Volume Delta (CVD)',
+    source_layers=['U002-FL-001'],
+    formula=_compute_cvd,
+    output_fields=['cvd', 'volume_delta'],
+    parameters={},
+    warm_up=0,
+))
+
+
+# ---------------------------------------------------------------------------
+# DF-004: Liquidity — bid/ask depth within X% of mid price
+# ---------------------------------------------------------------------------
+
+def _compute_liquidity(rows, pct_range=Decimal('0.001')):
+    """Order book liquidity: sum of quantity within pct_range of mid price.
+
+    For each row (which is one level of the book), this is a pass-through.
+    The real computation aggregates across levels — so this operates on
+    panel data that includes order book rows grouped by (coin_id, timestamp).
+
+    Since order book is normalized (40 rows per snapshot), this formula
+    needs to aggregate across rows sharing the same (coin_id, timestamp)
+    to produce per-snapshot metrics:
+    - bid_depth: total bid quantity within pct_range of mid
+    - ask_depth: total ask quantity within pct_range of mid
+    - spread_bps: (best_ask - best_bid) / mid_price * 10000
+
+    The formula modifies only the first row of each snapshot group and
+    marks the rest for the caller.
+    """
+    from itertools import groupby
+    from operator import itemgetter
+
+    # Group rows by (coin_id, timestamp) — each group = one snapshot
+    keyfunc = lambda r: (r['coin_id'], r['timestamp'])
+
+    # Collect all rows, process per snapshot
+    # Since rows are sorted by (coin_id, timestamp), groupby works
+    for key, group_rows in groupby(rows, key=keyfunc):
+        snapshot_rows = list(group_rows)
+
+        bids = [(r.get('price'), r.get('quantity'), r.get('level'))
+                for r in snapshot_rows if r.get('side') == 'bid']
+        asks = [(r.get('price'), r.get('quantity'), r.get('level'))
+                for r in snapshot_rows if r.get('side') == 'ask']
+
+        # Calculate mid price
+        best_bid = max((p for p, q, l in bids if p), default=None)
+        best_ask = min((p for p, q, l in asks if p), default=None)
+
+        if best_bid is None or best_ask is None:
+            for r in snapshot_rows:
+                r['bid_depth'] = None
+                r['ask_depth'] = None
+                r['spread_bps'] = None
+            continue
+
+        mid = (best_bid + best_ask) / 2
+        lower_bound = mid * (1 - pct_range)
+        upper_bound = mid * (1 + pct_range)
+
+        bid_depth = sum(q for p, q, l in bids
+                        if p and q and p >= lower_bound)
+        ask_depth = sum(q for p, q, l in asks
+                        if p and q and p <= upper_bound)
+        spread_bps = (best_ask - best_bid) / mid * 10000
+
+        for r in snapshot_rows:
+            r['bid_depth'] = bid_depth
+            r['ask_depth'] = ask_depth
+            r['spread_bps'] = spread_bps
+
+
+register(DerivedFeatureSpec(
+    derived_id='DF-004',
+    name='Order Book Liquidity',
+    source_layers=['U002-FL-002'],
+    formula=_compute_liquidity,
+    output_fields=['bid_depth', 'ask_depth', 'spread_bps'],
+    parameters={'pct_range': Decimal('0.001')},  # 0.1% from mid
+    warm_up=0,
+))

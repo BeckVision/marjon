@@ -17,6 +17,7 @@ from warehouse.models import (
     U002FundingRate,
     U002FuturesMetrics,
     U002OHLCVCandle,
+    U002OrderBookSnapshot,
 )
 
 from .alignment import align_layers
@@ -31,6 +32,7 @@ LAYER_REGISTRY = {
     U002OHLCVCandle.LAYER_ID: U002OHLCVCandle,
     U002FuturesMetrics.LAYER_ID: U002FuturesMetrics,
     U002FundingRate.LAYER_ID: U002FundingRate,
+    U002OrderBookSnapshot.LAYER_ID: U002OrderBookSnapshot,
 }
 
 # Universe ID -> model class mapping
@@ -116,8 +118,9 @@ def get_panel_slice(asset_ids, layer_ids, simulation_time,
     layer_data = {}
     for layer_id in layer_ids:
         model = LAYER_REGISTRY[layer_id]
+        fk_attname = _find_asset_fk(model)
         qs = model.objects.filter(
-            coin_id__in=asset_ids,
+            **{f'{fk_attname}__in': asset_ids},
         ).as_of(simulation_time)
 
         # Convert to list of dicts
@@ -125,7 +128,7 @@ def get_panel_slice(asset_ids, layer_ids, simulation_time,
         feature_fields = _get_feature_fields(model)
         for obj in qs:
             row = {
-                'coin_id': obj.coin_id,
+                'coin_id': getattr(obj, fk_attname),
                 'timestamp': obj.timestamp,
             }
             for field in feature_fields:
@@ -201,6 +204,15 @@ def get_reference_data(asset_id, start, end, simulation_time):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _find_asset_fk(model):
+    """Find the FK attname on a feature/reference model that points to UniverseBase."""
+    from warehouse.models import UniverseBase
+    for field in model._meta.get_fields():
+        if isinstance(field, dj_models.ForeignKey) and issubclass(field.related_model, UniverseBase):
+            return field.attname
+    return 'coin_id'  # fallback
+
 
 def _lookup_asset(asset_id):
     """Look up an asset across all registered universes.

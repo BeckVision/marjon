@@ -749,6 +749,53 @@ class U002OHLCVCandle(FeatureLayerBase):
         ]
 
 
+class U002OrderBookSnapshot(FeatureLayerBase):
+    """Normalized order book snapshots from Binance (1 row per level per side)."""
+    LAYER_ID = "U002-FL-002"
+    UNIVERSE_ID = "U-002"
+    NAME = "Order Book Snapshots"
+    TEMPORAL_RESOLUTION = timedelta(minutes=1)
+    AVAILABILITY_RULE = "event-time"
+    GAP_HANDLING = "No snapshot if poll fails"
+    DATA_SOURCE = "Binance"
+    REFRESH_POLICY = "Continuous (1/min polling)"
+    VERSION = "1.0"
+
+    SIDE_CHOICES = [('bid', 'bid'), ('ask', 'ask')]
+
+    asset = models.ForeignKey(
+        BinanceAsset,
+        to_field='symbol',
+        on_delete=models.CASCADE,
+        related_name='order_book_snapshots',
+    )
+    side = models.CharField(max_length=3, choices=SIDE_CHOICES)
+    level = models.PositiveSmallIntegerField()
+    price = models.DecimalField(max_digits=20, decimal_places=8, null=True)
+    quantity = models.DecimalField(max_digits=20, decimal_places=8, null=True)
+    last_update_id = models.BigIntegerField(null=True)
+
+    class Meta:
+        unique_together = [('asset', 'timestamp', 'side', 'level')]
+        indexes = [
+            models.Index(fields=['timestamp']),
+            models.Index(
+                fields=['asset', '-timestamp'],
+                name='idx_u002ob_asset_ts',
+            ),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(quantity__gte=0),
+                name='u002_ob_qty_non_neg',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(price__gt=0),
+                name='u002_ob_price_positive',
+            ),
+        ]
+
+
 class U002FuturesMetrics(FeatureLayerBase):
     """Open interest + long/short ratios from Binance futures (5-minute)."""
     LAYER_ID = "U002-FL-003"
