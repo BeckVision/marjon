@@ -78,3 +78,25 @@ def run_holders(coin, config):
     """
     from pipeline.pipelines.fl002 import FL002
     return run_for_coin(FL002, coin.mint_address)
+
+
+# ---------------------------------------------------------------------------
+# U-002 handlers
+# ---------------------------------------------------------------------------
+
+def run_u002_klines(coin, config):
+    """Fetch spot klines for one U-002 asset."""
+    from pipeline.pipelines.u002_fl001 import U002_FL001
+    return run_for_coin(U002_FL001, coin.symbol)
+
+
+def run_u002_futures_metrics(coin, config):
+    """Fetch futures metrics for one U-002 asset."""
+    from pipeline.pipelines.u002_fl003 import U002_FL003
+    return run_for_coin(U002_FL003, coin.symbol)
+
+
+def run_u002_funding_rate(coin, config):
+    """Fetch funding rate for one U-002 asset."""
+    from pipeline.pipelines.u002_fl004 import U002_FL004
+    return run_for_coin(U002_FL004, coin.symbol)

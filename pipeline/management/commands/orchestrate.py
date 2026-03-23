@@ -180,7 +180,7 @@ class Command(BaseCommand):
                         logger.info("Step '%s': batch mode", step_name)
                         self.stdout.write(f"\nStep '{step_name}': batch mode")
 
-                        batch_coins = [c for c in coins if not should_skip(c, step, retry_failed)]
+                        batch_coins = [c for c in coins if not should_skip(c, step, retry_failed, config)]
                         if not batch_coins:
                             self.stdout.write(f"Step '{step_name}': all coins skipped")
                             continue
@@ -217,7 +217,7 @@ class Command(BaseCommand):
                         )
 
                     # Filter coins that should be skipped
-                    work_coins = [c for c in coins if not should_skip(c, step, retry_failed)]
+                    work_coins = [c for c in coins if not should_skip(c, step, retry_failed, config)]
                     skipped = len(coins) - len(work_coins)
 
                     if not work_coins:
@@ -276,12 +276,12 @@ class Command(BaseCommand):
         # Failure summary — surface persistently failing coins
         layer_ids = [s['layer_id'] for s in steps if s.get('layer_id')]
         if layer_ids:
-            persistent = get_persistent_failures(layer_ids)
+            persistent = get_persistent_failures(layer_ids, config=config)
             if persistent:
                 self.stdout.write("\n--- Persistent failures ---")
                 for pf in persistent:
                     self.stdout.write(
-                        f"  {pf['coin_id']} / {pf['layer_id']}: "
+                        f"  {pf['asset_id']} / {pf['layer_id']}: "
                         f"{pf['consecutive_errors']} consecutive errors"
                     )
                 self.stdout.write(
@@ -303,14 +303,14 @@ class Command(BaseCommand):
         for coin in coins:
             try:
                 result = call_handler(step['handler'], coin, config)
-                update_pipeline_status(coin, step, result)
+                update_pipeline_status(coin, step, result, config)
                 succeeded += 1
 
                 records = result.get('records_loaded')
                 if records is not None:
                     logger.info(
                         "%s %s: %d records loaded",
-                        step_name, coin.mint_address, records,
+                        step_name, coin, records,
                     )
             except BudgetExhausted as e:
                 self.stdout.write(
@@ -322,10 +322,10 @@ class Command(BaseCommand):
             except Exception as e:
                 logger.error(
                     "%s failed for %s: %s",
-                    step_name, coin.mint_address, e,
+                    step_name, coin, e,
                     exc_info=True,
                 )
-                mark_error(coin, step, str(e))
+                mark_error(coin, step, str(e), config)
                 failed += 1
 
             sleep_time = step.get('rate_limit_sleep', 0)
@@ -348,7 +348,7 @@ class Command(BaseCommand):
 
         def _process_coin(coin):
             result = call_handler(step['handler'], coin, config)
-            update_pipeline_status(coin, step, result)
+            update_pipeline_status(coin, step, result, config)
             return coin, result
 
         with ThreadPoolExecutor(max_workers=workers) as executor:
@@ -367,15 +367,15 @@ class Command(BaseCommand):
                     if records is not None:
                         logger.info(
                             "%s %s: %d records loaded",
-                            step_name, coin.mint_address, records,
+                            step_name, coin, records,
                         )
                 except Exception as e:
                     logger.error(
                         "%s failed for %s: %s",
-                        step_name, coin.mint_address, e,
+                        step_name, coin, e,
                         exc_info=True,
                     )
-                    mark_error(coin, step, str(e))
+                    mark_error(coin, step, str(e), config)
                     failed += 1
 
         return succeeded, failed
@@ -408,7 +408,7 @@ class Command(BaseCommand):
         workers_override = options.get('workers')
 
         for i, step in enumerate(steps, start=2 if run_discovery else 1):
-            skip_count = sum(1 for c in coins if should_skip(c, step, retry_failed))
+            skip_count = sum(1 for c in coins if should_skip(c, step, retry_failed, config))
             process_count = len(coins) - skip_count
             step_workers = workers_override or step.get('workers', 1)
             self.stdout.write(

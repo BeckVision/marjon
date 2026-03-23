@@ -10,14 +10,27 @@ No API key required. No rate limits documented, but throttle at scale.
 import csv
 import io
 import logging
+import time
 import zipfile
 from datetime import datetime, timezone
 
-from pipeline.connectors.http import request_with_retry
+import httpx
 
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://data.binance.vision"
+
+# Reuse a single httpx client for all CSV downloads
+_client = None
+_client_lock = __import__('threading').Lock()
+
+
+def _get_client():
+    global _client
+    with _client_lock:
+        if _client is None:
+            _client = httpx.Client(http2=True, timeout=30, follow_redirects=True)
+        return _client
 
 # ---------------------------------------------------------------------------
 # URL builders
@@ -62,30 +75,43 @@ def _funding_rate_monthly_url(symbol, year_month):
 # Download + extract
 # ---------------------------------------------------------------------------
 
-def _download_and_extract_csv(url):
+def _download_and_extract_csv(url, max_retries=3):
     """Download a zip file and extract the first CSV file contents.
 
     Returns:
         str: raw CSV text, or None if download fails (404 etc.)
     """
-    try:
-        response = request_with_retry(url, max_retries=3)
-    except Exception as e:
-        logger.warning("Failed to download %s: %s", url, e)
-        return None
+    client = _get_client()
+    for attempt in range(max_retries):
+        try:
+            response = client.get(url)
+            if response.status_code == 404:
+                logger.debug("Not found: %s", url)
+                return None
+            if response.status_code >= 500:
+                wait = 2 ** (attempt + 1)
+                logger.warning("Server error %d for %s, retrying in %ds",
+                               response.status_code, url, wait)
+                time.sleep(wait)
+                continue
+            response.raise_for_status()
 
-    if response.status_code == 404:
-        logger.debug("Not found: %s", url)
-        return None
+            with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
+                csv_names = [n for n in zf.namelist() if n.endswith('.csv')]
+                if not csv_names:
+                    logger.warning("No CSV in zip: %s", url)
+                    return None
+                return zf.read(csv_names[0]).decode('utf-8')
 
-    response.raise_for_status()
+        except (httpx.TimeoutException, httpx.NetworkError) as e:
+            wait = 2 ** (attempt + 1)
+            logger.warning("Network error for %s: %s, retrying in %ds",
+                           url, e, wait)
+            time.sleep(wait)
+            continue
 
-    with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
-        csv_names = [n for n in zf.namelist() if n.endswith('.csv')]
-        if not csv_names:
-            logger.warning("No CSV in zip: %s", url)
-            return None
-        return zf.read(csv_names[0]).decode('utf-8')
+    logger.warning("Failed to download %s after %d retries", url, max_retries)
+    return None
 
 
 # ---------------------------------------------------------------------------

@@ -9,45 +9,54 @@ import logging
 from collections import defaultdict
 from datetime import timedelta
 
+from django.db import models as dj_models
 from django.utils import timezone
 
 from warehouse.models import (
     MigratedCoin, PipelineCompleteness, PoolMapping,
     RunStatus, U001PipelineRun, U001PipelineStatus,
+    UniverseBase,
 )
 
 logger = logging.getLogger(__name__)
 
 
 def _resolve_model_class(dotted_path):
-    """Import and return a model class from a dotted path like 'warehouse.models.MigratedCoin'."""
+    """Import and return a model class from a dotted path."""
     module_path, class_name = dotted_path.rsplit('.', 1)
     module = importlib.import_module(module_path)
     return getattr(module, class_name)
 
 
 def _get_universe_model(config):
-    """Resolve universe model from config, defaulting to MigratedCoin."""
     model_path = config.get('model')
-    if model_path:
-        return _resolve_model_class(model_path)
-    return MigratedCoin
+    return _resolve_model_class(model_path) if model_path else MigratedCoin
 
 
 def _get_status_model(config):
-    """Resolve status model from config, defaulting to U001PipelineStatus."""
     model_path = config.get('status_model')
-    if model_path:
-        return _resolve_model_class(model_path)
-    return U001PipelineStatus
+    return _resolve_model_class(model_path) if model_path else U001PipelineStatus
 
 
 def _get_run_model(config):
-    """Resolve run model from config, defaulting to U001PipelineRun."""
     model_path = config.get('run_model')
-    if model_path:
-        return _resolve_model_class(model_path)
-    return U001PipelineRun
+    return _resolve_model_class(model_path) if model_path else U001PipelineRun
+
+
+def _find_universe_fk(model):
+    """Find the FK attname on a model that points to a UniverseBase subclass."""
+    for field in model._meta.get_fields():
+        if isinstance(field, dj_models.ForeignKey) and issubclass(field.related_model, UniverseBase):
+            return field.attname
+    raise ValueError(f"No FK to UniverseBase found on {model.__name__}")
+
+
+def _asset_id(coin):
+    """Get the natural key value from a universe model instance.
+
+    Uses __str__ which returns mint_address for MigratedCoin, symbol for BinanceAsset.
+    """
+    return str(coin)
 
 
 def load_universe_config(universe_id):
@@ -68,11 +77,7 @@ def load_universe_config(universe_id):
 
 
 def resolve_step_order(config, requested_steps=None):
-    """Return steps in dependency order, filtered to requested_steps.
-
-    Topological sort based on depends_on. Discovery is not in steps —
-    it's handled separately by the orchestrator.
-    """
+    """Return steps in dependency order, filtered to requested_steps."""
     steps = config['steps']
 
     if requested_steps is not None:
@@ -90,7 +95,6 @@ def resolve_step_order(config, requested_steps=None):
         elif s['name'] not in in_degree:
             in_degree[s['name']] = in_degree.get(s['name'], 0)
 
-    # Kahn's algorithm
     queue = [name for name in step_map if in_degree.get(name, 0) == 0]
     ordered = []
     while queue:
@@ -111,18 +115,7 @@ def resolve_step_order(config, requested_steps=None):
 
 
 def get_coins_to_process(config, days=None, max_coins=None):
-    """Query universe model for assets that need processing.
-
-    Dispatches on UNIVERSE_TYPE for filtering and ordering.
-
-    Args:
-        config: Universe config dict.
-        days: If set, only recently added/graduated assets.
-        max_coins: If set, limit result count.
-
-    Returns:
-        List of universe model instances.
-    """
+    """Query universe model for assets that need processing."""
     universe_model = _get_universe_model(config)
     qs = universe_model.objects.all()
 
@@ -145,15 +138,12 @@ def get_coins_to_process(config, days=None, max_coins=None):
 
 
 def has_consecutive_failures(coin, layer_id, max_failures, config=None):
-    """Check if an asset has N consecutive ERROR runs for a layer.
-
-    Queries last N run rows ordered by -started_at.
-    Returns True if all are ERROR status.
-    """
+    """Check if an asset has N consecutive ERROR runs for a layer."""
     run_model = _get_run_model(config) if config else U001PipelineRun
+    fk = _find_universe_fk(run_model)
     recent_runs = list(
         run_model.objects.filter(
-            coin_id=coin.mint_address,
+            **{fk: _asset_id(coin)},
             layer_id=layer_id,
         ).order_by('-started_at').values_list('status', flat=True)[:max_failures]
     )
@@ -163,12 +153,10 @@ def has_consecutive_failures(coin, layer_id, max_failures, config=None):
 
 
 def get_persistent_failures(layer_ids, min_failures=5, config=None):
-    """Find assets with consecutive failures across given layers.
-
-    Returns list of dicts: {coin_id, layer_id, consecutive_errors}.
-    """
+    """Find assets with consecutive failures across given layers."""
     status_model = _get_status_model(config) if config else U001PipelineStatus
     run_model = _get_run_model(config) if config else U001PipelineRun
+    run_fk = _find_universe_fk(run_model)
 
     results = []
     error_statuses = status_model.objects.filter(
@@ -176,9 +164,12 @@ def get_persistent_failures(layer_ids, min_failures=5, config=None):
         layer_id__in=layer_ids,
     )
     for ps in error_statuses:
+        # Get the asset ID from the status row's FK
+        status_fk = _find_universe_fk(status_model)
+        asset_val = getattr(ps, status_fk)
         recent_runs = list(
             run_model.objects.filter(
-                coin_id=ps.coin_id,
+                **{run_fk: asset_val},
                 layer_id=ps.layer_id,
             ).order_by('-started_at').values_list('status', flat=True)[:min_failures]
         )
@@ -190,7 +181,7 @@ def get_persistent_failures(layer_ids, min_failures=5, config=None):
                 break
         if consecutive >= min_failures:
             results.append({
-                'coin_id': ps.coin_id,
+                'asset_id': asset_val,
                 'layer_id': ps.layer_id,
                 'consecutive_errors': consecutive,
             })
@@ -198,26 +189,16 @@ def get_persistent_failures(layer_ids, min_failures=5, config=None):
 
 
 def should_skip(coin, step, retry_failed=False, config=None):
-    """Check if an asset should be skipped for a step.
-
-    Args:
-        coin: Universe model instance.
-        step: Step config dict.
-        retry_failed: If True, bypass consecutive failure check.
-        config: Universe config dict (for resolving status model).
-
-    Returns:
-        True if the asset should be skipped.
-    """
+    """Check if an asset should be skipped for a step."""
     status_model = _get_status_model(config) if config else U001PipelineStatus
+    fk = _find_universe_fk(status_model)
+    aid = _asset_id(coin)
 
-    # Prerequisite: another layer must be complete before this step runs
     requires = step.get('requires_layer_complete')
     if requires:
         try:
             dep_status = status_model.objects.get(
-                coin_id=coin.mint_address,
-                layer_id=requires,
+                **{fk: aid}, layer_id=requires,
             )
             if dep_status.status != PipelineCompleteness.WINDOW_COMPLETE:
                 return True
@@ -229,7 +210,7 @@ def should_skip(coin, step, retry_failed=False, config=None):
         return False
 
     if skip_if == 'pool_mapping_exists':
-        return PoolMapping.objects.filter(coin_id=coin.mint_address).exists()
+        return PoolMapping.objects.filter(coin_id=aid).exists()
 
     if skip_if == 'window_complete':
         layer_id = step.get('layer_id')
@@ -237,8 +218,7 @@ def should_skip(coin, step, retry_failed=False, config=None):
             return False
         try:
             status = status_model.objects.get(
-                coin_id=coin.mint_address,
-                layer_id=layer_id,
+                **{fk: aid}, layer_id=layer_id,
             )
             if status.status == PipelineCompleteness.WINDOW_COMPLETE:
                 return True
@@ -249,7 +229,7 @@ def should_skip(coin, step, retry_failed=False, config=None):
             if layer_id and has_consecutive_failures(coin, layer_id, max_failures, config):
                 logger.info(
                     "Skipping %s for %s: %d consecutive failures",
-                    step['name'], coin.mint_address, max_failures,
+                    step['name'], aid, max_failures,
                 )
                 return True
         return False
@@ -258,18 +238,14 @@ def should_skip(coin, step, retry_failed=False, config=None):
         layer_id = step.get('layer_id')
         if not layer_id:
             return False
-        # Skip if already complete
         try:
             status = status_model.objects.get(
-                coin_id=coin.mint_address,
-                layer_id=layer_id,
+                **{fk: aid}, layer_id=layer_id,
             )
             if status.status == PipelineCompleteness.WINDOW_COMPLETE:
                 return True
         except status_model.DoesNotExist:
             pass
-        # Skip if observation window hasn't closed yet.
-        # For perpetual (unbounded) universes, window never closes — don't skip.
         if coin.window_end_time is not None and not coin.is_mature:
             return True
         if not retry_failed:
@@ -277,7 +253,7 @@ def should_skip(coin, step, retry_failed=False, config=None):
             if layer_id and has_consecutive_failures(coin, layer_id, max_failures, config):
                 logger.info(
                     "Skipping %s for %s: %d consecutive failures",
-                    step['name'], coin.mint_address, max_failures,
+                    step['name'], aid, max_failures,
                 )
                 return True
         return False
@@ -287,15 +263,7 @@ def should_skip(coin, step, retry_failed=False, config=None):
 
 
 def call_handler(handler_path, *args, **kwargs):
-    """Import and call a handler function by dotted path.
-
-    Args:
-        handler_path: e.g. 'pipeline.orchestration.handlers.run_ohlcv'
-        *args, **kwargs: passed to the handler.
-
-    Returns:
-        Handler return value.
-    """
+    """Import and call a handler function by dotted path."""
     module_path, func_name = handler_path.rsplit('.', 1)
     module = importlib.import_module(module_path)
     func = getattr(module, func_name)
@@ -303,19 +271,16 @@ def call_handler(handler_path, *args, **kwargs):
 
 
 def update_pipeline_status(coin, step, result, config=None):
-    """Update pipeline status after a successful step.
-
-    Only applies to steps with a layer_id (feature layer steps).
-    """
+    """Update pipeline status after a successful step."""
     layer_id = step.get('layer_id')
     if not layer_id:
         return
 
     status_model = _get_status_model(config) if config else U001PipelineStatus
+    fk = _find_universe_fk(status_model)
     status_val = result.get('status', PipelineCompleteness.PARTIAL)
     status_model.objects.update_or_create(
-        coin_id=coin.mint_address,
-        layer_id=layer_id,
+        **{fk: _asset_id(coin)}, layer_id=layer_id,
         defaults={
             'status': status_val,
             'last_run_at': timezone.now(),
@@ -331,9 +296,9 @@ def mark_error(coin, step, error_message, config=None):
         return
 
     status_model = _get_status_model(config) if config else U001PipelineStatus
+    fk = _find_universe_fk(status_model)
     status_model.objects.update_or_create(
-        coin_id=coin.mint_address,
-        layer_id=layer_id,
+        **{fk: _asset_id(coin)}, layer_id=layer_id,
         defaults={
             'status': PipelineCompleteness.ERROR,
             'last_run_at': timezone.now(),
