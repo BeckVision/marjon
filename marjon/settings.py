@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'data_service',
     'pipeline',
     'strategy',
+    'visualization',
 ]
 
 MIDDLEWARE = [
