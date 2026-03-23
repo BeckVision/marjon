@@ -1,4 +1,8 @@
-"""U-002 FL-001 pipeline spec: Spot klines from Binance (CSV backfill + API steady-state)."""
+"""U-002 FL-001 pipeline spec: Spot klines from Binance (CSV backfill + API steady-state).
+
+Self-limiting: fetches at most 1 day per run_for_coin call. Repeated
+invocations (via orchestrate --loops) advance the watermark day by day.
+"""
 
 import logging
 from datetime import timedelta
@@ -7,27 +11,26 @@ from pipeline.spec import PipelineSpec
 
 logger = logging.getLogger(__name__)
 
+# Max data fetched per run — keeps memory bounded and loads fast
+MAX_FETCH = timedelta(days=1)
+
 
 def _fetch(symbol, pool, start, end, **kw):
-    """Fetch klines — CSV for backfill, API for steady-state."""
+    """Fetch klines — at most 1 day per call."""
+    # Cap to 1 day so each run is bounded
+    capped_end = min(end, start + MAX_FETCH)
+
     source = kw.get('source', 'csv')
     if source == 'api':
         from pipeline.connectors.binance_api import fetch_klines_api
-        return fetch_klines_api(symbol, start, end)
+        return fetch_klines_api(symbol, start, capped_end)
     else:
-        # CSV mode: fetch one day at a time, aggregate
         from pipeline.connectors.binance_csv import fetch_spot_klines_csv
-        from datetime import date as date_type
-        all_rows = []
-        total_calls = 0
-        current = start.date()
-        end_date = end.date()
-        while current <= end_date:
-            rows, meta = fetch_spot_klines_csv(symbol, current.isoformat())
-            all_rows.extend(rows)
-            total_calls += meta['api_calls']
-            current += timedelta(days=1)
-        return all_rows, {'api_calls': total_calls, 'source': 'binance_csv'}
+        # 1 day = 1 CSV file
+        rows, meta = fetch_spot_klines_csv(symbol, start.date().isoformat())
+        # Filter to actual range (overlap region may pull earlier data)
+        rows = [r for r in rows if start <= r['timestamp'] <= capped_end]
+        return rows, meta
 
 
 def _conform(raw, symbol, pool, **kw):

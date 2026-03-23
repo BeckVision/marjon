@@ -71,6 +71,11 @@ class Command(BaseCommand):
             '--retry-failed', action='store_true',
             help='Bypass consecutive failure skip — retry persistently failing coins',
         )
+        parser.add_argument(
+            '--loops', type=int, default=1,
+            help='Run the full cycle N times. Each loop advances watermarks. '
+                 'Use for backfill: --loops 730 crawls ~2 years (1 day/loop).',
+        )
 
     def handle(self, *args, **options):
         # 1. Load universe config
@@ -117,10 +122,11 @@ class Command(BaseCommand):
         total_succeeded = 0
         total_failed = 0
         total_skipped = 0
+        num_loops = options.get('loops', 1)
 
         try:
-            # 5. Run discovery (if requested)
-            if run_discovery:
+            # 5. Run discovery (if requested) — only on first loop
+            if run_discovery and config.get('discovery'):
                 discovery_handler = config['discovery']['handler']
                 logger.info("Running discovery...")
                 self.stdout.write("Running discovery...")
@@ -141,85 +147,113 @@ class Command(BaseCommand):
                 except Exception as e:
                     logger.error("Discovery failed: %s", e, exc_info=True)
                     self.stderr.write(f"Discovery failed: {e}")
-                    # Discovery failure is non-fatal for per-coin steps
-                    # (there may already be coins in the database)
 
-            # 6. Build work list
-            coins = get_coins_to_process(
-                config,
-                days=options.get('days'),
-                max_coins=options.get('coins'),
-            )
-            self.stdout.write(f"Processing {len(coins)} coins")
+            for loop_num in range(1, num_loops + 1):
+                if num_loops > 1:
+                    self.stdout.write(
+                        f"\n{'='*60}\n"
+                        f"Loop {loop_num}/{num_loops}\n"
+                        f"{'='*60}"
+                    )
 
-            # 7. Run each step in dependency order
-            for step in steps:
-                step_name = step['name']
+                # 6. Build work list (refreshed each loop — watermarks change)
+                coins = get_coins_to_process(
+                    config,
+                    days=options.get('days'),
+                    max_coins=options.get('coins'),
+                )
+                if num_loops == 1:
+                    self.stdout.write(f"Processing {len(coins)} coins")
 
-                if not step.get('per_coin', False):
-                    # --- batch step handling ---
-                    logger.info("Step '%s': batch mode", step_name)
-                    self.stdout.write(f"\nStep '{step_name}': batch mode")
+                # 7. Run each step in dependency order
+                loop_succeeded = 0
+                loop_failed = 0
+                loop_skipped = 0
 
-                    # Filter to coins that shouldn't be skipped
-                    batch_coins = [c for c in coins if not should_skip(c, step, retry_failed)]
-                    if not batch_coins:
-                        self.stdout.write(f"Step '{step_name}': all coins skipped")
+                for step in steps:
+                    step_name = step['name']
+
+                    if not step.get('per_coin', False):
+                        # --- batch step handling (only on first loop) ---
+                        if loop_num > 1:
+                            continue
+                        logger.info("Step '%s': batch mode", step_name)
+                        self.stdout.write(f"\nStep '{step_name}': batch mode")
+
+                        batch_coins = [c for c in coins if not should_skip(c, step, retry_failed)]
+                        if not batch_coins:
+                            self.stdout.write(f"Step '{step_name}': all coins skipped")
+                            continue
+
+                        try:
+                            result = call_handler(step['handler'], batch_coins, config)
+                            mapped = result['dexscreener_mapped'] + result['geckoterminal_mapped']
+                            unmapped = result['unmapped']
+                            loop_succeeded += mapped
+                            logger.info(
+                                "%s: %d mapped, %d unmapped",
+                                step_name, mapped, unmapped,
+                            )
+                            self.stdout.write(
+                                f"Step '{step_name}': {mapped} mapped, {unmapped} unmapped"
+                            )
+                        except Exception as e:
+                            logger.error("%s failed: %s", step_name, e, exc_info=True)
+                            self.stderr.write(f"Step '{step_name}' failed: {e}")
+                            loop_failed += len(batch_coins)
                         continue
+                        # --- END batch step handling ---
 
-                    try:
-                        result = call_handler(step['handler'], batch_coins, config)
-                        mapped = result['dexscreener_mapped'] + result['geckoterminal_mapped']
-                        unmapped = result['unmapped']
-                        total_succeeded += mapped
+                    # Resolve worker count: CLI flag > step config > 1
+                    workers = options.get('workers') or step.get('workers', 1)
+
+                    if num_loops == 1:
                         logger.info(
-                            "%s: %d mapped, %d unmapped",
-                            step_name, mapped, unmapped,
+                            "Step '%s': %d coins to process (workers=%d)",
+                            step_name, len(coins), workers,
                         )
                         self.stdout.write(
-                            f"Step '{step_name}': {mapped} mapped, {unmapped} unmapped"
+                            f"\nStep '{step_name}': {len(coins)} coins (workers={workers})"
                         )
-                    except Exception as e:
-                        logger.error("%s failed: %s", step_name, e, exc_info=True)
-                        self.stderr.write(f"Step '{step_name}' failed: {e}")
-                        total_failed += len(batch_coins)
-                    continue
-                    # --- END batch step handling ---
 
-                # Resolve worker count: CLI flag > step config > 1
-                workers = options.get('workers') or step.get('workers', 1)
+                    # Filter coins that should be skipped
+                    work_coins = [c for c in coins if not should_skip(c, step, retry_failed)]
+                    skipped = len(coins) - len(work_coins)
 
-                logger.info(
-                    "Step '%s': %d coins to process (workers=%d)",
-                    step_name, len(coins), workers,
-                )
-                self.stdout.write(
-                    f"\nStep '{step_name}': {len(coins)} coins (workers={workers})"
-                )
+                    if not work_coins:
+                        loop_skipped += skipped
+                        continue
 
-                # Filter coins that should be skipped
-                work_coins = [c for c in coins if not should_skip(c, step, retry_failed)]
-                skipped = len(coins) - len(work_coins)
+                    if workers > 1:
+                        succeeded, failed = self._run_concurrent(
+                            step, work_coins, config, workers,
+                        )
+                    else:
+                        succeeded, failed = self._run_serial(
+                            step, work_coins, config,
+                        )
 
-                if workers > 1:
-                    succeeded, failed = self._run_concurrent(
-                        step, work_coins, config, workers,
+                    loop_succeeded += succeeded
+                    loop_failed += failed
+                    loop_skipped += skipped
+
+                    if num_loops == 1:
+                        summary = (
+                            f"Step '{step_name}': "
+                            f"{succeeded} succeeded, {failed} failed, {skipped} skipped"
+                        )
+                        logger.info(summary)
+                        self.stdout.write(summary)
+
+                total_succeeded += loop_succeeded
+                total_failed += loop_failed
+                total_skipped += loop_skipped
+
+                if num_loops > 1 and loop_num % 10 == 0:
+                    self.stdout.write(
+                        f"  Progress: loop {loop_num}/{num_loops}, "
+                        f"total {total_succeeded} succeeded, {total_failed} failed"
                     )
-                else:
-                    succeeded, failed = self._run_serial(
-                        step, work_coins, config,
-                    )
-
-                total_succeeded += succeeded
-                total_failed += failed
-                total_skipped += skipped
-
-                summary = (
-                    f"Step '{step_name}': "
-                    f"{succeeded} succeeded, {failed} failed, {skipped} skipped"
-                )
-                logger.info(summary)
-                self.stdout.write(summary)
 
             # 8. Update batch
             batch.status = RunStatus.COMPLETE

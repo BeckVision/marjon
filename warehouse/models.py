@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -678,7 +678,7 @@ class BinanceAsset(UniverseBase):
     NAME = "Major Crypto Assets"
     INCLUSION_CRITERIA = "Fixed list: BTCUSDT, ETHUSDT, SOLUSDT"
     UNIVERSE_TYPE = "calendar-driven"
-    OBSERVATION_WINDOW_START = None  # open-ended
+    OBSERVATION_WINDOW_START = datetime(2024, 3, 1, tzinfo=dt_timezone.utc)
     OBSERVATION_WINDOW_END = None    # open-ended (perpetual)
     EXCLUSION_CRITERIA = None
     VERSION = "1.0"

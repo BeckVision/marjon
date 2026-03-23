@@ -1,4 +1,7 @@
-"""U-002 FL-003 pipeline spec: Futures metrics from Binance CSV."""
+"""U-002 FL-003 pipeline spec: Futures metrics from Binance CSV.
+
+Self-limiting: fetches at most 1 day per run_for_coin call.
+"""
 
 import logging
 from datetime import timedelta
@@ -7,20 +10,16 @@ from pipeline.spec import PipelineSpec
 
 logger = logging.getLogger(__name__)
 
+MAX_FETCH = timedelta(days=1)
+
 
 def _fetch(symbol, pool, start, end, **kw):
-    """Fetch futures metrics CSV — one file per day."""
+    """Fetch futures metrics CSV — 1 day per call."""
     from pipeline.connectors.binance_csv import fetch_futures_metrics_csv
-    all_rows = []
-    total_calls = 0
-    current = start.date()
-    end_date = end.date()
-    while current <= end_date:
-        rows, meta = fetch_futures_metrics_csv(symbol, current.isoformat())
-        all_rows.extend(rows)
-        total_calls += meta['api_calls']
-        current += timedelta(days=1)
-    return all_rows, {'api_calls': total_calls, 'source': 'binance_csv'}
+    capped_end = min(end, start + MAX_FETCH)
+    rows, meta = fetch_futures_metrics_csv(symbol, start.date().isoformat())
+    rows = [r for r in rows if start <= r['timestamp'] <= capped_end]
+    return rows, meta
 
 
 def _conform(raw, symbol, pool, **kw):
