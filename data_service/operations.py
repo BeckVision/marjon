@@ -207,11 +207,11 @@ def get_reference_data(asset_id, start, end, simulation_time):
 
 def _find_asset_fk(model):
     """Find the FK attname on a feature/reference model that points to UniverseBase."""
-    from warehouse.models import UniverseBase
-    for field in model._meta.get_fields():
-        if isinstance(field, dj_models.ForeignKey) and issubclass(field.related_model, UniverseBase):
-            return field.attname
-    return 'coin_id'  # fallback
+    from warehouse.utils import find_universe_fk
+    try:
+        return find_universe_fk(model)
+    except ValueError:
+        return 'coin_id'
 
 
 def _lookup_asset(asset_id):

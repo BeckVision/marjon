@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 
+from django.db.models import Max
 from django.http import JsonResponse
 from django.shortcuts import render
 
@@ -40,6 +41,20 @@ def _parse_range(request):
     return start, end, limit
 
 
+def _snap_to_latest(model, symbol, start, end, request):
+    """If no explicit end and data doesn't reach 'now', snap to latest available."""
+    if request.GET.get('end'):
+        return start, end
+    latest = model.objects.filter(
+        asset_id=symbol,
+    ).aggregate(Max('timestamp'))['timestamp__max']
+    if latest and latest < end:
+        end = latest
+        days = request.GET.get('days')
+        start = end - timedelta(days=int(days) if days else DEFAULT_DAYS)
+    return start, end
+
+
 def chart_view(request, symbol):
     """Render the chart page."""
     symbol = symbol.upper()
@@ -55,28 +70,16 @@ def klines_api(request, symbol):
     """JSON API: OHLCV candlestick + volume data."""
     symbol = symbol.upper()
     start, end, limit = _parse_range(request)
+    start, end = _snap_to_latest(U002OHLCVCandle, symbol, start, end, request)
 
-    # If no explicit end and default range has no data, snap to latest available
-    if not request.GET.get('end'):
-        from django.db.models import Max
-        latest = U002OHLCVCandle.objects.filter(
-            asset_id=symbol,
-        ).aggregate(Max('timestamp'))['timestamp__max']
-        if latest and latest < end:
-            end = latest
-            days = request.GET.get('days')
-            start = end - timedelta(days=int(days) if days else DEFAULT_DAYS)
-
+    cap = limit if limit else MAX_CANDLES
     qs = U002OHLCVCandle.objects.filter(
         asset_id=symbol,
         timestamp__gte=start,
         timestamp__lte=end,
-    ).order_by('timestamp')
-
-    if limit:
-        qs = qs[:limit]
-    elif qs.count() > MAX_CANDLES:
-        qs = qs[:MAX_CANDLES]
+    ).order_by('timestamp').only(
+        'timestamp', 'open_price', 'high_price', 'low_price', 'close_price', 'volume',
+    )[:cap]
 
     candles = []
     volume = []
@@ -104,25 +107,16 @@ def metrics_api(request, symbol):
     """JSON API: Futures metrics (OI + long/short ratio)."""
     symbol = symbol.upper()
     start, end, limit = _parse_range(request)
+    start, end = _snap_to_latest(U002FuturesMetrics, symbol, start, end, request)
 
-    if not request.GET.get('end'):
-        from django.db.models import Max
-        latest = U002FuturesMetrics.objects.filter(
-            asset_id=symbol,
-        ).aggregate(Max('timestamp'))['timestamp__max']
-        if latest and latest < end:
-            end = latest
-            days = request.GET.get('days')
-            start = end - timedelta(days=int(days) if days else DEFAULT_DAYS)
-
+    cap = limit if limit else MAX_CANDLES
     qs = U002FuturesMetrics.objects.filter(
         asset_id=symbol,
         timestamp__gte=start,
         timestamp__lte=end,
-    ).order_by('timestamp')
-
-    if limit:
-        qs = qs[:limit]
+    ).order_by('timestamp').only(
+        'timestamp', 'sum_open_interest_value', 'count_long_short_ratio',
+    )[:cap]
 
     open_interest = []
     long_short_ratio = []
@@ -151,25 +145,16 @@ def funding_api(request, symbol):
     """JSON API: Funding rate."""
     symbol = symbol.upper()
     start, end, limit = _parse_range(request)
+    start, end = _snap_to_latest(U002FundingRate, symbol, start, end, request)
 
-    if not request.GET.get('end'):
-        from django.db.models import Max
-        latest = U002FundingRate.objects.filter(
-            asset_id=symbol,
-        ).aggregate(Max('timestamp'))['timestamp__max']
-        if latest and latest < end:
-            end = latest
-            days = request.GET.get('days')
-            start = end - timedelta(days=int(days) if days else DEFAULT_DAYS)
-
+    cap = limit if limit else MAX_CANDLES
     qs = U002FundingRate.objects.filter(
         asset_id=symbol,
         timestamp__gte=start,
         timestamp__lte=end,
-    ).order_by('timestamp')
-
-    if limit:
-        qs = qs[:limit]
+    ).order_by('timestamp').only(
+        'timestamp', 'last_funding_rate',
+    )[:cap]
 
     funding = []
     for row in qs.iterator():

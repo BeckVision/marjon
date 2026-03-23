@@ -9,14 +9,13 @@ import logging
 from collections import defaultdict
 from datetime import timedelta
 
-from django.db import models as dj_models
 from django.utils import timezone
 
 from warehouse.models import (
     MigratedCoin, PipelineCompleteness, PoolMapping,
     RunStatus, U001PipelineRun, U001PipelineStatus,
-    UniverseBase,
 )
+from warehouse.utils import find_universe_fk
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +40,6 @@ def _get_status_model(config):
 def _get_run_model(config):
     model_path = config.get('run_model')
     return _resolve_model_class(model_path) if model_path else U001PipelineRun
-
-
-def _find_universe_fk(model):
-    """Find the FK attname on a model that points to a UniverseBase subclass."""
-    for field in model._meta.get_fields():
-        if isinstance(field, dj_models.ForeignKey) and issubclass(field.related_model, UniverseBase):
-            return field.attname
-    raise ValueError(f"No FK to UniverseBase found on {model.__name__}")
 
 
 def _asset_id(coin):
@@ -140,7 +131,7 @@ def get_coins_to_process(config, days=None, max_coins=None):
 def has_consecutive_failures(coin, layer_id, max_failures, config=None):
     """Check if an asset has N consecutive ERROR runs for a layer."""
     run_model = _get_run_model(config) if config else U001PipelineRun
-    fk = _find_universe_fk(run_model)
+    fk = find_universe_fk(run_model)
     recent_runs = list(
         run_model.objects.filter(
             **{fk: _asset_id(coin)},
@@ -156,7 +147,8 @@ def get_persistent_failures(layer_ids, min_failures=5, config=None):
     """Find assets with consecutive failures across given layers."""
     status_model = _get_status_model(config) if config else U001PipelineStatus
     run_model = _get_run_model(config) if config else U001PipelineRun
-    run_fk = _find_universe_fk(run_model)
+    run_fk = find_universe_fk(run_model)
+    status_fk = find_universe_fk(status_model)
 
     results = []
     error_statuses = status_model.objects.filter(
@@ -164,8 +156,6 @@ def get_persistent_failures(layer_ids, min_failures=5, config=None):
         layer_id__in=layer_ids,
     )
     for ps in error_statuses:
-        # Get the asset ID from the status row's FK
-        status_fk = _find_universe_fk(status_model)
         asset_val = getattr(ps, status_fk)
         recent_runs = list(
             run_model.objects.filter(
@@ -191,7 +181,7 @@ def get_persistent_failures(layer_ids, min_failures=5, config=None):
 def should_skip(coin, step, retry_failed=False, config=None):
     """Check if an asset should be skipped for a step."""
     status_model = _get_status_model(config) if config else U001PipelineStatus
-    fk = _find_universe_fk(status_model)
+    fk = find_universe_fk(status_model)
     aid = _asset_id(coin)
 
     requires = step.get('requires_layer_complete')
@@ -277,7 +267,7 @@ def update_pipeline_status(coin, step, result, config=None):
         return
 
     status_model = _get_status_model(config) if config else U001PipelineStatus
-    fk = _find_universe_fk(status_model)
+    fk = find_universe_fk(status_model)
     status_val = result.get('status', PipelineCompleteness.PARTIAL)
     status_model.objects.update_or_create(
         **{fk: _asset_id(coin)}, layer_id=layer_id,
@@ -296,7 +286,7 @@ def mark_error(coin, step, error_message, config=None):
         return
 
     status_model = _get_status_model(config) if config else U001PipelineStatus
-    fk = _find_universe_fk(status_model)
+    fk = find_universe_fk(status_model)
     status_model.objects.update_or_create(
         **{fk: _asset_id(coin)}, layer_id=layer_id,
         defaults={

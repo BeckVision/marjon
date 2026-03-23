@@ -190,7 +190,7 @@ register(DerivedFeatureSpec(
 # DF-003: CVD — Cumulative Volume Delta
 # ---------------------------------------------------------------------------
 
-def _compute_cvd(rows, reset_period=None):
+def _compute_cvd(rows):
     """Cumulative Volume Delta: running sum of (buy_volume - sell_volume).
 
     For each candle:
@@ -256,7 +256,6 @@ def _compute_liquidity(rows, pct_range=Decimal('0.001')):
     marks the rest for the caller.
     """
     from itertools import groupby
-    from operator import itemgetter
 
     # Group rows by (coin_id, timestamp) — each group = one snapshot
     keyfunc = lambda r: (r['coin_id'], r['timestamp'])

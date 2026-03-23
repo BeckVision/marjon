@@ -43,11 +43,9 @@ def fetch_klines_api(symbol, start, end, interval='1m'):
             'limit': MAX_KLINES_PER_CALL,
         }
 
-        response = request_with_retry(url, params=params, max_retries=3)
-        response.raise_for_status()
+        data = request_with_retry(url, params=params, max_retries=3)
         api_calls += 1
 
-        data = response.json()
         if not data:
             break
 

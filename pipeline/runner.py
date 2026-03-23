@@ -8,15 +8,14 @@ to resolve models. Falls back to U-001 models when spec fields are None
 import logging
 from datetime import datetime, timezone
 
-from django.db import models as dj_models
-from django.db.models import Max
 from django.utils import timezone as dj_timezone
 
 from warehouse.models import (
     MigratedCoin, PipelineCompleteness, PoolMapping,
     RunMode, RunStatus, U001PipelineRun, U001PipelineStatus,
-    UniverseBase,
 )
+from pipeline.loaders.common import get_watermark
+from warehouse.utils import find_universe_fk
 
 logger = logging.getLogger(__name__)
 
@@ -27,17 +26,6 @@ def _resolve_models(spec):
     run_model = spec.run_model or U001PipelineRun
     status_model = spec.status_model or U001PipelineStatus
     return universe_model, run_model, status_model
-
-
-def _find_universe_fk(model):
-    """Find the FK field name on a model that points to a UniverseBase subclass.
-
-    Returns the Django field attname (e.g. 'coin_id', 'asset_id').
-    """
-    for field in model._meta.get_fields():
-        if isinstance(field, dj_models.ForeignKey) and issubclass(field.related_model, UniverseBase):
-            return field.attname  # e.g. 'coin_id', 'asset_id'
-    raise ValueError(f"No FK to UniverseBase found on {model.__name__}")
 
 
 def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
@@ -57,9 +45,9 @@ def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
     """
     universe_model, run_model, status_model = _resolve_models(spec)
     asset_field = spec.asset_field
-    run_fk = _find_universe_fk(run_model)
-    status_fk = _find_universe_fk(status_model)
-    feature_fk = _find_universe_fk(spec.model)
+    run_fk = find_universe_fk(run_model)
+    status_fk = find_universe_fk(status_model)
+    feature_fk = find_universe_fk(spec.model)
 
     # Step 1: Asset lookup
     asset = universe_model.objects.get(**{asset_field: asset_id})
@@ -93,7 +81,7 @@ def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
                 f"calendar-driven universe has no OBSERVATION_WINDOW_START"
             )
 
-        watermark = _query_watermark(spec.model, asset_id, feature_fk)
+        watermark = get_watermark(spec.model, asset_id, asset_fk=feature_fk)
         now = datetime.now(timezone.utc)
         end = min(we, now) if we is not None else now
 
@@ -196,7 +184,7 @@ def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
     run.save()
 
     # Step 13: Watermark
-    new_watermark = _query_watermark(spec.model, asset_id, feature_fk)
+    new_watermark = get_watermark(spec.model, asset_id, asset_fk=feature_fk)
 
     # Step 14: Completeness + update status
     if spec.compute_completeness:
@@ -288,7 +276,7 @@ def _default_completeness(spec, asset, feature_fk, watermark=None):
     asset_field = spec.asset_field
     asset_id = getattr(asset, asset_field)
     if watermark is None:
-        watermark = _query_watermark(spec.model, asset_id, feature_fk)
+        watermark = get_watermark(spec.model, asset_id, asset_fk=feature_fk)
 
     temporal_resolution = getattr(spec.model, 'TEMPORAL_RESOLUTION', None)
     we = asset.window_end_time
@@ -306,8 +294,3 @@ def _default_completeness(spec, asset, feature_fk, watermark=None):
     return PipelineCompleteness.PARTIAL
 
 
-def _query_watermark(model, asset_id, asset_fk):
-    """Return MAX(timestamp) for an asset, or None."""
-    return model.objects.filter(
-        **{asset_fk: asset_id},
-    ).aggregate(Max('timestamp'))['timestamp__max']
