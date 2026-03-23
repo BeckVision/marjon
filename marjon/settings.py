@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'warehouse',
     'data_service',
     'pipeline',
+    'strategy',
 ]
 
 MIDDLEWARE = [
