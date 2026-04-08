@@ -38,6 +38,14 @@ logger = logging.getLogger(__name__)
 class Command(BaseCommand):
     help = "Run the full pipeline for a universe: discovery → pool mapping → feature layers"
 
+    @staticmethod
+    def _step_context(config, step):
+        """Merge universe-level and step-level config for handler consumption."""
+        merged = dict(config)
+        merged.update(step)
+        merged['universe_config'] = config
+        return merged
+
     def add_arguments(self, parser):
         parser.add_argument(
             '--universe', required=True,
@@ -58,6 +66,10 @@ class Command(BaseCommand):
         parser.add_argument(
             '--coins', type=int, default=None,
             help='Max number of coins to process per step',
+        )
+        parser.add_argument(
+            '--mature-only', action='store_true',
+            help='Only include mature event-driven assets in the per-step work list',
         )
         parser.add_argument(
             '--workers', type=int, default=None,
@@ -161,6 +173,7 @@ class Command(BaseCommand):
                     config,
                     days=options.get('days'),
                     max_coins=options.get('coins'),
+                    mature_only=options.get('mature_only', False),
                 )
                 if num_loops == 1:
                     self.stdout.write(f"Processing {len(coins)} coins")
@@ -186,7 +199,8 @@ class Command(BaseCommand):
                             continue
 
                         try:
-                            result = call_handler(step['handler'], batch_coins, config)
+                            step_context = self._step_context(config, step)
+                            result = call_handler(step['handler'], batch_coins, step_context)
                             mapped = result['dexscreener_mapped'] + result['geckoterminal_mapped']
                             unmapped = result['unmapped']
                             loop_succeeded += mapped
@@ -224,13 +238,14 @@ class Command(BaseCommand):
                         loop_skipped += skipped
                         continue
 
+                    step_context = self._step_context(config, step)
                     if workers > 1:
                         succeeded, failed = self._run_concurrent(
-                            step, work_coins, config, workers,
+                            step, work_coins, step_context, workers,
                         )
                     else:
                         succeeded, failed = self._run_serial(
-                            step, work_coins, config,
+                            step, work_coins, step_context,
                         )
 
                     loop_succeeded += succeeded
@@ -397,6 +412,7 @@ class Command(BaseCommand):
             config,
             days=options.get('days'),
             max_coins=options.get('coins'),
+            mature_only=options.get('mature_only', False),
         )
         self.stdout.write(f"\nCoins to process: {len(coins)}")
 

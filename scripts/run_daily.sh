@@ -16,6 +16,14 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOG_DIR="$PROJECT_DIR/logs"
 LOG_FILE="$LOG_DIR/daily_$(date +%Y%m%d_%H%M%S).log"
+DAILY_STEPS="${MARJON_U001_DAILY_STEPS:-discovery,pool_mapping,ohlcv}"
+DAILY_COINS="${MARJON_U001_DAILY_COINS:-50}"
+DAILY_DAYS="${MARJON_U001_DAILY_DAYS:-20}"
+DAILY_MATURE_ONLY="${MARJON_U001_DAILY_MATURE_ONLY:-1}"
+
+if [[ "${MARJON_U001_ENABLE_HOLDERS:-0}" == "1" ]]; then
+    DAILY_STEPS="${DAILY_STEPS},holders"
+fi
 
 mkdir -p "$LOG_DIR"
 
@@ -26,4 +34,14 @@ if ! flock -n 200; then
 fi
 
 cd "$PROJECT_DIR"
-"$SCRIPT_DIR/manage.sh" orchestrate --universe u001 --steps discovery,pool_mapping,ohlcv,holders "$@" 2>&1 | tee "$LOG_FILE"
+CMD=(
+    "$SCRIPT_DIR/manage.sh" orchestrate
+    --universe u001
+    --steps "$DAILY_STEPS"
+    --coins "$DAILY_COINS"
+    --days "$DAILY_DAYS"
+)
+if [[ "$DAILY_MATURE_ONLY" == "1" ]]; then
+    CMD+=(--mature-only)
+fi
+"${CMD[@]}" "$@" 2>&1 | tee "$LOG_FILE"

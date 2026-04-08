@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://solana-gateway.moralis.io"
 CU_PER_CALL = 50
-DAILY_CU_LIMIT = 40000
+DAILY_CU_LIMIT = int(os.environ.get('MORALIS_DAILY_CU_LIMIT', '40000'))
 MAX_PER_PAGE = 100
 
 # Daily CU tracker file (project root)

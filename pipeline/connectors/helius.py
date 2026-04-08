@@ -13,6 +13,7 @@ Per-key rate limiting ensures each API key respects its cooldown.
 
 import itertools
 import logging
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -38,6 +39,9 @@ ENHANCED_URL = "https://api-mainnet.helius-rpc.com"
 SIG_LIMIT = 1000          # max signatures per getSignaturesForAddress call
 PARSE_BATCH_SIZE = 100    # max signatures per POST /v0/transactions call
 RATE_LIMIT_SLEEP = 0.3    # min seconds between calls on the SAME key
+MAX_FILTERED_SIGNATURES = int(
+    os.environ.get('MARJON_U001_RD001_MAX_FILTERED_SIGNATURES', '1000')
+)
 
 # Credit costs (for logging/tracking)
 RPC_CREDITS = 10
@@ -274,6 +278,12 @@ def fetch_transactions(pool_address, start=None, end=None, max_workers=1):
             len(raw_sigs), pool_address,
         )
         return [], {'api_calls': rpc_calls, 'credits_used': rpc_credits}
+
+    if len(filtered) > MAX_FILTERED_SIGNATURES:
+        raise RuntimeError(
+            f"Filtered signature count {len(filtered)} exceeds free-tier guard "
+            f"({MAX_FILTERED_SIGNATURES}) for pool {pool_address}"
+        )
 
     # Phase 2: parse transactions
     transactions, parse_credits = _parse_transactions(

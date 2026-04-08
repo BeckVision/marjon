@@ -14,6 +14,7 @@ when multiple threads share the pool.
 
 import itertools
 import logging
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -40,6 +41,9 @@ SIG_LIMIT = 1000          # max signatures per getSignaturesForAddress call
 PARSE_BATCH_SIZE = 100    # max signatures per parse_selected call (hard limit)
 RPC_BATCH_SIZE = 250      # max calls per batch RPC request (tested)
 RATE_LIMIT_SLEEP = 0.6    # min seconds between REST calls on the SAME key
+MAX_FILTERED_SIGNATURES = int(
+    os.environ.get('MARJON_U001_RD001_MAX_FILTERED_SIGNATURES', '1000')
+)
 
 # Round-robin iterator over Shyft API keys (thread-safe).
 # Invalid keys are filtered out at import time to avoid repeated
@@ -460,6 +464,12 @@ def fetch_transactions(pool_address, start=None, end=None, max_workers=1):
             len(raw_sigs), pool_address,
         )
         return [], {'api_calls': rpc_pages}
+
+    if len(filtered) > MAX_FILTERED_SIGNATURES:
+        raise RuntimeError(
+            f"Filtered signature count {len(filtered)} exceeds free-tier guard "
+            f"({MAX_FILTERED_SIGNATURES}) for pool {pool_address}"
+        )
 
     # Phase 2: parse selected
     transactions = _parse_selected(filtered, max_workers=max_workers)

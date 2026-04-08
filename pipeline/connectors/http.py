@@ -25,6 +25,17 @@ def _get_session(url):
         return _session_pool[origin]
 
 
+def _drop_session(url):
+    """Close and remove the pooled client for a URL origin."""
+    parsed = urlparse(url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    with _session_lock:
+        client = _session_pool.pop(origin, None)
+    if client is not None:
+        client.close()
+        logger.info("Dropped HTTP session for %s", origin)
+
+
 def shutdown_sessions():
     """Close all pooled httpx.Client instances and clear the pool."""
     with _session_lock:
@@ -60,10 +71,9 @@ def request_with_retry(url, params=None, headers=None, timeout=30,
     Raises:
         RuntimeError: After all retries exhausted.
     """
-    session = _get_session(url)
-
     for attempt in range(max_retries):
         try:
+            session = _get_session(url)
             if method == 'POST':
                 resp = session.post(
                     url, params=params, json=json_body,
@@ -119,8 +129,9 @@ def request_with_retry(url, params=None, headers=None, timeout=30,
             time.sleep(wait)
             continue
 
-        except (httpx.TimeoutException, httpx.NetworkError):
+        except httpx.TransportError:
             wait = 2 ** (attempt + 1)
+            _drop_session(url)
             logger.warning(
                 "Network error, waiting %ds (url=%s)",
                 wait, url,

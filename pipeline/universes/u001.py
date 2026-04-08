@@ -6,9 +6,13 @@ with what constraints. This is the single source of truth for U-001's
 pipeline chain.
 """
 
+import os
+
 from warehouse.models import (
     HolderSnapshot, MigratedCoin, OHLCVCandle, RawTransaction,
 )
+
+RD001_PARSE_WORKERS = int(os.environ.get('MARJON_U001_RD001_PARSE_WORKERS', '1'))
 
 UNIVERSE = {
     'id': MigratedCoin.UNIVERSE_ID,
@@ -53,7 +57,7 @@ UNIVERSE = {
             'source': 'auto',
             'rate_limit_sleep': 0,      # per-key rate limiting in connector handles pacing
             'workers': 1,               # coin-level; parse_workers handles concurrency
-            'parse_workers': 8,         # intra-coin Phase 2 threads (SSOT for this value)
+            'parse_workers': RD001_PARSE_WORKERS,
             'max_consecutive_failures': 5,
             'skip_if': 'window_complete',
         },

@@ -14,6 +14,7 @@ set -euo pipefail
 LOCK_FILE="/tmp/marjon_batch.lock"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+MAX_COINS="${MARJON_U001_RD001_MAX_COINS:-25}"
 
 exec 200>"$LOCK_FILE"
 if ! flock -n 200; then
@@ -22,4 +23,12 @@ if ! flock -n 200; then
 fi
 
 cd "$PROJECT_DIR"
-"$SCRIPT_DIR/manage.sh" fetch_transactions_batch "$@"
+"$SCRIPT_DIR/manage.sh" fetch_transactions_batch \
+    --workers "${MARJON_U001_RD001_BATCH_WORKERS:-1}" \
+    --parse-workers "${MARJON_U001_RD001_PARSE_WORKERS:-1}" \
+    --rpc-batch-size "${MARJON_U001_RD001_RPC_BATCH_SIZE:-100}" \
+    --max-coins "$MAX_COINS" \
+    --max-new-sigs "${MARJON_U001_RD001_MAX_NEW_SIGS:-500}" \
+    --min-sigs "${MARJON_U001_RD001_MIN_SIGS:-3}" \
+    --sleep "${MARJON_U001_RD001_SLEEP:-1.0}" \
+    "$@"

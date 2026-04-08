@@ -105,7 +105,7 @@ def resolve_step_order(config, requested_steps=None):
     return ordered
 
 
-def get_coins_to_process(config, days=None, max_coins=None):
+def get_coins_to_process(config, days=None, max_coins=None, mature_only=False):
     """Query universe model for assets that need processing."""
     universe_model = _get_universe_model(config)
     qs = universe_model.objects.all()
@@ -116,6 +116,11 @@ def get_coins_to_process(config, days=None, max_coins=None):
             qs = qs.filter(anchor_event__gte=cutoff)
         else:
             qs = qs.filter(ingested_at__gte=cutoff)
+
+    if mature_only:
+        if universe_model.UNIVERSE_TYPE == 'event-driven' and universe_model.OBSERVATION_WINDOW_END is not None:
+            mature_cutoff = timezone.now() - universe_model.OBSERVATION_WINDOW_END
+            qs = qs.filter(anchor_event__lte=mature_cutoff)
 
     if universe_model.UNIVERSE_TYPE == 'event-driven':
         qs = qs.order_by('-anchor_event')

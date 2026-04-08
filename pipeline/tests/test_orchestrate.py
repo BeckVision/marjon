@@ -166,6 +166,24 @@ class GetCoinsTest(TestCase):
         coins = get_coins_to_process({}, max_coins=5)
         self.assertEqual(len(coins), 5)
 
+    def test_mature_only_filters_event_driven_assets(self):
+        from django.utils import timezone as dj_tz
+
+        MigratedCoin.objects.create(
+            mint_address='MATURE_ONLY_OLD',
+            anchor_event=dj_tz.now() - timedelta(days=10),
+        )
+        MigratedCoin.objects.create(
+            mint_address='MATURE_ONLY_NEW',
+            anchor_event=dj_tz.now() - timedelta(hours=1),
+        )
+
+        coins = get_coins_to_process({}, mature_only=True)
+        mints = {c.mint_address for c in coins}
+
+        self.assertIn('MATURE_ONLY_OLD', mints)
+        self.assertNotIn('MATURE_ONLY_NEW', mints)
+
 
 # --- Orchestrator command tests ---------------------------------------------
 
@@ -330,6 +348,44 @@ class ConcurrentExecutionTest(TestCase):
         self.assertEqual(mock_mark.call_count, 1)
         failed_coin = mock_mark.call_args[0][0]
         self.assertEqual(failed_coin.mint_address, 'CONC_COIN_1')
+
+
+class StepConfigForwardingTest(TestCase):
+    def setUp(self):
+        MigratedCoin.objects.create(
+            mint_address='STEP_CFG_COIN', anchor_event=T0,
+        )
+
+    @patch('pipeline.management.commands.orchestrate.update_pipeline_status')
+    @patch('pipeline.management.commands.orchestrate.call_handler')
+    def test_step_config_is_merged_into_handler_context(self, mock_handler, mock_status):
+        seen_contexts = []
+
+        def _side_effect(handler_path, coin, context):
+            seen_contexts.append(context)
+            return {
+                'records_loaded': 1,
+                'status': PipelineCompleteness.WINDOW_COMPLETE,
+                'error_message': None,
+            }
+
+        mock_handler.side_effect = _side_effect
+
+        call_command(
+            'orchestrate',
+            universe='u001',
+            steps='raw_transactions',
+            coins=1,
+            stdout=io.StringIO(),
+        )
+
+        self.assertEqual(len(seen_contexts), 1)
+        context = seen_contexts[0]
+        self.assertEqual(context['id'], 'U-001')
+        self.assertEqual(context['name'], 'raw_transactions')
+        self.assertEqual(context['source'], 'auto')
+        self.assertEqual(context['parse_workers'], 1)
+        self.assertIn('universe_config', context)
 
 
 # --- Gateway override context manager tests ----------------------------------

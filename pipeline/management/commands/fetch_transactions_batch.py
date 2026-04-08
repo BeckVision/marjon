@@ -8,7 +8,7 @@ All parameters are configurable building blocks — tweak for your
 hardware, API tier, and urgency.
 
 Usage:
-  # Default hourly run (auto source, 4 workers)
+  # Default hourly run (auto source, conservative free-tier defaults)
   python manage.py fetch_transactions_batch
 
   # Conservative (fewer workers, lower rate)
@@ -28,6 +28,7 @@ Usage:
 """
 
 import logging
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
@@ -47,6 +48,24 @@ from warehouse.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _env_int(name, default):
+    value = os.environ.get(name)
+    return int(value) if value else default
+
+
+def _env_float(name, default):
+    value = os.environ.get(name)
+    return float(value) if value else default
+
+
+DEFAULT_WORKERS = _env_int('MARJON_U001_RD001_BATCH_WORKERS', 1)
+DEFAULT_RPC_BATCH_SIZE = min(_env_int('MARJON_U001_RD001_RPC_BATCH_SIZE', 100), 250)
+DEFAULT_MIN_SIGS = _env_int('MARJON_U001_RD001_MIN_SIGS', 3)
+DEFAULT_SLEEP = _env_float('MARJON_U001_RD001_SLEEP', 1.0)
+DEFAULT_PARSE_WORKERS = _env_int('MARJON_U001_RD001_PARSE_WORKERS', 1)
+DEFAULT_MAX_NEW_SIGS = _env_int('MARJON_U001_RD001_MAX_NEW_SIGS', 500)
 
 
 def _get_active_coins(source='auto'):
@@ -137,12 +156,12 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--workers', type=int, default=4,
-            help='Concurrent parse workers (default: 4)',
+            '--workers', type=int, default=DEFAULT_WORKERS,
+            help=f'Concurrent coin workers (default: {DEFAULT_WORKERS})',
         )
         parser.add_argument(
-            '--rpc-batch-size', type=int, default=250,
-            help='Pools per batch RPC request (default: 250, max 250)',
+            '--rpc-batch-size', type=int, default=DEFAULT_RPC_BATCH_SIZE,
+            help=f'Pools per batch RPC request (default: {DEFAULT_RPC_BATCH_SIZE}, max 250)',
         )
         parser.add_argument(
             '--max-coins', type=int, default=0,
@@ -158,16 +177,20 @@ class Command(BaseCommand):
             help='Discover signatures only, do not parse or load',
         )
         parser.add_argument(
-            '--min-sigs', type=int, default=1,
-            help='Skip coins with fewer new signatures (default: 1)',
+            '--min-sigs', type=int, default=DEFAULT_MIN_SIGS,
+            help=f'Skip coins with fewer new signatures (default: {DEFAULT_MIN_SIGS})',
         )
         parser.add_argument(
-            '--sleep', type=float, default=0.5,
-            help='Seconds between coins in sequential mode (default: 0.5)',
+            '--sleep', type=float, default=DEFAULT_SLEEP,
+            help=f'Seconds between coins in sequential mode (default: {DEFAULT_SLEEP})',
         )
         parser.add_argument(
-            '--parse-workers', type=int, default=8,
-            help='Concurrent workers for Phase 2 parsing per coin (default: 8)',
+            '--parse-workers', type=int, default=DEFAULT_PARSE_WORKERS,
+            help=f'Concurrent workers for Phase 2 parsing per coin (default: {DEFAULT_PARSE_WORKERS})',
+        )
+        parser.add_argument(
+            '--max-new-sigs', type=int, default=DEFAULT_MAX_NEW_SIGS,
+            help=f'Skip coins with more than this many newly discovered signatures (default: {DEFAULT_MAX_NEW_SIGS})',
         )
 
     def handle(self, *args, **options):
@@ -180,6 +203,7 @@ class Command(BaseCommand):
         sleep_between = options['sleep']
 
         parse_workers = options['parse_workers']
+        max_new_sigs = options['max_new_sigs']
 
         started = dj_timezone.now()
         self.stdout.write(f"Batch run started at {started}")
@@ -227,6 +251,20 @@ class Command(BaseCommand):
                 f"  Discovered {total_new_sigs} new signatures "
                 f"across {len(mint_sig_counts)} coins"
             )
+
+            oversized = {
+                mint: count for mint, count in mint_sig_counts.items()
+                if count > max_new_sigs
+            }
+            if oversized:
+                self.stdout.write(
+                    f"  Skipping {len(oversized)} oversized coins "
+                    f"(>{max_new_sigs} new signatures)"
+                )
+                mint_sig_counts = {
+                    mint: count for mint, count in mint_sig_counts.items()
+                    if count <= max_new_sigs
+                }
 
             if not mint_sig_counts:
                 self.stdout.write("No new signatures found. Nothing to process.")
