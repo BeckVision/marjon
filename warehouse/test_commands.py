@@ -30,8 +30,13 @@ class U001IngestionHealthCommandTest(TestCase):
             mint_address='HEALTH_CMD',
             anchor_event=T0,
         )
+        self.guard_coin = MigratedCoin.objects.create(
+            mint_address='HEALTH_GUARD_CMD',
+            anchor_event=T0,
+        )
         old_time = dj_timezone.now() - timedelta(days=10)
         MigratedCoin.objects.filter(pk=self.coin.pk).update(ingested_at=old_time)
+        MigratedCoin.objects.filter(pk=self.guard_coin.pk).update(ingested_at=old_time)
 
         OHLCVCandle.objects.create(
             coin_id='HEALTH_CMD',
@@ -102,6 +107,16 @@ class U001IngestionHealthCommandTest(TestCase):
             last_run_at=old_time,
         )
         U001PipelineStatus.objects.create(
+            coin_id='HEALTH_GUARD_CMD',
+            layer_id='RD-001',
+            status=PipelineCompleteness.PARTIAL,
+            last_error=(
+                "Filtered signature count 1789 exceeds free-tier guard "
+                "(1000) for pool POOL_HEALTH"
+            ),
+            last_run_at=old_time,
+        )
+        U001PipelineStatus.objects.create(
             coin_id='HEALTH_CMD',
             layer_id='FL-001',
             status=PipelineCompleteness.WINDOW_COMPLETE,
@@ -132,6 +147,7 @@ class U001IngestionHealthCommandTest(TestCase):
         self.assertIn('U-001 INGESTION HEALTH', output)
         self.assertIn('FL-002 is seeing authentication failures', output)
         self.assertIn('RD-001 has 1 stale in_progress statuses', output)
+        self.assertIn('free_tier_guarded_statuses: 1', output)
         self.assertIn('latest_coin_ingested', output)
 
     def test_fail_on_blockers_raises_command_error(self):

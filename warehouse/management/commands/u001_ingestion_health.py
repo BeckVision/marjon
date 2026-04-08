@@ -18,6 +18,8 @@ from warehouse.models import (
     U001PipelineStatus,
 )
 
+FREE_TIER_GUARD_TEXT = 'exceeds free-tier guard'
+
 
 class Command(BaseCommand):
     help = "Summarize U-001 ingestion freshness, coverage, and likely blockers"
@@ -109,6 +111,11 @@ class Command(BaseCommand):
                     f"{status}={count}" for status, count in status_counts.items()
                 )
             )
+            free_tier_guarded = self._free_tier_guarded_count(layer_id)
+            if free_tier_guarded:
+                self.stdout.write(
+                    f"  free_tier_guarded_statuses: {free_tier_guarded}"
+                )
 
             if latest_ingested is None:
                 blockers.append(f"{layer_id} has no ingested data.")
@@ -214,3 +221,9 @@ class Command(BaseCommand):
 
         counts = Counter((error or '').splitlines()[0][:220] for error in rows if error)
         return [(count, message) for message, count in counts.most_common(limit)]
+
+    def _free_tier_guarded_count(self, layer_id):
+        return U001PipelineStatus.objects.filter(
+            layer_id=layer_id,
+            last_error__icontains=FREE_TIER_GUARD_TEXT,
+        ).count()

@@ -77,7 +77,7 @@ For live U-001 pipeline state, use:
 make u001-health
 ```
 
-That reports freshness, per-layer coverage, stale `in_progress` rows, common upstream errors, and recent U-001 batch activity using the actual database contents.
+That reports freshness, per-layer coverage, stale `in_progress` rows, free-tier-guarded RD-001 statuses, common upstream errors, and recent U-001 batch activity using the actual database contents.
 
 The tracked operational backlog for U-001 lives in [CHECKLIST.md](/home/beck/Desktop/projects/marjon/CHECKLIST.md), so current ingestion follow-up work stays in the repo instead of only in chat.
 

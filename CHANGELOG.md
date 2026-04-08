@@ -24,6 +24,7 @@ because the project did not yet have git tags.
 - Changed RD-001 recovery ordering so `error` and `partial` retries prioritize the oldest and smallest work first instead of the busiest work first.
 - Short-circuited RD-001 signature discovery once the free-tier filtered-signature guard is exceeded, reducing wasted RPC pagination on oversized windows.
 - Preserved RD-001 `partial` and `window_complete` status rows when a free-tier guard failure occurs, and excluded free-tier-guarded `partial` and `error` rows from normal retry queues unless explicitly requested.
+- Surfaced free-tier-guarded RD-001 status counts in `u001_ingestion_health` so parked oversized rows remain visible after being excluded from normal retry queues.
 
 ## [0.4.0] - 2026-04-08
 
