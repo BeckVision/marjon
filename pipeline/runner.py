@@ -20,6 +20,10 @@ from warehouse.utils import find_universe_fk
 logger = logging.getLogger(__name__)
 
 
+def _is_free_tier_guard_error(error):
+    return "exceeds free-tier guard" in str(error)
+
+
 def _resolve_models(spec):
     """Resolve universe/run/status models from spec, falling back to U-001."""
     universe_model = spec.universe_model or MigratedCoin
@@ -106,6 +110,12 @@ def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
 
     # Step 5: Create pipeline run + mark IN_PROGRESS
     layer_id = spec.layer_id
+    try:
+        prior_status = status_model.objects.get(
+            **{status_fk: asset_id}, layer_id=layer_id,
+        ).status
+    except status_model.DoesNotExist:
+        prior_status = None
     run = run_model.objects.create(
         **{run_fk: asset_id},
         layer_id=layer_id,
@@ -125,7 +135,10 @@ def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
         raw, meta = spec.fetch(asset_id, pool_address, start, end, **kwargs)
     except Exception as e:
         logger.error("Connector failed for %s", asset_id, exc_info=True)
-        _mark_error(run, status_model, status_fk, layer_id, asset_id, e)
+        _mark_error(
+            run, status_model, status_fk, layer_id, asset_id, e,
+            prior_status=prior_status,
+        )
         raise RuntimeError(f"Connector failed for {asset_id}") from e
 
     # Step 7: Empty raw check
@@ -151,7 +164,10 @@ def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
             "Conformance failed for %s (%d raw records)",
             asset_id, len(raw), exc_info=True,
         )
-        _mark_error(run, status_model, status_fk, layer_id, asset_id, e, meta=meta)
+        _mark_error(
+            run, status_model, status_fk, layer_id, asset_id, e,
+            meta=meta, prior_status=prior_status,
+        )
         raise RuntimeError(f"Conformance failed for {asset_id}") from e
 
     # Step 9: Empty canonical check
@@ -225,7 +241,8 @@ def _update_status(status_model, status_fk, asset_id, layer_id, defaults):
     )
 
 
-def _mark_error(run, status_model, status_fk, layer_id, asset_id, error, meta=None):
+def _mark_error(run, status_model, status_fk, layer_id, asset_id, error,
+                meta=None, prior_status=None):
     """Mark run as ERROR and update pipeline status."""
     run.status = RunStatus.ERROR
     run.completed_at = dj_timezone.now()
@@ -234,8 +251,19 @@ def _mark_error(run, status_model, status_fk, layer_id, asset_id, error, meta=No
         run.api_calls = meta.get('api_calls', 0)
         run.cu_consumed = meta.get('cu_consumed', 0)
     run.save()
+
+    preserved_status = None
+    if (
+        _is_free_tier_guard_error(error) and
+        prior_status in {
+            PipelineCompleteness.PARTIAL,
+            PipelineCompleteness.WINDOW_COMPLETE,
+        }
+    ):
+        preserved_status = prior_status
+
     _update_status(status_model, status_fk, asset_id, layer_id, {
-        'status': PipelineCompleteness.ERROR,
+        'status': preserved_status or PipelineCompleteness.ERROR,
         'last_run': run,
         'last_run_at': run.completed_at,
         'last_error': str(error),
@@ -292,5 +320,3 @@ def _default_completeness(spec, asset, feature_fk, watermark=None):
         return PipelineCompleteness.WINDOW_COMPLETE
 
     return PipelineCompleteness.PARTIAL
-
-

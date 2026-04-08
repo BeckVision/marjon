@@ -248,6 +248,55 @@ class ZeroResultsCompletenessTest(TestCase):
         self.assertEqual(status.status, PipelineCompleteness.WINDOW_COMPLETE)
 
 
+class FetchTransactionsTrackingTest(TestCase):
+    def setUp(self):
+        self.coin = MigratedCoin.objects.create(
+            mint_address='TRACK_RD001',
+            anchor_event=T0,
+        )
+        PoolMapping.objects.create(
+            coin_id='TRACK_RD001',
+            pool_address='POOL_RD001',
+            dex='pumpswap',
+            source='dexscreener',
+            created_at=T0,
+        )
+
+    @patch('pipeline.connectors.helius.fetch_transactions')
+    def test_free_tier_guard_failure_preserves_partial_status(self, mock_fetch):
+        mock_fetch.side_effect = RuntimeError(
+            'Filtered signature count 1789 exceeds free-tier guard (1000) for pool POOL_RD001'
+        )
+        U001PipelineStatus.objects.create(
+            coin_id='TRACK_RD001',
+            layer_id='RD-001',
+            status=PipelineCompleteness.PARTIAL,
+        )
+
+        with self.assertRaises(CommandError):
+            call_command('fetch_transactions', coin='TRACK_RD001', source='helius')
+
+        run = U001PipelineRun.objects.get(coin_id='TRACK_RD001', layer_id='RD-001')
+        self.assertEqual(run.status, RunStatus.ERROR)
+        self.assertIn('exceeds free-tier guard', run.error_message)
+
+        status = U001PipelineStatus.objects.get(coin_id='TRACK_RD001', layer_id='RD-001')
+        self.assertEqual(status.status, PipelineCompleteness.PARTIAL)
+        self.assertIn('exceeds free-tier guard', status.last_error)
+
+    @patch('pipeline.connectors.helius.fetch_transactions')
+    def test_free_tier_guard_failure_without_existing_status_sets_error(self, mock_fetch):
+        mock_fetch.side_effect = RuntimeError(
+            'Filtered signature count 1789 exceeds free-tier guard (1000) for pool POOL_RD001'
+        )
+
+        with self.assertRaises(CommandError):
+            call_command('fetch_transactions', coin='TRACK_RD001', source='helius')
+
+        status = U001PipelineStatus.objects.get(coin_id='TRACK_RD001', layer_id='RD-001')
+        self.assertEqual(status.status, PipelineCompleteness.ERROR)
+
+
 # --- Connector metadata tests ------------------------------------------------
 
 class MoralisMetadataTest(TestCase):
