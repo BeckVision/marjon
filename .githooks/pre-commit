@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+REPO_DIR="$(git rev-parse --show-toplevel)"
+cd "$REPO_DIR"
+
+echo "pre-commit: running test suite..."
+./scripts/test.sh --parallel 2
+echo "pre-commit: tests passed"

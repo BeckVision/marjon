@@ -48,8 +48,17 @@ There is also a `Makefile` wrapper if you prefer:
 ```bash
 make bootstrap
 make doctor
+make install-hooks
 make test
 make runserver
 ```
 
 The scripts prefer `.venv` when both `.venv` and `venv` exist, which avoids the drift that can happen when different entrypoints activate different environments.
+
+To install the tracked git hooks for this checkout:
+
+```bash
+./scripts/install-hooks.sh
+```
+
+That configures `core.hooksPath` to use `.githooks/`, so the pre-commit hook is versioned with the repo instead of living only in `.git/hooks/`.
