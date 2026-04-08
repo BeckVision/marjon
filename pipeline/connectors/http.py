@@ -1,6 +1,7 @@
 """Shared HTTP request utilities for source connectors."""
 
 import logging
+import os
 import threading
 import time
 from urllib.parse import urlparse
@@ -8,6 +9,11 @@ from urllib.parse import urlparse
 import httpx
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_HTTP2_DISABLED_HOSTS = {
+    'api.shyft.to',
+    'rpc.shyft.to',
+}
 
 # Per-host session pool. Each unique origin (scheme + host) gets its own
 # httpx.Client, reusing TCP + TLS connections via HTTP keep-alive + HTTP/2.
@@ -19,10 +25,23 @@ def _get_session(url):
     """Return a persistent Client for the given URL's origin (thread-safe)."""
     parsed = urlparse(url)
     origin = f"{parsed.scheme}://{parsed.netloc}"
+    http2 = _http2_enabled_for_url(url)
     with _session_lock:
         if origin not in _session_pool:
-            _session_pool[origin] = httpx.Client(http2=True)
+            _session_pool[origin] = httpx.Client(http2=http2)
         return _session_pool[origin]
+
+
+def _http2_enabled_for_url(url):
+    """Return whether HTTP/2 should be used for the URL's host."""
+    host = (urlparse(url).hostname or '').lower()
+    disabled_hosts = set(DEFAULT_HTTP2_DISABLED_HOSTS)
+    extra = os.environ.get('MARJON_HTTP2_DISABLED_HOSTS', '')
+    if extra:
+        disabled_hosts |= {
+            item.strip().lower() for item in extra.split(',') if item.strip()
+        }
+    return host not in disabled_hosts
 
 
 def _drop_session(url):
@@ -88,6 +107,16 @@ def request_with_retry(url, params=None, headers=None, timeout=30,
                 wait = 2 ** (attempt + 1)
                 logger.warning(
                     "Rate limited (429), waiting %ds (url=%s)",
+                    wait, url,
+                )
+                time.sleep(wait)
+                continue
+
+            if resp.status_code == 417:
+                wait = 2 ** (attempt + 1)
+                _drop_session(url)
+                logger.warning(
+                    "Expectation failed (417), retrying with a fresh session in %ds (url=%s)",
                     wait, url,
                 )
                 time.sleep(wait)

@@ -51,6 +51,7 @@ There is also a `Makefile` wrapper if you prefer:
 make bootstrap
 make doctor
 make u001-health
+make u001-holders
 make u001-repair
 make install-hooks
 make test
@@ -75,6 +76,8 @@ make u001-health
 
 That reports freshness, per-layer coverage, stale `in_progress` rows, common upstream errors, and recent U-001 batch activity using the actual database contents.
 
+The tracked operational backlog for U-001 lives in [CHECKLIST.md](/home/beck/Desktop/projects/marjon/CHECKLIST.md), so current ingestion follow-up work stays in the repo instead of only in chat.
+
 If U-001 ingestion is interrupted and leaves stale `started` or `in_progress` rows behind, use:
 
 ```bash
@@ -90,6 +93,9 @@ MARJON_U001_DAILY_COINS
 MARJON_U001_DAILY_DAYS
 MARJON_U001_DAILY_MATURE_ONLY
 MARJON_U001_ENABLE_HOLDERS
+MARJON_U001_HOLDERS_COINS
+MARJON_U001_HOLDERS_DAYS
+MARJON_U001_HOLDERS_MATURE_ONLY
 MARJON_U001_RD001_MAX_COINS
 MARJON_U001_RD001_MAX_NEW_SIGS
 MARJON_U001_RD001_MAX_FILTERED_SIGNATURES
@@ -105,7 +111,10 @@ The tracked wrappers default to a free-tier-safe posture:
 
 - [run_daily.sh](/home/beck/Desktop/projects/marjon/scripts/run_daily.sh) processes a capped recent slice and skips holders unless `MARJON_U001_ENABLE_HOLDERS=1`.
 - [run_daily.sh](/home/beck/Desktop/projects/marjon/scripts/run_daily.sh) also prefers mature coins by default so OHLCV backfill does not waste its capped slice on immature names.
+- [run_holders.sh](/home/beck/Desktop/projects/marjon/scripts/run_holders.sh) is the dedicated low-budget FL-002 catch-up path for mature coins.
 - [run_batch.sh](/home/beck/Desktop/projects/marjon/scripts/run_batch.sh) caps RD-001 work per run and keeps concurrency conservative.
+
+The shared HTTP client also disables HTTP/2 for Shyft by default because RD-001 showed repeated transport instability there in live runs. Override the host list with `MARJON_HTTP2_DISABLED_HOSTS` if you need different behavior.
 
 ## Releases
 

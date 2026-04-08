@@ -10,6 +10,15 @@ because the project did not yet have git tags.
 
 ## [Unreleased]
 
+### Added
+
+- Added a tracked [CHECKLIST.md](/home/beck/Desktop/projects/marjon/CHECKLIST.md) so the active U-001 ingestion and research-readiness backlog lives in the repo.
+- Added [run_holders.sh](/home/beck/Desktop/projects/marjon/scripts/run_holders.sh) as the dedicated capped FL-002 catch-up wrapper for mature coins.
+
+### Changed
+
+- Hardened the shared HTTP client for RD-001 by disabling HTTP/2 for Shyft by default and retrying `417 Expectation Failed` with a fresh session.
+
 ## [0.4.0] - 2026-04-08
 
 ### Added
