@@ -17,6 +17,7 @@
 - [ ] Re-check the 30 historical FL-002 error rows after more holders passes and separate stale residue from active auth issues.
 - [ ] Keep running `./scripts/run_batch.sh --max-coins N` for guarded RD-001 catch-up on recent coins.
 - [ ] Decide when to start capped Helius backfill for older RD-001 windows instead of only recent Shyft coverage.
+- [x] Start capped Helius backfill for old RD-001 partial rows with a dedicated wrapper.
 
 ### RD-001 Hardening
 

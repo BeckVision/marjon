@@ -16,6 +16,7 @@ because the project did not yet have git tags.
 - Added [run_holders.sh](/home/beck/Desktop/projects/marjon/scripts/run_holders.sh) as the dedicated capped FL-002 catch-up wrapper for mature coins.
 - Added [run_batch_errors.sh](/home/beck/Desktop/projects/marjon/scripts/run_batch_errors.sh) and RD-001 status filtering so error-row retries can be targeted directly.
 - Added [run_batch_partials.sh](/home/beck/Desktop/projects/marjon/scripts/run_batch_partials.sh) so RD-001 `partial` rows can be recovered deliberately.
+- Added [run_batch_partials_historical.sh](/home/beck/Desktop/projects/marjon/scripts/run_batch_partials_historical.sh) for capped Helius recovery of old RD-001 partial rows.
 
 ### Changed
 
