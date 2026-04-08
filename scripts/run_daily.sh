@@ -12,7 +12,8 @@
 set -euo pipefail
 
 LOCK_FILE="/tmp/marjon_daily.lock"
-PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOG_DIR="$PROJECT_DIR/logs"
 LOG_FILE="$LOG_DIR/daily_$(date +%Y%m%d_%H%M%S).log"
 
@@ -25,5 +26,4 @@ if ! flock -n 200; then
 fi
 
 cd "$PROJECT_DIR"
-source venv/bin/activate
-python manage.py orchestrate --universe u001 --steps discovery,pool_mapping,ohlcv,holders "$@" 2>&1 | tee "$LOG_FILE"
+"$SCRIPT_DIR/manage.sh" orchestrate --universe u001 --steps discovery,pool_mapping,ohlcv,holders "$@" 2>&1 | tee "$LOG_FILE"

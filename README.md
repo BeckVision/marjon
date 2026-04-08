@@ -21,13 +21,35 @@ Crypto quantitative research platform. Collects market and on-chain data, stores
 
 ## Setup
 
+Bootstrap the local environment with the repo script:
+
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-docker compose up -d          # PostgreSQL
-python manage.py migrate
-python manage.py runserver
+./scripts/bootstrap.sh
 ```
 
-Requires a `.env` file — see `.env.example` (not committed; needs `DJANGO_SECRET_KEY`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`).
+That script will:
+
+- create `.env` from `.env.example` if needed
+- create a virtualenv if neither `.venv` nor `venv` exists
+- install `requirements.txt`
+- start the PostgreSQL container
+- run migrations
+
+Daily commands then go through the shared wrapper:
+
+```bash
+./scripts/doctor.sh
+./scripts/manage.sh runserver
+./scripts/test.sh
+```
+
+There is also a `Makefile` wrapper if you prefer:
+
+```bash
+make bootstrap
+make doctor
+make test
+make runserver
+```
+
+The scripts prefer `.venv` when both `.venv` and `venv` exist, which avoids the drift that can happen when different entrypoints activate different environments.

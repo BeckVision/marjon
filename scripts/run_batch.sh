@@ -12,7 +12,8 @@
 set -euo pipefail
 
 LOCK_FILE="/tmp/marjon_batch.lock"
-PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 exec 200>"$LOCK_FILE"
 if ! flock -n 200; then
@@ -21,5 +22,4 @@ if ! flock -n 200; then
 fi
 
 cd "$PROJECT_DIR"
-source venv/bin/activate
-python manage.py fetch_transactions_batch "$@"
+"$SCRIPT_DIR/manage.sh" fetch_transactions_batch "$@"
