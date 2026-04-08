@@ -79,6 +79,7 @@ def _get_active_coins(
     source='auto',
     status_filter='incomplete',
     include_free_tier_guarded=False,
+    only_free_tier_guarded=False,
 ):
     """Return coins eligible for batch processing.
 
@@ -111,6 +112,10 @@ def _get_active_coins(
             and status_filter in {'error', 'partial'}
         ):
             status_qs = status_qs.exclude(
+                last_error__icontains=FREE_TIER_GUARD_TEXT,
+            )
+        if only_free_tier_guarded and status_filter in {'error', 'partial'}:
+            status_qs = status_qs.filter(
                 last_error__icontains=FREE_TIER_GUARD_TEXT,
             )
         filtered_mints = set(status_qs.values_list('coin_id', flat=True))
@@ -254,6 +259,10 @@ class Command(BaseCommand):
             '--include-free-tier-guarded', action='store_true',
             help='Include partial/error rows whose last error exceeded the free-tier guard',
         )
+        parser.add_argument(
+            '--only-free-tier-guarded', action='store_true',
+            help='Restrict partial/error retries to rows whose last error exceeded the free-tier guard',
+        )
 
     def handle(self, *args, **options):
         workers = options['workers']
@@ -268,6 +277,7 @@ class Command(BaseCommand):
         max_new_sigs = options['max_new_sigs']
         status_filter = options['status_filter']
         include_free_tier_guarded = options['include_free_tier_guarded']
+        only_free_tier_guarded = options['only_free_tier_guarded']
 
         started = dj_timezone.now()
         self.stdout.write(f"Batch run started at {started}")
@@ -283,20 +293,22 @@ class Command(BaseCommand):
             source=source,
             status_filter=status_filter,
             include_free_tier_guarded=include_free_tier_guarded,
+            only_free_tier_guarded=only_free_tier_guarded,
         )
         self.stdout.write(
             f"Active coins for source={source}, status_filter={status_filter}: {len(coins)}"
         )
-        if (
-            status_filter in {'error', 'partial'}
-            and not include_free_tier_guarded
-        ):
+        if status_filter in {'error', 'partial'}:
             guarded_total = U001PipelineStatus.objects.filter(
                 layer_id='RD-001',
                 status=status_filter,
                 last_error__icontains=FREE_TIER_GUARD_TEXT,
             ).count()
-            if guarded_total:
+            if guarded_total and only_free_tier_guarded:
+                self.stdout.write(
+                    f"Restricting to {guarded_total} {status_filter} coins marked by the free-tier guard"
+                )
+            elif guarded_total and not include_free_tier_guarded:
                 self.stdout.write(
                     f"Skipping {guarded_total} {status_filter} coins marked by the free-tier guard"
                 )

@@ -125,6 +125,18 @@ class FetchTransactionsBatchSelectionTest(TestCase):
             include_free_tier_guarded=True,
         )
         self.assertEqual(
+            sorted(coin.mint_address for coin in coins),
+            ['PARTIAL_OLD_GUARDED'],
+        )
+
+    def test_partial_filter_can_target_only_free_tier_guarded_rows(self):
+        coins = _get_active_coins(
+            source='helius',
+            status_filter='partial',
+            include_free_tier_guarded=True,
+            only_free_tier_guarded=True,
+        )
+        self.assertEqual(
             [coin.mint_address for coin in coins],
             ['PARTIAL_OLD_GUARDED'],
         )

@@ -55,6 +55,7 @@ make u001-holders
 make u001-rd001-errors
 make u001-rd001-partials
 make u001-rd001-partials-historical
+make u001-rd001-partials-guarded
 make u001-repair
 make install-hooks
 make test
@@ -103,6 +104,7 @@ MARJON_U001_RD001_MAX_COINS
 MARJON_U001_RD001_ERROR_MAX_COINS
 MARJON_U001_RD001_PARTIAL_MAX_COINS
 MARJON_U001_RD001_PARTIAL_HIST_MAX_COINS
+MARJON_U001_RD001_PARTIAL_GUARDED_MAX_COINS
 MARJON_U001_RD001_MAX_NEW_SIGS
 MARJON_U001_RD001_MAX_FILTERED_SIGNATURES
 MARJON_U001_RD001_BATCH_WORKERS
@@ -123,6 +125,7 @@ The tracked wrappers default to a free-tier-safe posture:
 - [run_batch_partials.sh](/home/beck/Desktop/projects/marjon/scripts/run_batch_partials.sh) spends RD-001 budget specifically on coins stuck in `partial` state.
 - [run_batch_partials_historical.sh](/home/beck/Desktop/projects/marjon/scripts/run_batch_partials_historical.sh) spends a small Helius budget on old RD-001 `partial` rows that are outside Shyft retention.
 - Historical RD-001 `partial` and `error` retries now skip rows already marked by the free-tier guard unless you pass `--include-free-tier-guarded`.
+- [run_batch_partials_guarded.sh](/home/beck/Desktop/projects/marjon/scripts/run_batch_partials_guarded.sh) is the explicit opt-in lane for those free-tier-guarded historical `partial` rows, with a tiny default slice.
 
 The shared HTTP client also disables HTTP/2 for Shyft by default because RD-001 showed repeated transport instability there in live runs. Override the host list with `MARJON_HTTP2_DISABLED_HOSTS` if you need different behavior.
 

@@ -18,6 +18,7 @@
 - [ ] Keep running `./scripts/run_batch.sh --max-coins N` for guarded RD-001 catch-up on recent coins.
 - [ ] Decide when to start capped Helius backfill for older RD-001 windows instead of only recent Shyft coverage.
 - [x] Start capped Helius backfill for old RD-001 partial rows with a dedicated wrapper.
+- [x] Add an explicit opt-in lane for free-tier-guarded historical RD-001 partial rows instead of mixing them back into the normal retry queue.
 
 ### RD-001 Hardening
 
