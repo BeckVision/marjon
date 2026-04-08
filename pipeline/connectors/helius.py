@@ -113,6 +113,7 @@ def _fetch_signatures(pool_address, start=None, end=None):
     all_sigs = []
     cursor = None
     credits_used = 0
+    filtered_count = 0
 
     while True:
         params = [pool_address, {"limit": SIG_LIMIT}]
@@ -137,6 +138,12 @@ def _fetch_signatures(pool_address, start=None, end=None):
             break
 
         all_sigs.extend(result)
+        filtered_count += len(_filter_signatures(result, start, end))
+        if filtered_count > MAX_FILTERED_SIGNATURES:
+            raise RuntimeError(
+                f"Filtered signature count {filtered_count} exceeds free-tier guard "
+                f"({MAX_FILTERED_SIGNATURES}) for pool {pool_address}"
+            )
 
         # Stop when oldest sig is before start
         if start is not None:
@@ -278,12 +285,6 @@ def fetch_transactions(pool_address, start=None, end=None, max_workers=1):
             len(raw_sigs), pool_address,
         )
         return [], {'api_calls': rpc_calls, 'credits_used': rpc_credits}
-
-    if len(filtered) > MAX_FILTERED_SIGNATURES:
-        raise RuntimeError(
-            f"Filtered signature count {len(filtered)} exceeds free-tier guard "
-            f"({MAX_FILTERED_SIGNATURES}) for pool {pool_address}"
-        )
 
     # Phase 2: parse transactions
     transactions, parse_credits = _parse_transactions(

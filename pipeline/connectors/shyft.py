@@ -166,6 +166,7 @@ def _fetch_signatures(pool_address, start=None, end=None, until_sig=None):
 
     all_sigs = []
     cursor = None
+    filtered_count = 0
 
     while True:
         params = [pool_address, {"limit": SIG_LIMIT}]
@@ -191,6 +192,12 @@ def _fetch_signatures(pool_address, start=None, end=None, until_sig=None):
             break
 
         all_sigs.extend(result)
+        filtered_count += len(_filter_signatures(result, start, end))
+        if filtered_count > MAX_FILTERED_SIGNATURES:
+            raise RuntimeError(
+                f"Filtered signature count {filtered_count} exceeds free-tier guard "
+                f"({MAX_FILTERED_SIGNATURES}) for pool {pool_address}"
+            )
 
         # Stop when oldest sig is before start
         if start is not None:
