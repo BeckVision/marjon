@@ -68,6 +68,10 @@ DEFAULT_PARSE_WORKERS = _env_int('MARJON_U001_RD001_PARSE_WORKERS', 1)
 DEFAULT_MAX_NEW_SIGS = _env_int('MARJON_U001_RD001_MAX_NEW_SIGS', 500)
 
 
+def _min_utc_datetime():
+    return datetime.min.replace(tzinfo=timezone.utc)
+
+
 def _get_active_coins(source='auto', status_filter='incomplete'):
     """Return coins eligible for batch processing.
 
@@ -114,6 +118,33 @@ def _get_active_coins(source='auto', status_filter='incomplete'):
         qs = qs.filter(anchor_event__lt=cutoff)
 
     return list(qs)
+
+
+def _order_work_queue(mint_sig_counts, status_last_run, status_filter):
+    """Order queue according to the goal of the run."""
+    if status_filter in {'error', 'partial'}:
+        return sorted(
+            mint_sig_counts.keys(),
+            key=lambda mint: (
+                status_last_run.get(mint) or _min_utc_datetime(),
+                mint_sig_counts[mint],
+                mint,
+            ),
+        )
+
+    return sorted(
+        mint_sig_counts.keys(),
+        key=lambda mint: mint_sig_counts[mint],
+        reverse=True,
+    )
+
+
+def _order_status_only_queue(work_queue, status_last_run):
+    """Order a queue that has no signature-count metadata yet."""
+    return sorted(
+        work_queue,
+        key=lambda mint: (status_last_run.get(mint) or _min_utc_datetime(), mint),
+    )
 
 
 def _build_pool_watermarks(coins):
@@ -297,27 +328,12 @@ class Command(BaseCommand):
                 self.stdout.write("No new signatures found. Nothing to process.")
                 return
 
-            # Sort by sig count descending (process busiest coins first)
-            if status_filter == 'error':
-                work_queue = sorted(
-                    mint_sig_counts.keys(),
-                    key=lambda m: (
-                        status_last_run.get(m) or datetime.min.replace(tzinfo=timezone.utc),
-                        -mint_sig_counts[m],
-                    ),
-                )
-            else:
-                work_queue = sorted(
-                    mint_sig_counts.keys(),
-                    key=lambda m: mint_sig_counts[m],
-                    reverse=True,
-                )
-
-        if source == 'helius' and status_filter == 'error':
-            work_queue = sorted(
-                work_queue,
-                key=lambda m: status_last_run.get(m) or datetime.min.replace(tzinfo=timezone.utc),
+            work_queue = _order_work_queue(
+                mint_sig_counts, status_last_run, status_filter,
             )
+
+        if source == 'helius' and status_filter in {'error', 'partial'}:
+            work_queue = _order_status_only_queue(work_queue, status_last_run)
 
         if max_coins:
             work_queue = work_queue[:max_coins]

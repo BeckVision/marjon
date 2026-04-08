@@ -2,7 +2,11 @@ from datetime import datetime, timedelta, timezone
 
 from django.test import TestCase
 
-from pipeline.management.commands.fetch_transactions_batch import _get_active_coins
+from pipeline.management.commands.fetch_transactions_batch import (
+    _get_active_coins,
+    _order_status_only_queue,
+    _order_work_queue,
+)
 from warehouse.models import (
     MigratedCoin,
     PipelineCompleteness,
@@ -89,3 +93,45 @@ class FetchTransactionsBatchSelectionTest(TestCase):
     def test_error_filter_can_select_old_coin_for_helius_mode(self):
         coins = _get_active_coins(source='helius', status_filter='error')
         self.assertEqual([coin.mint_address for coin in coins], ['ERR_OLD'])
+
+    def test_partial_and_error_recovery_prefers_oldest_then_smallest(self):
+        status_last_run = {
+            'ERR_RECENT': datetime(2026, 3, 15, tzinfo=timezone.utc),
+            'PARTIAL_RECENT': datetime(2026, 3, 14, tzinfo=timezone.utc),
+            'PENDING_RECENT': datetime(2026, 3, 14, 1, tzinfo=timezone.utc),
+        }
+        mint_sig_counts = {
+            'ERR_RECENT': 50,
+            'PARTIAL_RECENT': 200,
+            'PENDING_RECENT': 20,
+        }
+
+        self.assertEqual(
+            _order_work_queue(mint_sig_counts, status_last_run, 'partial'),
+            ['PARTIAL_RECENT', 'PENDING_RECENT', 'ERR_RECENT'],
+        )
+        self.assertEqual(
+            _order_work_queue(mint_sig_counts, status_last_run, 'error'),
+            ['PARTIAL_RECENT', 'PENDING_RECENT', 'ERR_RECENT'],
+        )
+
+    def test_incomplete_queue_prefers_busiest(self):
+        mint_sig_counts = {
+            'A': 10,
+            'B': 300,
+            'C': 50,
+        }
+        self.assertEqual(
+            _order_work_queue(mint_sig_counts, {}, 'incomplete'),
+            ['B', 'C', 'A'],
+        )
+
+    def test_status_only_queue_prefers_oldest_last_run(self):
+        status_last_run = {
+            'A': datetime(2026, 3, 15, tzinfo=timezone.utc),
+            'B': datetime(2026, 3, 14, tzinfo=timezone.utc),
+        }
+        self.assertEqual(
+            _order_status_only_queue(['A', 'B', 'C'], status_last_run),
+            ['C', 'B', 'A'],
+        )

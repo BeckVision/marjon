@@ -24,6 +24,7 @@
 - [x] Oversized recent coins are skipped before they can blow up a free-tier batch.
 - [ ] Reduce Shyft transport instability and watch whether `Server disconnected` errors fall after the HTTP client change.
 - [x] Add a targeted RD-001 recovery path for historical `error` rows instead of relying only on the generic batch queue.
+- [x] Add a targeted RD-001 recovery path for historical `partial` rows instead of relying only on the generic batch queue.
 - [ ] Review noisy conformance warnings such as `Multiple trade events found` and decide whether they indicate lost signal or harmless redundancy.
 
 ### Research Readiness Gate
