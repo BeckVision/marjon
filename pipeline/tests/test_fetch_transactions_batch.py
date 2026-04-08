@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from django.test import TestCase
 
 from pipeline.management.commands.fetch_transactions_batch import (
+    FREE_TIER_GUARD_TEXT,
     _get_active_coins,
     _order_status_only_queue,
     _order_work_queue,
@@ -74,6 +75,25 @@ class FetchTransactionsBatchSelectionTest(TestCase):
             layer_id='RD-001',
             status=PipelineCompleteness.ERROR,
         )
+        self.partial_old_guarded = MigratedCoin.objects.create(
+            mint_address='PARTIAL_OLD_GUARDED',
+            anchor_event=now - timedelta(days=12),
+        )
+        PoolMapping.objects.create(
+            coin=self.partial_old_guarded,
+            pool_address=f'POOL_{self.partial_old_guarded.mint_address}',
+            dex='pumpswap',
+            source='test',
+        )
+        U001PipelineStatus.objects.create(
+            coin=self.partial_old_guarded,
+            layer_id='RD-001',
+            status=PipelineCompleteness.PARTIAL,
+            last_error=(
+                f"Filtered signature count 1230 {FREE_TIER_GUARD_TEXT} "
+                "for pool TEST_POOL"
+            ),
+        )
 
     def test_incomplete_filter_returns_recent_incomplete_coins(self):
         coins = _get_active_coins(source='auto', status_filter='incomplete')
@@ -93,6 +113,21 @@ class FetchTransactionsBatchSelectionTest(TestCase):
     def test_error_filter_can_select_old_coin_for_helius_mode(self):
         coins = _get_active_coins(source='helius', status_filter='error')
         self.assertEqual([coin.mint_address for coin in coins], ['ERR_OLD'])
+
+    def test_partial_filter_excludes_free_tier_guarded_by_default(self):
+        coins = _get_active_coins(source='helius', status_filter='partial')
+        self.assertEqual([coin.mint_address for coin in coins], [])
+
+    def test_partial_filter_can_include_free_tier_guarded_rows(self):
+        coins = _get_active_coins(
+            source='helius',
+            status_filter='partial',
+            include_free_tier_guarded=True,
+        )
+        self.assertEqual(
+            [coin.mint_address for coin in coins],
+            ['PARTIAL_OLD_GUARDED'],
+        )
 
     def test_partial_and_error_recovery_prefers_oldest_then_smallest(self):
         status_last_run = {

@@ -122,6 +122,7 @@ The tracked wrappers default to a free-tier-safe posture:
 - [run_batch_errors.sh](/home/beck/Desktop/projects/marjon/scripts/run_batch_errors.sh) spends RD-001 budget specifically on coins already in `error` state.
 - [run_batch_partials.sh](/home/beck/Desktop/projects/marjon/scripts/run_batch_partials.sh) spends RD-001 budget specifically on coins stuck in `partial` state.
 - [run_batch_partials_historical.sh](/home/beck/Desktop/projects/marjon/scripts/run_batch_partials_historical.sh) spends a small Helius budget on old RD-001 `partial` rows that are outside Shyft retention.
+- Historical RD-001 `partial` and `error` retries now skip rows already marked by the free-tier guard unless you pass `--include-free-tier-guarded`.
 
 The shared HTTP client also disables HTTP/2 for Shyft by default because RD-001 showed repeated transport instability there in live runs. Override the host list with `MARJON_HTTP2_DISABLED_HOSTS` if you need different behavior.
 

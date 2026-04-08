@@ -72,7 +72,14 @@ def _min_utc_datetime():
     return datetime.min.replace(tzinfo=timezone.utc)
 
 
-def _get_active_coins(source='auto', status_filter='incomplete'):
+FREE_TIER_GUARD_TEXT = 'exceeds free-tier guard'
+
+
+def _get_active_coins(
+    source='auto',
+    status_filter='incomplete',
+    include_free_tier_guarded=False,
+):
     """Return coins eligible for batch processing.
 
     For shyft/auto: only coins within Shyft's retention window (recent).
@@ -95,14 +102,18 @@ def _get_active_coins(source='auto', status_filter='incomplete'):
     pending = active_mints - complete_mints
 
     if status_filter != 'incomplete':
-        filtered_mints = set(
-            U001PipelineStatus.objects
-            .filter(
-                layer_id='RD-001',
-                status=status_filter,
-            )
-            .values_list('coin_id', flat=True)
+        status_qs = U001PipelineStatus.objects.filter(
+            layer_id='RD-001',
+            status=status_filter,
         )
+        if (
+            not include_free_tier_guarded
+            and status_filter in {'error', 'partial'}
+        ):
+            status_qs = status_qs.exclude(
+                last_error__icontains=FREE_TIER_GUARD_TEXT,
+            )
+        filtered_mints = set(status_qs.values_list('coin_id', flat=True))
         pending &= filtered_mints
 
     qs = MigratedCoin.objects.filter(mint_address__in=pending)
@@ -239,6 +250,10 @@ class Command(BaseCommand):
             choices=['incomplete', 'error', 'partial'],
             help='Limit the queue to RD-001 statuses in this bucket (default: incomplete)',
         )
+        parser.add_argument(
+            '--include-free-tier-guarded', action='store_true',
+            help='Include partial/error rows whose last error exceeded the free-tier guard',
+        )
 
     def handle(self, *args, **options):
         workers = options['workers']
@@ -252,6 +267,7 @@ class Command(BaseCommand):
         parse_workers = options['parse_workers']
         max_new_sigs = options['max_new_sigs']
         status_filter = options['status_filter']
+        include_free_tier_guarded = options['include_free_tier_guarded']
 
         started = dj_timezone.now()
         self.stdout.write(f"Batch run started at {started}")
@@ -263,10 +279,27 @@ class Command(BaseCommand):
         )
 
         # Step 1: Find active coins
-        coins = _get_active_coins(source=source, status_filter=status_filter)
+        coins = _get_active_coins(
+            source=source,
+            status_filter=status_filter,
+            include_free_tier_guarded=include_free_tier_guarded,
+        )
         self.stdout.write(
             f"Active coins for source={source}, status_filter={status_filter}: {len(coins)}"
         )
+        if (
+            status_filter in {'error', 'partial'}
+            and not include_free_tier_guarded
+        ):
+            guarded_total = U001PipelineStatus.objects.filter(
+                layer_id='RD-001',
+                status=status_filter,
+                last_error__icontains=FREE_TIER_GUARD_TEXT,
+            ).count()
+            if guarded_total:
+                self.stdout.write(
+                    f"Skipping {guarded_total} {status_filter} coins marked by the free-tier guard"
+                )
 
         if not coins:
             self.stdout.write("Nothing to process.")

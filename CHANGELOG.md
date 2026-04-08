@@ -23,6 +23,7 @@ because the project did not yet have git tags.
 - Hardened the shared HTTP client for RD-001 by disabling HTTP/2 for Shyft by default and retrying `417 Expectation Failed` with a fresh session.
 - Changed RD-001 recovery ordering so `error` and `partial` retries prioritize the oldest and smallest work first instead of the busiest work first.
 - Short-circuited RD-001 signature discovery once the free-tier filtered-signature guard is exceeded, reducing wasted RPC pagination on oversized windows.
+- Preserved RD-001 `partial` and `window_complete` status rows when a free-tier guard failure occurs, and excluded free-tier-guarded `partial` and `error` rows from normal retry queues unless explicitly requested.
 
 ## [0.4.0] - 2026-04-08
 
