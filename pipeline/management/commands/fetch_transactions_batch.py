@@ -68,7 +68,7 @@ DEFAULT_PARSE_WORKERS = _env_int('MARJON_U001_RD001_PARSE_WORKERS', 1)
 DEFAULT_MAX_NEW_SIGS = _env_int('MARJON_U001_RD001_MAX_NEW_SIGS', 500)
 
 
-def _get_active_coins(source='auto'):
+def _get_active_coins(source='auto', status_filter='incomplete'):
     """Return coins eligible for batch processing.
 
     For shyft/auto: only coins within Shyft's retention window (recent).
@@ -89,6 +89,17 @@ def _get_active_coins(source='auto'):
         .values_list('coin_id', flat=True)
     )
     pending = active_mints - complete_mints
+
+    if status_filter != 'incomplete':
+        filtered_mints = set(
+            U001PipelineStatus.objects
+            .filter(
+                layer_id='RD-001',
+                status=status_filter,
+            )
+            .values_list('coin_id', flat=True)
+        )
+        pending &= filtered_mints
 
     qs = MigratedCoin.objects.filter(mint_address__in=pending)
 
@@ -192,6 +203,11 @@ class Command(BaseCommand):
             '--max-new-sigs', type=int, default=DEFAULT_MAX_NEW_SIGS,
             help=f'Skip coins with more than this many newly discovered signatures (default: {DEFAULT_MAX_NEW_SIGS})',
         )
+        parser.add_argument(
+            '--status-filter', type=str, default='incomplete',
+            choices=['incomplete', 'error', 'partial'],
+            help='Limit the queue to RD-001 statuses in this bucket (default: incomplete)',
+        )
 
     def handle(self, *args, **options):
         workers = options['workers']
@@ -204,6 +220,7 @@ class Command(BaseCommand):
 
         parse_workers = options['parse_workers']
         max_new_sigs = options['max_new_sigs']
+        status_filter = options['status_filter']
 
         started = dj_timezone.now()
         self.stdout.write(f"Batch run started at {started}")
@@ -211,16 +228,26 @@ class Command(BaseCommand):
             f"Config: workers={workers}, parse_workers={parse_workers}, "
             f"rpc_batch={rpc_batch_size}, "
             f"source={source}, max_coins={max_coins or 'all'}, "
-            f"min_sigs={min_sigs}, dry_run={dry_run}"
+            f"min_sigs={min_sigs}, status_filter={status_filter}, dry_run={dry_run}"
         )
 
         # Step 1: Find active coins
-        coins = _get_active_coins(source=source)
-        self.stdout.write(f"Active coins for source={source}: {len(coins)}")
+        coins = _get_active_coins(source=source, status_filter=status_filter)
+        self.stdout.write(
+            f"Active coins for source={source}, status_filter={status_filter}: {len(coins)}"
+        )
 
         if not coins:
             self.stdout.write("Nothing to process.")
             return
+
+        status_last_run = {
+            row['coin_id']: row['last_run_at']
+            for row in U001PipelineStatus.objects.filter(
+                layer_id='RD-001',
+                coin_id__in=[c.mint_address for c in coins],
+            ).values('coin_id', 'last_run_at')
+        }
 
         # Step 2: Discover which coins need processing
         if source == 'helius':
@@ -271,10 +298,25 @@ class Command(BaseCommand):
                 return
 
             # Sort by sig count descending (process busiest coins first)
+            if status_filter == 'error':
+                work_queue = sorted(
+                    mint_sig_counts.keys(),
+                    key=lambda m: (
+                        status_last_run.get(m) or datetime.min.replace(tzinfo=timezone.utc),
+                        -mint_sig_counts[m],
+                    ),
+                )
+            else:
+                work_queue = sorted(
+                    mint_sig_counts.keys(),
+                    key=lambda m: mint_sig_counts[m],
+                    reverse=True,
+                )
+
+        if source == 'helius' and status_filter == 'error':
             work_queue = sorted(
-                mint_sig_counts.keys(),
-                key=lambda m: mint_sig_counts[m],
-                reverse=True,
+                work_queue,
+                key=lambda m: status_last_run.get(m) or datetime.min.replace(tzinfo=timezone.utc),
             )
 
         if max_coins:

@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: bootstrap db-up migrate test doctor u001-health u001-repair u001-holders install-hooks runserver
+.PHONY: bootstrap db-up migrate test doctor u001-health u001-repair u001-holders u001-rd001-errors install-hooks runserver
 
 bootstrap:
 	./scripts/bootstrap.sh
@@ -25,6 +25,9 @@ u001-repair:
 
 u001-holders:
 	./scripts/run_holders.sh
+
+u001-rd001-errors:
+	./scripts/run_batch_errors.sh
 
 install-hooks:
 	./scripts/install-hooks.sh

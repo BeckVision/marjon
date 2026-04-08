@@ -14,6 +14,7 @@ because the project did not yet have git tags.
 
 - Added a tracked [CHECKLIST.md](/home/beck/Desktop/projects/marjon/CHECKLIST.md) so the active U-001 ingestion and research-readiness backlog lives in the repo.
 - Added [run_holders.sh](/home/beck/Desktop/projects/marjon/scripts/run_holders.sh) as the dedicated capped FL-002 catch-up wrapper for mature coins.
+- Added [run_batch_errors.sh](/home/beck/Desktop/projects/marjon/scripts/run_batch_errors.sh) and RD-001 status filtering so error-row retries can be targeted directly.
 
 ### Changed
 
