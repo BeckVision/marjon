@@ -7,6 +7,9 @@ from django.test import TestCase
 
 from data_service.derived import (
     DERIVED_REGISTRY,
+    _compute_breakout_ratio,
+    _compute_candle_structure,
+    _compute_close_return_pct,
     _compute_volume_ratio,
     _compute_vwap,
     compute_derived,
@@ -370,3 +373,137 @@ class VolumeRatioIntegrationTest(TestCase):
         self.assertTrue(len(result) > 0)
         self.assertIn('vwap', result[-1])
         self.assertIn('volume_ratio', result[-1])
+
+
+class U001DerivedRegistryTest(TestCase):
+    def test_df005_registered(self):
+        self.assertIn('DF-005', DERIVED_REGISTRY)
+
+    def test_df006_registered(self):
+        self.assertIn('DF-006', DERIVED_REGISTRY)
+
+    def test_df007_registered(self):
+        self.assertIn('DF-007', DERIVED_REGISTRY)
+
+
+class CloseReturnComputationTest(TestCase):
+    def _make_row(self, i, close):
+        return {
+            'coin_id': 'TEST',
+            'timestamp': T0 + timedelta(minutes=5 * i),
+            'close_price': D(str(close)),
+        }
+
+    def test_close_return_pct_lookback_2(self):
+        rows = [
+            self._make_row(0, 10),
+            self._make_row(1, 12),
+            self._make_row(2, 15),
+            self._make_row(3, 18),
+        ]
+        _compute_close_return_pct(rows, lookback=2)
+
+        self.assertIsNone(rows[0]['close_return_pct'])
+        self.assertIsNone(rows[1]['close_return_pct'])
+        self.assertEqual(rows[2]['close_return_pct'], D('50'))
+        self.assertEqual(rows[3]['close_return_pct'], D('50'))
+
+
+class CandleStructureComputationTest(TestCase):
+    def test_candle_structure_ratios(self):
+        rows = [{
+            'coin_id': 'TEST',
+            'timestamp': T0,
+            'open_price': D('10'),
+            'high_price': D('14'),
+            'low_price': D('8'),
+            'close_price': D('13'),
+        }]
+        _compute_candle_structure(rows)
+
+        row = rows[0]
+        self.assertEqual(row['candle_body_ratio'], D('3') / D('6'))
+        self.assertEqual(row['upper_wick_ratio'], D('1') / D('6'))
+        self.assertEqual(row['lower_wick_ratio'], D('2') / D('6'))
+        self.assertEqual(row['close_in_range'], D('5') / D('6'))
+
+    def test_zero_range_returns_none(self):
+        rows = [{
+            'coin_id': 'TEST',
+            'timestamp': T0,
+            'open_price': D('10'),
+            'high_price': D('10'),
+            'low_price': D('10'),
+            'close_price': D('10'),
+        }]
+        _compute_candle_structure(rows)
+        self.assertIsNone(rows[0]['close_in_range'])
+
+
+class BreakoutRatioComputationTest(TestCase):
+    def _make_row(self, i, high, close):
+        return {
+            'coin_id': 'TEST',
+            'timestamp': T0 + timedelta(minutes=5 * i),
+            'high_price': D(str(high)),
+            'close_price': D(str(close)),
+        }
+
+    def test_breakout_ratio_uses_prior_window(self):
+        rows = [
+            self._make_row(0, 10, 10),
+            self._make_row(1, 11, 11),
+            self._make_row(2, 12, 12),
+            self._make_row(3, 13, 13),
+        ]
+        _compute_breakout_ratio(rows, lookback=3)
+
+        self.assertIsNone(rows[0]['breakout_ratio'])
+        self.assertIsNone(rows[1]['breakout_ratio'])
+        self.assertIsNone(rows[2]['breakout_ratio'])
+        self.assertEqual(rows[3]['breakout_ratio'], D('13') / D('12'))
+        self.assertEqual(rows[3]['breakout_margin_pct'], (D('1') / D('12')) * D('100'))
+
+
+class U001DerivedIntegrationTest(TestCase):
+    def setUp(self):
+        self.coin = MigratedCoin.objects.create(
+            mint_address='U001_DERIVED', anchor_event=T0,
+        )
+        candles = [
+            (10, 12, 9, 11, 100),
+            (11, 13, 10, 12, 110),
+            (12, 14, 11, 13, 120),
+            (13, 15, 12, 14, 130),
+            (14, 18, 13, 17, 200),
+        ]
+        for i, (o, h, l, c, v) in enumerate(candles):
+            OHLCVCandle.objects.create(
+                coin_id='U001_DERIVED',
+                timestamp=T0 + timedelta(minutes=5 * (i + 1)),
+                open_price=D(str(o)),
+                high_price=D(str(h)),
+                low_price=D(str(l)),
+                close_price=D(str(c)),
+                volume=D(str(v)),
+            )
+
+    def test_new_u001_derived_features_present(self):
+        sim = T0 + timedelta(minutes=30)
+        result = get_panel_slice(
+            ['U001_DERIVED'],
+            ['FL-001'],
+            sim,
+            derived_ids=['DF-005', 'DF-006', 'DF-007'],
+            derived_params={
+                'DF-005': {'lookback': 2},
+                'DF-007': {'lookback': 3},
+            },
+        )
+
+        self.assertEqual(len(result), 5)
+        self.assertIn('close_return_pct', result[-1])
+        self.assertIn('candle_body_ratio', result[-1])
+        self.assertIn('breakout_ratio', result[-1])
+        self.assertEqual(result[-1]['close_return_pct'], (D('17') - D('13')) / D('13') * D('100'))
+        self.assertEqual(result[-1]['breakout_ratio'], D('17') / D('15'))

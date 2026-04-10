@@ -306,3 +306,135 @@ register(DerivedFeatureSpec(
     parameters={'pct_range': Decimal('0.001')},  # 0.1% from mid
     warm_up=0,
 ))
+
+
+# ---------------------------------------------------------------------------
+# DF-005: Close Return % — current close vs close N candles ago
+# ---------------------------------------------------------------------------
+
+def _compute_close_return_pct(rows, lookback=3):
+    """Close-to-close return in percent over `lookback` candles."""
+    HUNDRED = Decimal('100')
+
+    for i, row in enumerate(rows):
+        current_close = row.get('close_price')
+
+        if i < lookback or current_close is None:
+            row['close_return_pct'] = None
+            continue
+
+        prior_close = rows[i - lookback].get('close_price')
+        if prior_close in (None, 0):
+            row['close_return_pct'] = None
+            continue
+
+        row['close_return_pct'] = (
+            (current_close - prior_close) / prior_close
+        ) * HUNDRED
+
+
+register(DerivedFeatureSpec(
+    derived_id='DF-005',
+    name='Close Return %',
+    source_layers=['FL-001'],
+    formula=_compute_close_return_pct,
+    output_fields=['close_return_pct'],
+    parameters={'lookback': 3},
+    warm_up=3,
+))
+
+
+# ---------------------------------------------------------------------------
+# DF-006: Candle Structure — body, wicks, and close location
+# ---------------------------------------------------------------------------
+
+def _compute_candle_structure(rows):
+    """Per-candle structure ratios derived from OHLC values."""
+    for row in rows:
+        o = row.get('open_price')
+        h = row.get('high_price')
+        l = row.get('low_price')
+        c = row.get('close_price')
+
+        if None in (o, h, l, c):
+            row['candle_body_ratio'] = None
+            row['upper_wick_ratio'] = None
+            row['lower_wick_ratio'] = None
+            row['close_in_range'] = None
+            continue
+
+        candle_range = h - l
+        if candle_range <= 0:
+            row['candle_body_ratio'] = None
+            row['upper_wick_ratio'] = None
+            row['lower_wick_ratio'] = None
+            row['close_in_range'] = None
+            continue
+
+        body = abs(c - o)
+        upper_wick = h - max(o, c)
+        lower_wick = min(o, c) - l
+
+        row['candle_body_ratio'] = body / candle_range
+        row['upper_wick_ratio'] = upper_wick / candle_range
+        row['lower_wick_ratio'] = lower_wick / candle_range
+        row['close_in_range'] = (c - l) / candle_range
+
+
+register(DerivedFeatureSpec(
+    derived_id='DF-006',
+    name='Candle Structure Ratios',
+    source_layers=['FL-001'],
+    formula=_compute_candle_structure,
+    output_fields=[
+        'candle_body_ratio', 'upper_wick_ratio',
+        'lower_wick_ratio', 'close_in_range',
+    ],
+    parameters={},
+    warm_up=0,
+))
+
+
+# ---------------------------------------------------------------------------
+# DF-007: Breakout Ratio — current close vs prior rolling high
+# ---------------------------------------------------------------------------
+
+def _compute_breakout_ratio(rows, lookback=12):
+    """Current close divided by the highest high in the prior window."""
+    HUNDRED = Decimal('100')
+
+    for i, row in enumerate(rows):
+        current_close = row.get('close_price')
+
+        if i < lookback or current_close is None:
+            row['breakout_ratio'] = None
+            row['breakout_margin_pct'] = None
+            continue
+
+        window = rows[i - lookback:i]
+        highs = [w.get('high_price') for w in window if w.get('high_price') is not None]
+        if not highs:
+            row['breakout_ratio'] = None
+            row['breakout_margin_pct'] = None
+            continue
+
+        prior_high = max(highs)
+        if prior_high == 0:
+            row['breakout_ratio'] = None
+            row['breakout_margin_pct'] = None
+            continue
+
+        ratio = current_close / prior_high
+        row['breakout_ratio'] = ratio
+        row['breakout_margin_pct'] = ((current_close - prior_high) / prior_high) * HUNDRED
+
+
+register(DerivedFeatureSpec(
+    derived_id='DF-007',
+    name='Breakout Ratio vs Prior High',
+    source_layers=['FL-001'],
+    formula=_compute_breakout_ratio,
+    output_fields=['breakout_ratio', 'breakout_margin_pct'],
+    parameters={'lookback': 12},
+    warm_up=12,
+))

@@ -18,6 +18,9 @@ because the project did not yet have git tags.
 - Added [run_batch_partials.sh](/home/beck/Desktop/projects/marjon/scripts/run_batch_partials.sh) so RD-001 `partial` rows can be recovered deliberately.
 - Added [run_batch_partials_historical.sh](/home/beck/Desktop/projects/marjon/scripts/run_batch_partials_historical.sh) for capped Helius recovery of old RD-001 partial rows.
 - Added [run_batch_partials_guarded.sh](/home/beck/Desktop/projects/marjon/scripts/run_batch_partials_guarded.sh) as the explicit opt-in lane for historical RD-001 partial rows parked by the free-tier guard.
+- Added a landing page for explaining Marjon, U-001, and RD-001 in plain language.
+- Added U-001 price-action derived features for close returns, candle structure, and breakout context.
+- Added U-001 momentum, breakout, and strong-close signals plus the `u001_breakout_close_v1` strategy config.
 
 ### Changed
 

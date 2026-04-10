@@ -1,4 +1,4 @@
-"""Visualization views — chart page and JSON API endpoints for U-002 data."""
+"""Visualization views — landing page, chart page, and JSON API endpoints."""
 
 from datetime import datetime, timedelta, timezone
 
@@ -53,6 +53,14 @@ def _snap_to_latest(model, symbol, start, end, request):
         days = request.GET.get('days')
         start = end - timedelta(days=int(days) if days else DEFAULT_DAYS)
     return start, end
+
+
+def home_view(request):
+    """Render the product landing page."""
+    return render(request, 'visualization/home.html', {
+        'symbols': SYMBOLS,
+        'default_symbol': SYMBOLS[0],
+    })
 
 
 def chart_view(request, symbol):
