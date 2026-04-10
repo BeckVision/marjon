@@ -7,6 +7,7 @@ from django.test import TestCase
 
 from strategy.engine.positions import PositionTracker
 from strategy.engine.runner import BacktestRunner
+from strategy.strategies import load_strategy_config
 from warehouse.models import MigratedCoin, OHLCVCandle
 
 D = Decimal
@@ -327,3 +328,60 @@ class BacktestRunnerForceCloseTest(TestCase):
         # Either the entry didn't trigger (warm-up) or it force-closed
         if result['metrics']['total_trades'] > 0:
             self.assertTrue(len(fc_trades) > 0)
+
+
+class BacktestRunnerBreakoutCloseStrategyTest(TestCase):
+    """The U-001 breakout strategy should execute through the full runner."""
+
+    def setUp(self):
+        self.coin = MigratedCoin.objects.create(
+            mint_address='BC_COIN', anchor_event=T0,
+        )
+
+        # The strategy needs 20 candles for volume ratio, 12 for breakout,
+        # and 3 for momentum. Candle 20 intentionally satisfies all signals.
+        candles = []
+        for i in range(20):
+            candles.append((D('10'), D('10'), D('10'), D('10'), D('100')))
+        candles.extend([
+            (D('10'), D('14'), D('10'), D('14'), D('500')),
+            (D('14'), D('32'), D('14'), D('32'), D('100')),
+        ])
+
+        for i, (open_, high, low, close, volume) in enumerate(candles):
+            OHLCVCandle.objects.create(
+                coin_id='BC_COIN',
+                timestamp=T0 + timedelta(minutes=5 * (i + 1)),
+                open_price=open_,
+                high_price=high,
+                low_price=low,
+                close_price=close,
+                volume=volume,
+            )
+
+    def test_breakout_close_strategy_takes_profit(self):
+        config = load_strategy_config('u001_breakout_close_v1')
+        runner = BacktestRunner(
+            config,
+            ['BC_COIN'],
+            T0,
+            T0 + timedelta(minutes=115),
+        )
+
+        result = runner.run()
+
+        self.assertEqual(result['metrics']['total_trades'], 1)
+        trade = result['trades'][0]
+        self.assertEqual(trade.asset_id, 'BC_COIN')
+        self.assertEqual(trade.entry_price, D('14'))
+        self.assertEqual(trade.exit_price, D('32'))
+        self.assertEqual(trade.exit_reason, 'take_profit')
+        self.assertEqual(
+            trade.entry_reason,
+            {
+                'SG-001': True,
+                'SG-004': True,
+                'SG-005': True,
+                'SG-006': True,
+            },
+        )
