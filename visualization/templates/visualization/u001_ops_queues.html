@@ -1,0 +1,143 @@
+{% extends "visualization/_base_ops.html" %}
+{% load ops_tags %}
+
+{% block title %}U-001 Queue Planner — Marjon{% endblock %}
+
+{% block ops_head_extra %}
+<style>
+    .queues-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+
+    .queues-header h1 {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+    }
+
+    .queue-command {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 12px 14px;
+    }
+
+    .queue-command .cmd-label {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--green);
+        margin-bottom: 6px;
+    }
+
+    .queue-command code {
+        display: block;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        background: transparent;
+        border: none;
+        border-radius: 0;
+        padding: 0;
+        word-break: break-all;
+        white-space: pre-wrap;
+        color: var(--text-secondary);
+    }
+
+    .queue-count {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--text-muted);
+        white-space: nowrap;
+    }
+</style>
+{% endblock %}
+
+{% block ops_content %}
+
+<div class="queues-header">
+    <div>
+        <h1>U-001 Queue Planner</h1>
+        <span class="timestamp">Snapshot at {{ summary.generated_at|date:"Y-m-d H:i:s T" }}</span>
+    </div>
+</div>
+
+<p style="font-size:13px;color:var(--text-secondary);max-width:72ch;margin-bottom:24px;">
+    This view turns the operational lanes into a visible menu. It does not trigger any runs.
+    It shows which candidates are in the safe recent lane, which are risky bootstrap names,
+    which historical rows are clean partial recoveries, and which are parked behind the free-tier guard.
+</p>
+
+<div class="stack-lg">
+    {% for queue in summary.queues %}
+    <div class="queue-card {% if queue.lane_class %}{{ queue.lane_class }}{% elif 'safe' in queue.title|lower %}lane-safe{% elif 'risky' in queue.title|lower or 'bootstrap' in queue.title|lower %}lane-risky{% elif 'error' in queue.title|lower or 'fail' in queue.title|lower %}lane-error{% elif 'partial' in queue.title|lower or 'historical' in queue.title|lower or 'guard' in queue.title|lower %}lane-partial{% endif %}">
+
+        <div class="queue-head">
+            <div>
+                <h3 style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px;">{{ queue.title }}</h3>
+                <p style="font-size:13px;color:var(--text-secondary);line-height:1.5;max-width:72ch;">{{ queue.description }}</p>
+            </div>
+            <span class="queue-count">{{ queue.items|length }} candidate{{ queue.items|length|pluralize }}</span>
+        </div>
+
+        <div class="queue-command">
+            <div class="cmd-label">Suggested command</div>
+            <code>{{ queue.command }}</code>
+        </div>
+
+        <div class="table-panel">
+            <table>
+                <thead>
+                    <tr>
+                        {% for column in queue.columns %}
+                        <th>{{ column|human_label }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in queue.items %}
+                    <tr>
+                        {% for column in queue.columns %}
+                        <td>
+                            {% if column == 'status' %}
+                                <span class="status-pill status-{{ item.status|lower }}">{{ item.status }}</span>
+                            {% elif column == 'mint' %}
+                                <a href="/ops/u001/coin/{{ item.mint }}/" class="font-mono text-sm" style="color:var(--accent);">{{ item.mint }}</a>
+                            {% elif column == 'anchor_event' or column == 'last_run_at' %}
+                                {% if item|get_item:column %}
+                                <span class="font-mono text-sm">{{ item|get_item:column|date:"Y-m-d H:i:s T" }}</span>
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            {% elif column == 'has_watermark' %}
+                                {% if item.has_watermark %}
+                                <span class="text-green">yes</span>
+                                {% else %}
+                                <span class="text-muted">no</span>
+                                {% endif %}
+                            {% else %}
+                                {{ item|get_item:column|default:"—" }}
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="{{ queue.columns|length }}" style="color:var(--text-muted);text-align:center;padding:20px;">
+                            {{ queue.empty_reason }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+    {% endfor %}
+</div>
+
+{% endblock %}

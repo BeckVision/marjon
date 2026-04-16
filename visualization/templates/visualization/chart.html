@@ -1,86 +1,151 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ symbol }} — Marjon Chart</title>
-    <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            background: #1a1a2e;
-            color: #e0e0e0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
-        }
-        .toolbar {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 12px 16px;
-            background: #16213e;
-            border-bottom: 1px solid #2a2a4a;
-        }
-        .toolbar .group { display: flex; gap: 4px; }
-        .toolbar .sep { width: 1px; height: 24px; background: #2a2a4a; margin: 0 8px; }
-        .btn {
-            padding: 6px 14px;
-            border: 1px solid #2a2a4a;
-            background: transparent;
-            color: #e0e0e0;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 13px;
-            transition: all 0.15s;
-        }
-        .btn:hover { background: #2a2a4a; }
-        .btn.active { background: #0f3460; border-color: #3282b8; color: #fff; }
-        .chart-container { width: 100%; }
-        .chart-label {
-            padding: 4px 16px;
-            font-size: 11px;
-            color: #888;
-            background: #1a1a2e;
-            border-top: 1px solid #2a2a4a;
-        }
-        #price-chart { width: 100%; height: 55vh; }
-        #oi-chart { width: 100%; height: 20vh; }
-        #funding-chart { width: 100%; height: 15vh; }
-        .loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 50vh;
-            color: #888;
-            font-size: 16px;
-        }
-        .stats {
-            padding: 8px 16px;
-            font-size: 12px;
-            color: #666;
-            background: #16213e;
-        }
-    </style>
-</head>
-<body>
+{% extends "visualization/_base.html" %}
 
-<div class="toolbar">
-    <div class="group">
+{% block title %}{{ symbol }} — Marjon Chart{% endblock %}
+
+{% block head_extra %}
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+    /* ── Chart Page Layout ─────────────────────────────────────── */
+    /* Override page padding so charts reach the edges cleanly */
+    .page { padding-top: 0; padding-bottom: 0; padding-left: 0; padding-right: 0; max-width: 100%; }
+
+    /* ── Toolbar ───────────────────────────────────────────────── */
+    .chart-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        background: var(--bg-primary);
+        border-bottom: 1px solid var(--border);
+        flex-wrap: wrap;
+    }
+
+    .toolbar-group {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+    }
+
+    .toolbar-sep {
+        width: 1px;
+        height: 22px;
+        background: var(--border);
+        margin: 0 6px;
+        align-self: center;
+        flex-shrink: 0;
+    }
+
+    .toolbar-sym {
+        padding: 6px 12px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text-secondary);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+        font-family: var(--font-mono);
+        text-decoration: none;
+        transition: all 0.15s;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .toolbar-sym:hover {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+    }
+
+    .toolbar-sym.active {
+        background: var(--accent-soft);
+        color: var(--accent);
+        border-color: rgba(59, 130, 246, 0.3);
+    }
+
+    .toolbar-range {
+        padding: 6px 12px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text-secondary);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+        font-family: var(--font-body);
+        transition: all 0.15s;
+    }
+
+    .toolbar-range:hover {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+    }
+
+    .toolbar-range.active {
+        background: var(--accent-soft);
+        color: var(--accent);
+        border-color: rgba(59, 130, 246, 0.3);
+    }
+
+    .toolbar-status {
+        font-size: 12px;
+        font-family: var(--font-mono);
+        color: var(--text-muted);
+        margin-left: auto;
+    }
+
+    /* ── Chart Container ───────────────────────────────────────── */
+    .chart-wrap {
+        width: 100%;
+        background: var(--bg-deepest);
+    }
+
+    .chart-label {
+        padding: 5px 20px;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        background: var(--bg-primary);
+        border-top: 1px solid var(--border);
+    }
+
+    #price-chart  { width: 100%; height: 55vh; }
+    #oi-chart     { width: 100%; height: 20vh; }
+    #funding-chart{ width: 100%; height: 16vh; }
+
+    /* ── Stats Bar ─────────────────────────────────────────────── */
+    .chart-stats {
+        padding: 7px 20px;
+        font-size: 11px;
+        font-family: var(--font-mono);
+        color: var(--text-muted);
+        background: var(--bg-primary);
+        border-top: 1px solid var(--border);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ── Toolbar ─────────────────────────────────────────────────── -->
+<div class="chart-toolbar">
+    <div class="toolbar-group">
         {% for s in symbols %}
-        <a href="/chart/{{ s }}/" class="btn {% if s == symbol %}active{% endif %}">{{ s }}</a>
+        <a href="/chart/{{ s }}/" class="toolbar-sym {% if s == symbol %}active{% endif %}">{{ s }}</a>
         {% endfor %}
     </div>
-    <div class="sep"></div>
-    <div class="group">
-        <button class="btn {% if not request.GET.days or request.GET.days == '7' %}active{% endif %}" onclick="setDays(7)">7D</button>
-        <button class="btn" onclick="setDays(30)">30D</button>
-        <button class="btn" onclick="setDays(90)">90D</button>
-        <button class="btn" onclick="setDays(365)">1Y</button>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group">
+        <button class="toolbar-range {% if not request.GET.days or request.GET.days == '7' %}active{% endif %}" onclick="setDays(7, this)">7D</button>
+        <button class="toolbar-range" onclick="setDays(30, this)">30D</button>
+        <button class="toolbar-range" onclick="setDays(90, this)">90D</button>
+        <button class="toolbar-range" onclick="setDays(365, this)">1Y</button>
     </div>
-    <div class="sep"></div>
-    <span id="status" style="font-size: 12px; color: #888;">Loading...</span>
+    <span class="toolbar-status" id="status">Loading...</span>
 </div>
 
-<div class="chart-container">
+<!-- ── Charts ──────────────────────────────────────────────────── -->
+<div class="chart-wrap">
     <div id="price-chart"></div>
     <div class="chart-label">Open Interest (USDT)</div>
     <div id="oi-chart"></div>
@@ -88,54 +153,66 @@
     <div id="funding-chart"></div>
 </div>
 
-<div class="stats" id="stats"></div>
+<div class="chart-stats" id="stats"></div>
 
 <script>
 const SYMBOL = '{{ symbol }}';
 let currentDays = 7;
 
-// Chart options
-const chartOptions = {
+// ── Design system colours ──────────────────────────────────────
+const C_BG         = '#090d13';
+const C_BG_PANEL   = '#0f1419';
+const C_GRID       = 'rgba(255,255,255,0.04)';
+const C_TEXT       = '#8b9db5';
+const C_UP         = '#10b981';   // var(--green)
+const C_DOWN       = '#ef4444';   // var(--red)
+const C_OI_LINE    = '#3b82f6';   // var(--accent)
+
+// ── Shared chart options ───────────────────────────────────────
+const sharedOptions = {
     layout: {
-        background: { color: '#1a1a2e' },
-        textColor: '#e0e0e0',
+        background: { color: C_BG },
+        textColor: C_TEXT,
     },
     grid: {
-        vertLines: { color: '#2a2a4a' },
-        horzLines: { color: '#2a2a4a' },
+        vertLines: { color: C_GRID },
+        horzLines: { color: C_GRID },
     },
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-    rightPriceScale: { borderColor: '#2a2a4a' },
+    rightPriceScale: { borderColor: C_GRID },
     timeScale: {
-        borderColor: '#2a2a4a',
+        borderColor: C_GRID,
         timeVisible: true,
         secondsVisible: false,
     },
 };
 
-// Create charts
+// ── Create charts ──────────────────────────────────────────────
 const priceChart = LightweightCharts.createChart(
-    document.getElementById('price-chart'), chartOptions
-);
-const oiChart = LightweightCharts.createChart(
-    document.getElementById('oi-chart'), {
-        ...chartOptions,
-        timeScale: { ...chartOptions.timeScale, visible: false },
-    }
-);
-const fundingChart = LightweightCharts.createChart(
-    document.getElementById('funding-chart'), chartOptions
+    document.getElementById('price-chart'), sharedOptions
 );
 
-// Series
+const oiChart = LightweightCharts.createChart(
+    document.getElementById('oi-chart'), {
+        ...sharedOptions,
+        timeScale: { ...sharedOptions.timeScale, visible: false },
+    }
+);
+
+const fundingChart = LightweightCharts.createChart(
+    document.getElementById('funding-chart'), sharedOptions
+);
+
+// ── Series ─────────────────────────────────────────────────────
 const candleSeries = priceChart.addCandlestickSeries({
-    upColor: '#26a69a',
-    downColor: '#ef5350',
-    borderDownColor: '#ef5350',
-    borderUpColor: '#26a69a',
-    wickDownColor: '#ef5350',
-    wickUpColor: '#26a69a',
+    upColor:        C_UP,
+    downColor:      C_DOWN,
+    borderUpColor:  C_UP,
+    borderDownColor:C_DOWN,
+    wickUpColor:    C_UP,
+    wickDownColor:  C_DOWN,
 });
+
 const volumeSeries = priceChart.addHistogramSeries({
     priceFormat: { type: 'volume' },
     priceScaleId: 'volume',
@@ -145,7 +222,7 @@ priceChart.priceScale('volume').applyOptions({
 });
 
 const oiSeries = oiChart.addLineSeries({
-    color: '#3282b8',
+    color: C_OI_LINE,
     lineWidth: 1.5,
     priceFormat: { type: 'custom', formatter: (v) => (v / 1e9).toFixed(2) + 'B' },
 });
@@ -154,7 +231,7 @@ const fundingSeries = fundingChart.addHistogramSeries({
     priceFormat: { type: 'custom', formatter: (v) => (v * 100).toFixed(4) + '%' },
 });
 
-// Sync time scales
+// ── Sync time scales ───────────────────────────────────────────
 function syncCharts(source, targets) {
     source.timeScale().subscribeVisibleLogicalRangeChange((range) => {
         if (range) {
@@ -162,11 +239,11 @@ function syncCharts(source, targets) {
         }
     });
 }
-syncCharts(priceChart, [oiChart, fundingChart]);
-syncCharts(oiChart, [priceChart, fundingChart]);
+syncCharts(priceChart,   [oiChart, fundingChart]);
+syncCharts(oiChart,      [priceChart, fundingChart]);
 syncCharts(fundingChart, [priceChart, oiChart]);
 
-// Fetch and render
+// ── Fetch and render ───────────────────────────────────────────
 async function loadData(days) {
     currentDays = days;
     const status = document.getElementById('status');
@@ -190,10 +267,10 @@ async function loadData(days) {
         oiChart.timeScale().fitContent();
         fundingChart.timeScale().fitContent();
 
-        status.textContent = `${SYMBOL}`;
+        status.textContent = SYMBOL;
         document.getElementById('stats').textContent =
-            `Candles: ${klinesRes.count.toLocaleString()} | ` +
-            `OI points: ${metricsRes.count.toLocaleString()} | ` +
+            `Candles: ${klinesRes.count.toLocaleString()}  |  ` +
+            `OI points: ${metricsRes.count.toLocaleString()}  |  ` +
             `Funding: ${fundingRes.count.toLocaleString()}`;
 
     } catch (err) {
@@ -202,13 +279,13 @@ async function loadData(days) {
     }
 }
 
-function setDays(days) {
-    document.querySelectorAll('.toolbar .group:nth-child(3) .btn').forEach(b => b.classList.remove('active'));
-    event.target.classList.add('active');
+function setDays(days, btn) {
+    document.querySelectorAll('.toolbar-range').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
     loadData(days);
 }
 
-// Resize handler
+// ── Resize handler ─────────────────────────────────────────────
 function handleResize() {
     const w = document.body.clientWidth;
     priceChart.applyOptions({ width: w });
@@ -217,9 +294,7 @@ function handleResize() {
 }
 window.addEventListener('resize', handleResize);
 
-// Initial load
+// ── Initial load ───────────────────────────────────────────────
 loadData(currentDays);
 </script>
-
-</body>
-</html>
+{% endblock %}

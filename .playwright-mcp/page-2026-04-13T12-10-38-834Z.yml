@@ -1,0 +1,94 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: Marjon
+      - generic [ref=e6]: Researching what traders actually did
+    - generic [ref=e7]:
+      - link "What RD-001 Means" [ref=e8] [cursor=pointer]:
+        - /url: "#rd001"
+      - link "What You Can Study" [ref=e9] [cursor=pointer]:
+        - /url: "#signals"
+      - link "U-002 Chart" [ref=e10] [cursor=pointer]:
+        - /url: /chart/BTCUSDT/
+  - generic [ref=e11]:
+    - generic [ref=e12]:
+      - generic [ref=e13]: U-001 Early Lifecycle Research
+      - heading "Not just candles. Actual trade flow." [level=1] [ref=e14]
+      - paragraph [ref=e15]: "Marjon is a Django-based research platform for early Solana token behavior. For U-001, it does not stop at OHLCV. It collects three separate layers: price candles, holder snapshots, and RD-001 raw trades. RD-001 is the tape. It tells you who traded, in which direction, how much, and when."
+      - generic [ref=e16]:
+        - link "Understand RD-001" [ref=e17] [cursor=pointer]:
+          - /url: "#rd001"
+        - link "Open Existing Chart Tool" [ref=e18] [cursor=pointer]:
+          - /url: /chart/BTCUSDT/
+    - complementary [ref=e19]:
+      - generic [ref=e20]: Current Mental Model
+      - heading "U-001 is a layered view of coin behavior, not one table pretending to be everything." [level=2] [ref=e21]
+      - paragraph [ref=e22]: FL-001 tells you what price and volume looked like. FL-002 tells you how holders changed. RD-001 tells you what the trading flow actually was. That is the layer you use when you want to know whether a move was broad participation, repeated-wallet churn, aggressive selling, or a real burst of buying.
+      - generic [ref=e23]:
+        - generic [ref=e24]:
+          - strong [ref=e25]: FL-001
+          - text: Price and volume bars. Good for seeing the move.
+        - generic [ref=e26]:
+          - strong [ref=e27]: FL-002
+          - text: Holder snapshots. Good for ownership change.
+        - generic [ref=e28]:
+          - strong [ref=e29]: RD-001
+          - text: Trade-by-trade flow. Good for explaining why the move happened.
+      - generic [ref=e30]:
+        - generic [ref=e31]:
+          - generic [ref=e32]: Source
+          - paragraph [ref=e33]: Recent windows use Shyft. Older windows use Helius. The system chooses based on coin age.
+        - generic [ref=e34]:
+          - generic [ref=e35]: Unit
+          - paragraph [ref=e36]: Each RD-001 row is one parsed buy or sell with wallet, size, fee, and timing information.
+        - generic [ref=e37]:
+          - generic [ref=e38]: Goal
+          - paragraph [ref=e39]: Turn “the coin pumped” into a measurable explanation of how traders behaved during the move.
+  - generic [ref=e40]:
+    - article [ref=e41]:
+      - text: Plain-English Definition
+      - heading "What RD-001 is really doing" [level=3] [ref=e42]
+      - paragraph [ref=e43]: "RD-001 is the raw transaction layer for U-001. For each coin, Marjon looks at the Pumpswap pool, collects trade signatures, filters them to the coin’s observation window, parses them into canonical buy and sell rows, and stores them as a reference table. In practical terms: it is trying to reconstruct the tape for the coin’s early life."
+      - list [ref=e44]:
+        - listitem [ref=e45]: It does not summarize the market into a candle first. It stores individual trades.
+        - listitem [ref=e46]: It keeps wallet-level participation, which is what lets you study behavior instead of just price.
+        - listitem [ref=e47]: It uses budget guards so oversized free-tier windows do not break the rest of the queue.
+    - article [ref=e48]:
+      - text: Operational Behavior
+      - heading "How it behaves when things are working properly" [level=3] [ref=e49]
+      - list [ref=e50]:
+        - listitem [ref=e51]: Normal historical partial rows keep getting retried and converted into full window coverage.
+        - listitem [ref=e52]: Oversized windows are separated out when they exceed the free-tier guard, instead of poisoning the normal retry queue.
+        - listitem [ref=e53]: That means ordinary backlog keeps shrinking while the expensive edge cases stay isolated and visible.
+        - listitem [ref=e54]: The system is designed to be practical on limited API budgets, not only on expensive paid plans.
+  - generic [ref=e56]:
+    - text: Research Use
+    - heading "What kind of information RD-001 can actually sell you" [level=3] [ref=e57]
+    - paragraph [ref=e58]: If you are researching early-token behavior, candles alone are weak evidence. RD-001 gives you the trade-flow layer that can support real signals, filters, and explanations.
+    - generic [ref=e59]:
+      - generic [ref=e60]:
+        - text: Participation
+        - heading "Who showed up?" [level=4] [ref=e61]
+        - paragraph [ref=e62]: Count unique wallets, repeated wallets, bursts of new participants, and whether a move came from broad activity or a tiny cluster.
+      - generic [ref=e63]:
+        - text: Pressure
+        - heading "What side was stronger?" [level=4] [ref=e64]
+        - paragraph [ref=e65]: Measure buy versus sell imbalance, aggressive selling, exhaustion, and whether price gains were supported by real net demand.
+      - generic [ref=e66]:
+        - text: Size
+        - heading "How large were the trades?" [level=4] [ref=e67]
+        - paragraph [ref=e68]: Separate noisy micro-churn from meaningful size, and detect whether a coin was moved by whales, retail swarms, or repeated medium clips.
+  - generic [ref=e70]:
+    - generic [ref=e71]:
+      - heading "Why not just use OHLCV?" [level=4] [ref=e72]
+      - paragraph [ref=e73]: Because OHLCV tells you the shape of the move, not the microstructure underneath it. RD-001 is what turns a price move into behavior you can test.
+    - generic [ref=e74]:
+      - heading "Why are some rows marked partial?" [level=4] [ref=e75]
+      - paragraph [ref=e76]: Partial means some data exists, but the full observation window is not yet trusted as complete. That is an operational coverage state, not useless data.
+    - generic [ref=e77]:
+      - heading "Why isolate oversized rows?" [level=4] [ref=e78]
+      - paragraph [ref=e79]: Because on free-tier APIs, a few very busy coins can consume disproportionate budget. The isolated lane keeps normal coverage moving instead of stalling everything.
+  - contentinfo [ref=e80]:
+    - paragraph [ref=e81]: The current public web surface is still small. This page explains the system; the existing browser tool remains the U-002 chart view. The underlying repo is broader than the UI and is centered on ingestion, PIT data access, and strategy research.
+    - link "Open BTCUSDT Chart" [ref=e82] [cursor=pointer]:
+      - /url: /chart/BTCUSDT/

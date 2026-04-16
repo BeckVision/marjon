@@ -1,0 +1,435 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: Marjon Ops
+      - strong [ref=e6]: U-001 Queue Planner
+    - generic [ref=e7]:
+      - link "Overview" [ref=e8] [cursor=pointer]:
+        - /url: /ops/u001/
+      - link "Coverage" [ref=e9] [cursor=pointer]:
+        - /url: /ops/u001/coverage/
+      - link "Queues" [ref=e10] [cursor=pointer]:
+        - /url: /ops/u001/queues/
+      - generic [ref=e11]: Coin Via Mint
+      - link "Trends" [ref=e12] [cursor=pointer]:
+        - /url: /ops/u001/trends/
+  - generic [ref=e13]:
+    - generic [ref=e14]: Queue Planner
+    - heading "See which RD-001 lane is worth running next." [level=1] [ref=e15]
+    - paragraph [ref=e16]: This view turns the operational lanes into a visible menu. It does not trigger any runs. It tells you which candidates are currently in the safe recent lane, which ones are risky bootstrap names, which historical rows are clean partial recoveries, and which rows are parked behind the free-tier guard.
+    - paragraph [ref=e17]: Snapshot generated at 2026-04-13 12:11:39 UTC
+  - generic [ref=e18]:
+    - generic [ref=e19]:
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - heading "Recent safe Shyft steady-state lane" [level=2] [ref=e22]
+          - paragraph [ref=e23]: Recent mapped coins that already have an RD-001 watermark and are the safest recent candidates.
+        - generic [ref=e24]: 8 candidates
+      - generic [ref=e25]:
+        - generic [ref=e26]: Suggested command
+        - code [ref=e27]: ./scripts/run_batch.sh --max-coins 3 --max-new-sigs 1000
+      - table [ref=e28]:
+        - rowgroup [ref=e29]:
+          - row "Mint Anchor Event Age Label Has Watermark Status" [ref=e30]:
+            - columnheader "Mint" [ref=e31]
+            - columnheader "Anchor Event" [ref=e32]
+            - columnheader "Age Label" [ref=e33]
+            - columnheader "Has Watermark" [ref=e34]
+            - columnheader "Status" [ref=e35]
+        - rowgroup [ref=e36]:
+          - row "8HZ1p88Zv24vft8vmREAqGSznD9p9xbjcqYLFEjQpump 2026-04-11 16:15:15 UTC 1.8d old yes partial" [ref=e37]:
+            - cell "8HZ1p88Zv24vft8vmREAqGSznD9p9xbjcqYLFEjQpump" [ref=e38]:
+              - link "8HZ1p88Zv24vft8vmREAqGSznD9p9xbjcqYLFEjQpump" [ref=e39] [cursor=pointer]:
+                - /url: /ops/u001/coin/8HZ1p88Zv24vft8vmREAqGSznD9p9xbjcqYLFEjQpump/
+            - cell "2026-04-11 16:15:15 UTC" [ref=e40]
+            - cell "1.8d old" [ref=e41]
+            - cell "yes" [ref=e42]
+            - cell "partial" [ref=e43]:
+              - generic [ref=e44]: partial
+          - row "741H92UmTzbdPuwrGC2iubk1sFNX8NYrJLbbWwN1pump 2026-04-11 18:07:43 UTC 1.8d old yes partial" [ref=e45]:
+            - cell "741H92UmTzbdPuwrGC2iubk1sFNX8NYrJLbbWwN1pump" [ref=e46]:
+              - link "741H92UmTzbdPuwrGC2iubk1sFNX8NYrJLbbWwN1pump" [ref=e47] [cursor=pointer]:
+                - /url: /ops/u001/coin/741H92UmTzbdPuwrGC2iubk1sFNX8NYrJLbbWwN1pump/
+            - cell "2026-04-11 18:07:43 UTC" [ref=e48]
+            - cell "1.8d old" [ref=e49]
+            - cell "yes" [ref=e50]
+            - cell "partial" [ref=e51]:
+              - generic [ref=e52]: partial
+          - row "8pZQua2TscqoeSZqbg8vJMdUH9AUedeJ4kWbZx67pump 2026-04-12 02:16:14 UTC 1.4d old yes partial" [ref=e53]:
+            - cell "8pZQua2TscqoeSZqbg8vJMdUH9AUedeJ4kWbZx67pump" [ref=e54]:
+              - link "8pZQua2TscqoeSZqbg8vJMdUH9AUedeJ4kWbZx67pump" [ref=e55] [cursor=pointer]:
+                - /url: /ops/u001/coin/8pZQua2TscqoeSZqbg8vJMdUH9AUedeJ4kWbZx67pump/
+            - cell "2026-04-12 02:16:14 UTC" [ref=e56]
+            - cell "1.4d old" [ref=e57]
+            - cell "yes" [ref=e58]
+            - cell "partial" [ref=e59]:
+              - generic [ref=e60]: partial
+          - row "792CkmhRLTpSLDKrg31NDRDJZZFqD9bFKZ4ZoW9apump 2026-04-11 17:23:56 UTC 1.8d old yes partial" [ref=e61]:
+            - cell "792CkmhRLTpSLDKrg31NDRDJZZFqD9bFKZ4ZoW9apump" [ref=e62]:
+              - link "792CkmhRLTpSLDKrg31NDRDJZZFqD9bFKZ4ZoW9apump" [ref=e63] [cursor=pointer]:
+                - /url: /ops/u001/coin/792CkmhRLTpSLDKrg31NDRDJZZFqD9bFKZ4ZoW9apump/
+            - cell "2026-04-11 17:23:56 UTC" [ref=e64]
+            - cell "1.8d old" [ref=e65]
+            - cell "yes" [ref=e66]
+            - cell "partial" [ref=e67]:
+              - generic [ref=e68]: partial
+          - row "62MBbEoQ5aw2XUz1Ptp5Ew1nH542SgLdaEFqocD1pump 2026-04-11 20:24:08 UTC 1.7d old yes partial" [ref=e69]:
+            - cell "62MBbEoQ5aw2XUz1Ptp5Ew1nH542SgLdaEFqocD1pump" [ref=e70]:
+              - link "62MBbEoQ5aw2XUz1Ptp5Ew1nH542SgLdaEFqocD1pump" [ref=e71] [cursor=pointer]:
+                - /url: /ops/u001/coin/62MBbEoQ5aw2XUz1Ptp5Ew1nH542SgLdaEFqocD1pump/
+            - cell "2026-04-11 20:24:08 UTC" [ref=e72]
+            - cell "1.7d old" [ref=e73]
+            - cell "yes" [ref=e74]
+            - cell "partial" [ref=e75]:
+              - generic [ref=e76]: partial
+          - row "EPmU7YzCs2yK3wQCoYMiitMopPjQ4UNdi7BTkzp1pump 2026-04-12 00:34:06 UTC 1.5d old yes partial" [ref=e77]:
+            - cell "EPmU7YzCs2yK3wQCoYMiitMopPjQ4UNdi7BTkzp1pump" [ref=e78]:
+              - link "EPmU7YzCs2yK3wQCoYMiitMopPjQ4UNdi7BTkzp1pump" [ref=e79] [cursor=pointer]:
+                - /url: /ops/u001/coin/EPmU7YzCs2yK3wQCoYMiitMopPjQ4UNdi7BTkzp1pump/
+            - cell "2026-04-12 00:34:06 UTC" [ref=e80]
+            - cell "1.5d old" [ref=e81]
+            - cell "yes" [ref=e82]
+            - cell "partial" [ref=e83]:
+              - generic [ref=e84]: partial
+          - row "7bvKsQK3vkPpRkS8F1DndiXac6c6g2TMDyTcTUdupump 2026-04-12 01:14:21 UTC 1.5d old yes partial" [ref=e85]:
+            - cell "7bvKsQK3vkPpRkS8F1DndiXac6c6g2TMDyTcTUdupump" [ref=e86]:
+              - link "7bvKsQK3vkPpRkS8F1DndiXac6c6g2TMDyTcTUdupump" [ref=e87] [cursor=pointer]:
+                - /url: /ops/u001/coin/7bvKsQK3vkPpRkS8F1DndiXac6c6g2TMDyTcTUdupump/
+            - cell "2026-04-12 01:14:21 UTC" [ref=e88]
+            - cell "1.5d old" [ref=e89]
+            - cell "yes" [ref=e90]
+            - cell "partial" [ref=e91]:
+              - generic [ref=e92]: partial
+          - row "4YwcihkHYa36uLW153jZEL8d9awbPxAPJgkohTN6pump 2026-04-11 22:48:25 UTC 1.6d old yes partial" [ref=e93]:
+            - cell "4YwcihkHYa36uLW153jZEL8d9awbPxAPJgkohTN6pump" [ref=e94]:
+              - link "4YwcihkHYa36uLW153jZEL8d9awbPxAPJgkohTN6pump" [ref=e95] [cursor=pointer]:
+                - /url: /ops/u001/coin/4YwcihkHYa36uLW153jZEL8d9awbPxAPJgkohTN6pump/
+            - cell "2026-04-11 22:48:25 UTC" [ref=e96]
+            - cell "1.6d old" [ref=e97]
+            - cell "yes" [ref=e98]
+            - cell "partial" [ref=e99]:
+              - generic [ref=e100]: partial
+    - generic [ref=e101]:
+      - generic [ref=e102]:
+        - generic [ref=e103]:
+          - heading "Recent risky bootstrap lane" [level=2] [ref=e104]
+          - paragraph [ref=e105]: Recent mapped coins with no RD-001 watermark yet, so they need the stricter bootstrap safety caps.
+        - generic [ref=e106]: 8 candidates
+      - generic [ref=e107]:
+        - generic [ref=e108]: Suggested command
+        - code [ref=e109]: ./scripts/run_batch.sh --dry-run --max-coins 5 --max-new-sigs 1000
+      - table [ref=e110]:
+        - rowgroup [ref=e111]:
+          - row "Mint Anchor Event Status Skip Reason" [ref=e112]:
+            - columnheader "Mint" [ref=e113]
+            - columnheader "Anchor Event" [ref=e114]
+            - columnheader "Status" [ref=e115]
+            - columnheader "Skip Reason" [ref=e116]
+        - rowgroup [ref=e117]:
+          - row "FiwmdZeoXwLFCZT722zvSLQSEyEzF8ANfA12da4zpump 2026-04-12 05:22:20 UTC not_started No RD-001 watermark yet. The batch selector applies stricter bootstrap caps before spending a full-window run." [ref=e118]:
+            - cell "FiwmdZeoXwLFCZT722zvSLQSEyEzF8ANfA12da4zpump" [ref=e119]:
+              - link "FiwmdZeoXwLFCZT722zvSLQSEyEzF8ANfA12da4zpump" [ref=e120] [cursor=pointer]:
+                - /url: /ops/u001/coin/FiwmdZeoXwLFCZT722zvSLQSEyEzF8ANfA12da4zpump/
+            - cell "2026-04-12 05:22:20 UTC" [ref=e121]
+            - cell "not_started" [ref=e122]:
+              - generic [ref=e123]: not_started
+            - cell "No RD-001 watermark yet. The batch selector applies stricter bootstrap caps before spending a full-window run." [ref=e124]
+          - row "69iu9bE7VYtuen7oNubgHAaYqpyaM6ZvCwoudsoMpump 2026-04-12 04:26:16 UTC not_started No RD-001 watermark yet. The batch selector applies stricter bootstrap caps before spending a full-window run." [ref=e125]:
+            - cell "69iu9bE7VYtuen7oNubgHAaYqpyaM6ZvCwoudsoMpump" [ref=e126]:
+              - link "69iu9bE7VYtuen7oNubgHAaYqpyaM6ZvCwoudsoMpump" [ref=e127] [cursor=pointer]:
+                - /url: /ops/u001/coin/69iu9bE7VYtuen7oNubgHAaYqpyaM6ZvCwoudsoMpump/
+            - cell "2026-04-12 04:26:16 UTC" [ref=e128]
+            - cell "not_started" [ref=e129]:
+              - generic [ref=e130]: not_started
+            - cell "No RD-001 watermark yet. The batch selector applies stricter bootstrap caps before spending a full-window run." [ref=e131]
+          - row "EmtpJyHqWqH2xGvdag4DyLFNfnjDM6qTAv9QN17npump 2026-04-12 04:03:47 UTC not_started No RD-001 watermark yet. The batch selector applies stricter bootstrap caps before spending a full-window run." [ref=e132]:
+            - cell "EmtpJyHqWqH2xGvdag4DyLFNfnjDM6qTAv9QN17npump" [ref=e133]:
+              - link "EmtpJyHqWqH2xGvdag4DyLFNfnjDM6qTAv9QN17npump" [ref=e134] [cursor=pointer]:
+                - /url: /ops/u001/coin/EmtpJyHqWqH2xGvdag4DyLFNfnjDM6qTAv9QN17npump/
+            - cell "2026-04-12 04:03:47 UTC" [ref=e135]
+            - cell "not_started" [ref=e136]:
+              - generic [ref=e137]: not_started
+            - cell "No RD-001 watermark yet. The batch selector applies stricter bootstrap caps before spending a full-window run." [ref=e138]
+          - row "DAvqixsuMNed1rVpHZg9S3U58RN88SyxseAW2Zhmpump 2026-04-12 03:53:21 UTC not_started No RD-001 watermark yet. The batch selector applies stricter bootstrap caps before spending a full-window run." [ref=e139]:
+            - cell "DAvqixsuMNed1rVpHZg9S3U58RN88SyxseAW2Zhmpump" [ref=e140]:
+              - link "DAvqixsuMNed1rVpHZg9S3U58RN88SyxseAW2Zhmpump" [ref=e141] [cursor=pointer]:
+                - /url: /ops/u001/coin/DAvqixsuMNed1rVpHZg9S3U58RN88SyxseAW2Zhmpump/
+            - cell "2026-04-12 03:53:21 UTC" [ref=e142]
+            - cell "not_started" [ref=e143]:
+              - generic [ref=e144]: not_started
+            - cell "No RD-001 watermark yet. The batch selector applies stricter bootstrap caps before spending a full-window run." [ref=e145]
+          - row "VNo7EjR3XVzvbjUgQrFAXNwSms34fHwHBt1Xoaopump 2026-04-12 03:42:04 UTC not_started No RD-001 watermark yet. The batch selector applies stricter bootstrap caps before spending a full-window run." [ref=e146]:
+            - cell "VNo7EjR3XVzvbjUgQrFAXNwSms34fHwHBt1Xoaopump" [ref=e147]:
+              - link "VNo7EjR3XVzvbjUgQrFAXNwSms34fHwHBt1Xoaopump" [ref=e148] [cursor=pointer]:
+                - /url: /ops/u001/coin/VNo7EjR3XVzvbjUgQrFAXNwSms34fHwHBt1Xoaopump/
+            - cell "2026-04-12 03:42:04 UTC" [ref=e149]
+            - cell "not_started" [ref=e150]:
+              - generic [ref=e151]: not_started
+            - cell "No RD-001 watermark yet. The batch selector applies stricter bootstrap caps before spending a full-window run." [ref=e152]
+          - row "J1RXMHCh3hPFM81igcNrzLRZDgQBzcBfikLc3WcQpump 2026-04-12 03:40:30 UTC not_started No RD-001 watermark yet. The batch selector applies stricter bootstrap caps before spending a full-window run." [ref=e153]:
+            - cell "J1RXMHCh3hPFM81igcNrzLRZDgQBzcBfikLc3WcQpump" [ref=e154]:
+              - link "J1RXMHCh3hPFM81igcNrzLRZDgQBzcBfikLc3WcQpump" [ref=e155] [cursor=pointer]:
+                - /url: /ops/u001/coin/J1RXMHCh3hPFM81igcNrzLRZDgQBzcBfikLc3WcQpump/
+            - cell "2026-04-12 03:40:30 UTC" [ref=e156]
+            - cell "not_started" [ref=e157]:
+              - generic [ref=e158]: not_started
+            - cell "No RD-001 watermark yet. The batch selector applies stricter bootstrap caps before spending a full-window run." [ref=e159]
+          - row "SDRR2SoVntaH2mYfKeUn29dUkEmwnMPYbxoRPCBpump 2026-04-12 03:37:45 UTC not_started No RD-001 watermark yet. The batch selector applies stricter bootstrap caps before spending a full-window run." [ref=e160]:
+            - cell "SDRR2SoVntaH2mYfKeUn29dUkEmwnMPYbxoRPCBpump" [ref=e161]:
+              - link "SDRR2SoVntaH2mYfKeUn29dUkEmwnMPYbxoRPCBpump" [ref=e162] [cursor=pointer]:
+                - /url: /ops/u001/coin/SDRR2SoVntaH2mYfKeUn29dUkEmwnMPYbxoRPCBpump/
+            - cell "2026-04-12 03:37:45 UTC" [ref=e163]
+            - cell "not_started" [ref=e164]:
+              - generic [ref=e165]: not_started
+            - cell "No RD-001 watermark yet. The batch selector applies stricter bootstrap caps before spending a full-window run." [ref=e166]
+          - row "QsjUn3434jVcnUJL1vKUTHEyteUnMQdUHSyc2Jgpump 2026-04-12 03:35:52 UTC not_started No RD-001 watermark yet. The batch selector applies stricter bootstrap caps before spending a full-window run." [ref=e167]:
+            - cell "QsjUn3434jVcnUJL1vKUTHEyteUnMQdUHSyc2Jgpump" [ref=e168]:
+              - link "QsjUn3434jVcnUJL1vKUTHEyteUnMQdUHSyc2Jgpump" [ref=e169] [cursor=pointer]:
+                - /url: /ops/u001/coin/QsjUn3434jVcnUJL1vKUTHEyteUnMQdUHSyc2Jgpump/
+            - cell "2026-04-12 03:35:52 UTC" [ref=e170]
+            - cell "not_started" [ref=e171]:
+              - generic [ref=e172]: not_started
+            - cell "No RD-001 watermark yet. The batch selector applies stricter bootstrap caps before spending a full-window run." [ref=e173]
+    - generic [ref=e174]:
+      - generic [ref=e175]:
+        - generic [ref=e176]:
+          - heading "Historical Helius partial lane" [level=2] [ref=e177]
+          - paragraph [ref=e178]: Old RD-001 partial rows outside Shyft retention that are not currently parked by the free-tier guard.
+        - generic [ref=e179]: 8 candidates
+      - generic [ref=e180]:
+        - generic [ref=e181]: Suggested command
+        - code [ref=e182]: ./scripts/run_batch_partials_historical.sh --max-coins 3
+      - table [ref=e183]:
+        - rowgroup [ref=e184]:
+          - row "Mint Status Last Run At Age Label" [ref=e185]:
+            - columnheader "Mint" [ref=e186]
+            - columnheader "Status" [ref=e187]
+            - columnheader "Last Run At" [ref=e188]
+            - columnheader "Age Label" [ref=e189]
+        - rowgroup [ref=e190]:
+          - row "DmRzkvHpq79tUzz3DGYWa8yywvVguPGtH2ubvKc6pump partial 2026-03-15 11:51:58 UTC 29.4d old" [ref=e191]:
+            - cell "DmRzkvHpq79tUzz3DGYWa8yywvVguPGtH2ubvKc6pump" [ref=e192]:
+              - link "DmRzkvHpq79tUzz3DGYWa8yywvVguPGtH2ubvKc6pump" [ref=e193] [cursor=pointer]:
+                - /url: /ops/u001/coin/DmRzkvHpq79tUzz3DGYWa8yywvVguPGtH2ubvKc6pump/
+            - cell "partial" [ref=e194]:
+              - generic [ref=e195]: partial
+            - cell "2026-03-15 11:51:58 UTC" [ref=e196]
+            - cell "29.4d old" [ref=e197]
+          - row "5DkwTGQxVxbrEM3mJRj8LLi6gihdqeLq4aw6MZsQpump partial 2026-03-15 11:52:36 UTC 29.4d old" [ref=e198]:
+            - cell "5DkwTGQxVxbrEM3mJRj8LLi6gihdqeLq4aw6MZsQpump" [ref=e199]:
+              - link "5DkwTGQxVxbrEM3mJRj8LLi6gihdqeLq4aw6MZsQpump" [ref=e200] [cursor=pointer]:
+                - /url: /ops/u001/coin/5DkwTGQxVxbrEM3mJRj8LLi6gihdqeLq4aw6MZsQpump/
+            - cell "partial" [ref=e201]:
+              - generic [ref=e202]: partial
+            - cell "2026-03-15 11:52:36 UTC" [ref=e203]
+            - cell "29.4d old" [ref=e204]
+          - row "FRhNMDfBjZvz6um27QDS1eBXWG47KRAPTwnppmcppump partial 2026-03-15 11:52:51 UTC 29.3d old" [ref=e205]:
+            - cell "FRhNMDfBjZvz6um27QDS1eBXWG47KRAPTwnppmcppump" [ref=e206]:
+              - link "FRhNMDfBjZvz6um27QDS1eBXWG47KRAPTwnppmcppump" [ref=e207] [cursor=pointer]:
+                - /url: /ops/u001/coin/FRhNMDfBjZvz6um27QDS1eBXWG47KRAPTwnppmcppump/
+            - cell "partial" [ref=e208]:
+              - generic [ref=e209]: partial
+            - cell "2026-03-15 11:52:51 UTC" [ref=e210]
+            - cell "29.3d old" [ref=e211]
+          - row "5kLgMmM186Mf6RnM4Xf5W1dvm9shzCAcjLFg11mWpump partial 2026-03-15 11:53:03 UTC 29.4d old" [ref=e212]:
+            - cell "5kLgMmM186Mf6RnM4Xf5W1dvm9shzCAcjLFg11mWpump" [ref=e213]:
+              - link "5kLgMmM186Mf6RnM4Xf5W1dvm9shzCAcjLFg11mWpump" [ref=e214] [cursor=pointer]:
+                - /url: /ops/u001/coin/5kLgMmM186Mf6RnM4Xf5W1dvm9shzCAcjLFg11mWpump/
+            - cell "partial" [ref=e215]:
+              - generic [ref=e216]: partial
+            - cell "2026-03-15 11:53:03 UTC" [ref=e217]
+            - cell "29.4d old" [ref=e218]
+          - row "4tbuon9PEcPAvQUYVwJJgDe8fqt1TDLWTuSJCoAMpump partial 2026-03-15 11:54:13 UTC 29.4d old" [ref=e219]:
+            - cell "4tbuon9PEcPAvQUYVwJJgDe8fqt1TDLWTuSJCoAMpump" [ref=e220]:
+              - link "4tbuon9PEcPAvQUYVwJJgDe8fqt1TDLWTuSJCoAMpump" [ref=e221] [cursor=pointer]:
+                - /url: /ops/u001/coin/4tbuon9PEcPAvQUYVwJJgDe8fqt1TDLWTuSJCoAMpump/
+            - cell "partial" [ref=e222]:
+              - generic [ref=e223]: partial
+            - cell "2026-03-15 11:54:13 UTC" [ref=e224]
+            - cell "29.4d old" [ref=e225]
+          - row "GNQQ9Cxc6P7tof2QYDRRTmydCz7SodT5HaRfjfDZpump partial 2026-03-15 11:55:05 UTC 29.4d old" [ref=e226]:
+            - cell "GNQQ9Cxc6P7tof2QYDRRTmydCz7SodT5HaRfjfDZpump" [ref=e227]:
+              - link "GNQQ9Cxc6P7tof2QYDRRTmydCz7SodT5HaRfjfDZpump" [ref=e228] [cursor=pointer]:
+                - /url: /ops/u001/coin/GNQQ9Cxc6P7tof2QYDRRTmydCz7SodT5HaRfjfDZpump/
+            - cell "partial" [ref=e229]:
+              - generic [ref=e230]: partial
+            - cell "2026-03-15 11:55:05 UTC" [ref=e231]
+            - cell "29.4d old" [ref=e232]
+          - row "4q2JnK4Cei5SGPVHAGYgJTDSSuBwf3fDWuHnryN7pump partial 2026-03-15 11:56:00 UTC 29.4d old" [ref=e233]:
+            - cell "4q2JnK4Cei5SGPVHAGYgJTDSSuBwf3fDWuHnryN7pump" [ref=e234]:
+              - link "4q2JnK4Cei5SGPVHAGYgJTDSSuBwf3fDWuHnryN7pump" [ref=e235] [cursor=pointer]:
+                - /url: /ops/u001/coin/4q2JnK4Cei5SGPVHAGYgJTDSSuBwf3fDWuHnryN7pump/
+            - cell "partial" [ref=e236]:
+              - generic [ref=e237]: partial
+            - cell "2026-03-15 11:56:00 UTC" [ref=e238]
+            - cell "29.4d old" [ref=e239]
+          - row "AHZ9pfvNPBrcTVXU4AyA477aK3z34V1gVuG5Kt6Qpump partial 2026-03-15 11:56:12 UTC 29.4d old" [ref=e240]:
+            - cell "AHZ9pfvNPBrcTVXU4AyA477aK3z34V1gVuG5Kt6Qpump" [ref=e241]:
+              - link "AHZ9pfvNPBrcTVXU4AyA477aK3z34V1gVuG5Kt6Qpump" [ref=e242] [cursor=pointer]:
+                - /url: /ops/u001/coin/AHZ9pfvNPBrcTVXU4AyA477aK3z34V1gVuG5Kt6Qpump/
+            - cell "partial" [ref=e243]:
+              - generic [ref=e244]: partial
+            - cell "2026-03-15 11:56:12 UTC" [ref=e245]
+            - cell "29.4d old" [ref=e246]
+    - generic [ref=e247]:
+      - generic [ref=e248]:
+        - generic [ref=e249]:
+          - heading "Historical guarded Helius lane" [level=2] [ref=e250]
+          - paragraph [ref=e251]: Old RD-001 rows whose last failure tripped the free-tier guard and need deliberate one-off handling.
+        - generic [ref=e252]: 8 candidates
+      - generic [ref=e253]:
+        - generic [ref=e254]: Suggested command
+        - code [ref=e255]: MARJON_U001_RD001_MAX_FILTERED_SIGNATURES=1400 ./scripts/run_batch_partials_guarded.sh
+      - table [ref=e256]:
+        - rowgroup [ref=e257]:
+          - row "Mint Guard Count Status Last Error" [ref=e258]:
+            - columnheader "Mint" [ref=e259]
+            - columnheader "Guard Count" [ref=e260]
+            - columnheader "Status" [ref=e261]
+            - columnheader "Last Error" [ref=e262]
+        - rowgroup [ref=e263]:
+          - row "DwR9qa8Rc1kksKnp3CeTJ3Cc6QYUQhSHTB3vVwp7pump 1082 partial Filtered signature count 1082 exceeds free-tier guard (1000) for pool BTZKFsDTdFmw2sJRYUKTMcQuwNJRCHBfcmknRduZg2iC" [ref=e264]:
+            - cell "DwR9qa8Rc1kksKnp3CeTJ3Cc6QYUQhSHTB3vVwp7pump" [ref=e265]:
+              - link "DwR9qa8Rc1kksKnp3CeTJ3Cc6QYUQhSHTB3vVwp7pump" [ref=e266] [cursor=pointer]:
+                - /url: /ops/u001/coin/DwR9qa8Rc1kksKnp3CeTJ3Cc6QYUQhSHTB3vVwp7pump/
+            - cell "1082" [ref=e267]
+            - cell "partial" [ref=e268]:
+              - generic [ref=e269]: partial
+            - cell "Filtered signature count 1082 exceeds free-tier guard (1000) for pool BTZKFsDTdFmw2sJRYUKTMcQuwNJRCHBfcmknRduZg2iC" [ref=e270]
+          - row "24bhtpXpRfJdjQ5xG8MVTSsXVNZeUCzy3iJ2pwompump 1289 partial Filtered signature count 1289 exceeds free-tier guard (1000) for pool 5BcTt1DzE56jtp4Rcgmvyv8Edsd6aMiu9Jd8ycLyHtr5" [ref=e271]:
+            - cell "24bhtpXpRfJdjQ5xG8MVTSsXVNZeUCzy3iJ2pwompump" [ref=e272]:
+              - link "24bhtpXpRfJdjQ5xG8MVTSsXVNZeUCzy3iJ2pwompump" [ref=e273] [cursor=pointer]:
+                - /url: /ops/u001/coin/24bhtpXpRfJdjQ5xG8MVTSsXVNZeUCzy3iJ2pwompump/
+            - cell "1289" [ref=e274]
+            - cell "partial" [ref=e275]:
+              - generic [ref=e276]: partial
+            - cell "Filtered signature count 1289 exceeds free-tier guard (1000) for pool 5BcTt1DzE56jtp4Rcgmvyv8Edsd6aMiu9Jd8ycLyHtr5" [ref=e277]
+          - row "9LndARBDi4ZDaqbWjAH6nQFPoNgGYiLdB8HJYTVUpump 1431 error Filtered signature count 1431 exceeds free-tier guard (1000) for pool 7RPVcb7daXSk2hNnu6WwBptySYtkymZTE2mpQwdMQcaV" [ref=e278]:
+            - cell "9LndARBDi4ZDaqbWjAH6nQFPoNgGYiLdB8HJYTVUpump" [ref=e279]:
+              - link "9LndARBDi4ZDaqbWjAH6nQFPoNgGYiLdB8HJYTVUpump" [ref=e280] [cursor=pointer]:
+                - /url: /ops/u001/coin/9LndARBDi4ZDaqbWjAH6nQFPoNgGYiLdB8HJYTVUpump/
+            - cell "1431" [ref=e281]
+            - cell "error" [ref=e282]:
+              - generic [ref=e283]: error
+            - cell "Filtered signature count 1431 exceeds free-tier guard (1000) for pool 7RPVcb7daXSk2hNnu6WwBptySYtkymZTE2mpQwdMQcaV" [ref=e284]
+          - row "AmSUtJcFrc9mF6zCji4Cq9AfLUbPEzDS3mnKyDTMpump 1579 error Filtered signature count 1579 exceeds free-tier guard (1000) for pool 8p8cPCQutZMxVEnZm8iceGrsPs7VZubJQyVBNcZ1rxpU" [ref=e285]:
+            - cell "AmSUtJcFrc9mF6zCji4Cq9AfLUbPEzDS3mnKyDTMpump" [ref=e286]:
+              - link "AmSUtJcFrc9mF6zCji4Cq9AfLUbPEzDS3mnKyDTMpump" [ref=e287] [cursor=pointer]:
+                - /url: /ops/u001/coin/AmSUtJcFrc9mF6zCji4Cq9AfLUbPEzDS3mnKyDTMpump/
+            - cell "1579" [ref=e288]
+            - cell "error" [ref=e289]:
+              - generic [ref=e290]: error
+            - cell "Filtered signature count 1579 exceeds free-tier guard (1000) for pool 8p8cPCQutZMxVEnZm8iceGrsPs7VZubJQyVBNcZ1rxpU" [ref=e291]
+          - row "CNEq4NnvjVWaqJWPtD3PNGrY8T71K9jDe74iES3Epump 1675 partial Filtered signature count 1675 exceeds free-tier guard (1100) for pool 12HKrUB9B4G7FXdQqPhxpKxKNV5y1f8uKWU7wWh71Eag" [ref=e292]:
+            - cell "CNEq4NnvjVWaqJWPtD3PNGrY8T71K9jDe74iES3Epump" [ref=e293]:
+              - link "CNEq4NnvjVWaqJWPtD3PNGrY8T71K9jDe74iES3Epump" [ref=e294] [cursor=pointer]:
+                - /url: /ops/u001/coin/CNEq4NnvjVWaqJWPtD3PNGrY8T71K9jDe74iES3Epump/
+            - cell "1675" [ref=e295]
+            - cell "partial" [ref=e296]:
+              - generic [ref=e297]: partial
+            - cell "Filtered signature count 1675 exceeds free-tier guard (1100) for pool 12HKrUB9B4G7FXdQqPhxpKxKNV5y1f8uKWU7wWh71Eag" [ref=e298]
+          - row "GpPmQTqV3KeTRUWCxFtnw3VQHuAqqG4HWsxvw6Vwpump 1774 partial Filtered signature count 1774 exceeds free-tier guard (1000) for pool 23NgTBDyHGZwegxVAx9NNYF2oN2bWEEebK2CySAUpFFh" [ref=e299]:
+            - cell "GpPmQTqV3KeTRUWCxFtnw3VQHuAqqG4HWsxvw6Vwpump" [ref=e300]:
+              - link "GpPmQTqV3KeTRUWCxFtnw3VQHuAqqG4HWsxvw6Vwpump" [ref=e301] [cursor=pointer]:
+                - /url: /ops/u001/coin/GpPmQTqV3KeTRUWCxFtnw3VQHuAqqG4HWsxvw6Vwpump/
+            - cell "1774" [ref=e302]
+            - cell "partial" [ref=e303]:
+              - generic [ref=e304]: partial
+            - cell "Filtered signature count 1774 exceeds free-tier guard (1000) for pool 23NgTBDyHGZwegxVAx9NNYF2oN2bWEEebK2CySAUpFFh" [ref=e305]
+          - row "9rZyxfCQhGCBcpbFW3LUjVKoBajVbN6kYdHmaFXSpump 1777 partial Filtered signature count 1777 exceeds free-tier guard (1000) for pool 8jTiHPbWqbxkggAsKh7y6wqSk6XFpH8iHp9zQ97AnDWx" [ref=e306]:
+            - cell "9rZyxfCQhGCBcpbFW3LUjVKoBajVbN6kYdHmaFXSpump" [ref=e307]:
+              - link "9rZyxfCQhGCBcpbFW3LUjVKoBajVbN6kYdHmaFXSpump" [ref=e308] [cursor=pointer]:
+                - /url: /ops/u001/coin/9rZyxfCQhGCBcpbFW3LUjVKoBajVbN6kYdHmaFXSpump/
+            - cell "1777" [ref=e309]
+            - cell "partial" [ref=e310]:
+              - generic [ref=e311]: partial
+            - cell "Filtered signature count 1777 exceeds free-tier guard (1000) for pool 8jTiHPbWqbxkggAsKh7y6wqSk6XFpH8iHp9zQ97AnDWx" [ref=e312]
+          - row "4VfVnXZoGx5FSsN4T8acnNJqGBvfw352KAy6R7rLpump 1783 partial Filtered signature count 1783 exceeds free-tier guard (1000) for pool 4PctF3CzQ7V6y2gZdQMmDfjzPv2yxovJP99gEjVxrDcU" [ref=e313]:
+            - cell "4VfVnXZoGx5FSsN4T8acnNJqGBvfw352KAy6R7rLpump" [ref=e314]:
+              - link "4VfVnXZoGx5FSsN4T8acnNJqGBvfw352KAy6R7rLpump" [ref=e315] [cursor=pointer]:
+                - /url: /ops/u001/coin/4VfVnXZoGx5FSsN4T8acnNJqGBvfw352KAy6R7rLpump/
+            - cell "1783" [ref=e316]
+            - cell "partial" [ref=e317]:
+              - generic [ref=e318]: partial
+            - cell "Filtered signature count 1783 exceeds free-tier guard (1000) for pool 4PctF3CzQ7V6y2gZdQMmDfjzPv2yxovJP99gEjVxrDcU" [ref=e319]
+    - generic [ref=e320]:
+      - generic [ref=e321]:
+        - generic [ref=e322]:
+          - heading "Error lane" [level=2] [ref=e323]
+          - paragraph [ref=e324]: RD-001 rows currently in error state, excluding the explicitly guarded historical queue above.
+        - generic [ref=e325]: 8 candidates
+      - generic [ref=e326]:
+        - generic [ref=e327]: Suggested command
+        - code [ref=e328]: ./scripts/run_batch_errors.sh --max-new-sigs 1000
+      - table [ref=e329]:
+        - rowgroup [ref=e330]:
+          - row "Mint Status Last Error Bucket Last Run At" [ref=e331]:
+            - columnheader "Mint" [ref=e332]
+            - columnheader "Status" [ref=e333]
+            - columnheader "Last Error Bucket" [ref=e334]
+            - columnheader "Last Run At" [ref=e335]
+        - rowgroup [ref=e336]:
+          - row "7voKerVHPvbXde3bEpyNcdodVEufq17tW6eZLUUkpump error other 2026-03-15 07:52:35 UTC" [ref=e337]:
+            - cell "7voKerVHPvbXde3bEpyNcdodVEufq17tW6eZLUUkpump" [ref=e338]:
+              - link "7voKerVHPvbXde3bEpyNcdodVEufq17tW6eZLUUkpump" [ref=e339] [cursor=pointer]:
+                - /url: /ops/u001/coin/7voKerVHPvbXde3bEpyNcdodVEufq17tW6eZLUUkpump/
+            - cell "error" [ref=e340]:
+              - generic [ref=e341]: error
+            - cell "other" [ref=e342]
+            - cell "2026-03-15 07:52:35 UTC" [ref=e343]
+          - row "DCT1BUEfV7rKAwbw3h8KTQAWqWrbTaZwPShjTRbZpump error expectation_failed 2026-03-15 08:03:38 UTC" [ref=e344]:
+            - cell "DCT1BUEfV7rKAwbw3h8KTQAWqWrbTaZwPShjTRbZpump" [ref=e345]:
+              - link "DCT1BUEfV7rKAwbw3h8KTQAWqWrbTaZwPShjTRbZpump" [ref=e346] [cursor=pointer]:
+                - /url: /ops/u001/coin/DCT1BUEfV7rKAwbw3h8KTQAWqWrbTaZwPShjTRbZpump/
+            - cell "error" [ref=e347]:
+              - generic [ref=e348]: error
+            - cell "expectation_failed" [ref=e349]
+            - cell "2026-03-15 08:03:38 UTC" [ref=e350]
+          - row "31XZwz5wszKRS3wGS5MYu6FPXWY9RE5C6oMKeDA9pump error expectation_failed 2026-03-15 08:04:44 UTC" [ref=e351]:
+            - cell "31XZwz5wszKRS3wGS5MYu6FPXWY9RE5C6oMKeDA9pump" [ref=e352]:
+              - link "31XZwz5wszKRS3wGS5MYu6FPXWY9RE5C6oMKeDA9pump" [ref=e353] [cursor=pointer]:
+                - /url: /ops/u001/coin/31XZwz5wszKRS3wGS5MYu6FPXWY9RE5C6oMKeDA9pump/
+            - cell "error" [ref=e354]:
+              - generic [ref=e355]: error
+            - cell "expectation_failed" [ref=e356]
+            - cell "2026-03-15 08:04:44 UTC" [ref=e357]
+          - row "LpoWWCQdyDBdk7NsJ9Arv5FABEZd929zzA4iCbopump error other 2026-03-15 11:08:35 UTC" [ref=e358]:
+            - cell "LpoWWCQdyDBdk7NsJ9Arv5FABEZd929zzA4iCbopump" [ref=e359]:
+              - link "LpoWWCQdyDBdk7NsJ9Arv5FABEZd929zzA4iCbopump" [ref=e360] [cursor=pointer]:
+                - /url: /ops/u001/coin/LpoWWCQdyDBdk7NsJ9Arv5FABEZd929zzA4iCbopump/
+            - cell "error" [ref=e361]:
+              - generic [ref=e362]: error
+            - cell "other" [ref=e363]
+            - cell "2026-03-15 11:08:35 UTC" [ref=e364]
+          - row "G7ydggVFm4RVTTsd3E8MWh7angBs78MTmZN3gVZPpump error other 2026-03-15 11:08:35 UTC" [ref=e365]:
+            - cell "G7ydggVFm4RVTTsd3E8MWh7angBs78MTmZN3gVZPpump" [ref=e366]:
+              - link "G7ydggVFm4RVTTsd3E8MWh7angBs78MTmZN3gVZPpump" [ref=e367] [cursor=pointer]:
+                - /url: /ops/u001/coin/G7ydggVFm4RVTTsd3E8MWh7angBs78MTmZN3gVZPpump/
+            - cell "error" [ref=e368]:
+              - generic [ref=e369]: error
+            - cell "other" [ref=e370]
+            - cell "2026-03-15 11:08:35 UTC" [ref=e371]
+          - row "7Qs88PRWEvpeBeFVRP8FPeAYbFN9s9uNCMsTu7Bkpump error other 2026-03-15 11:08:35 UTC" [ref=e372]:
+            - cell "7Qs88PRWEvpeBeFVRP8FPeAYbFN9s9uNCMsTu7Bkpump" [ref=e373]:
+              - link "7Qs88PRWEvpeBeFVRP8FPeAYbFN9s9uNCMsTu7Bkpump" [ref=e374] [cursor=pointer]:
+                - /url: /ops/u001/coin/7Qs88PRWEvpeBeFVRP8FPeAYbFN9s9uNCMsTu7Bkpump/
+            - cell "error" [ref=e375]:
+              - generic [ref=e376]: error
+            - cell "other" [ref=e377]
+            - cell "2026-03-15 11:08:35 UTC" [ref=e378]
+          - row "8k1eciW1AN1Bi6bdcpfh1qZn71oQTpNU31gdnMi2pump error other 2026-03-15 11:08:35 UTC" [ref=e379]:
+            - cell "8k1eciW1AN1Bi6bdcpfh1qZn71oQTpNU31gdnMi2pump" [ref=e380]:
+              - link "8k1eciW1AN1Bi6bdcpfh1qZn71oQTpNU31gdnMi2pump" [ref=e381] [cursor=pointer]:
+                - /url: /ops/u001/coin/8k1eciW1AN1Bi6bdcpfh1qZn71oQTpNU31gdnMi2pump/
+            - cell "error" [ref=e382]:
+              - generic [ref=e383]: error
+            - cell "other" [ref=e384]
+            - cell "2026-03-15 11:08:35 UTC" [ref=e385]
+          - row "ZyaNhwGEkyzKYprrvDbdJnFSR7Bi4xq4NRFnFKapump error other 2026-03-15 11:29:41 UTC" [ref=e386]:
+            - cell "ZyaNhwGEkyzKYprrvDbdJnFSR7Bi4xq4NRFnFKapump" [ref=e387]:
+              - link "ZyaNhwGEkyzKYprrvDbdJnFSR7Bi4xq4NRFnFKapump" [ref=e388] [cursor=pointer]:
+                - /url: /ops/u001/coin/ZyaNhwGEkyzKYprrvDbdJnFSR7Bi4xq4NRFnFKapump/
+            - cell "error" [ref=e389]:
+              - generic [ref=e390]: error
+            - cell "other" [ref=e391]
+            - cell "2026-03-15 11:29:41 UTC" [ref=e392]

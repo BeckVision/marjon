@@ -25,10 +25,10 @@ def _get_session(url):
     """Return a persistent Client for the given URL's origin (thread-safe)."""
     parsed = urlparse(url)
     origin = f"{parsed.scheme}://{parsed.netloc}"
-    http2 = _http2_enabled_for_url(url)
+    client_kwargs = _client_kwargs_for_url(url)
     with _session_lock:
         if origin not in _session_pool:
-            _session_pool[origin] = httpx.Client(http2=http2)
+            _session_pool[origin] = httpx.Client(**client_kwargs)
         return _session_pool[origin]
 
 
@@ -42,6 +42,24 @@ def _http2_enabled_for_url(url):
             item.strip().lower() for item in extra.split(',') if item.strip()
         }
     return host not in disabled_hosts
+
+
+def _client_kwargs_for_url(url):
+    """Return host-specific httpx.Client kwargs.
+
+    Shyft has shown repeated disconnects on reused pooled sessions in live
+    RD-001 runs. Disabling keep-alive reuse for those hosts trades a small
+    amount of latency for more predictable transport behavior.
+    """
+    kwargs = {
+        'http2': _http2_enabled_for_url(url),
+    }
+
+    host = (urlparse(url).hostname or '').lower()
+    if host in DEFAULT_HTTP2_DISABLED_HOSTS:
+        kwargs['limits'] = httpx.Limits(max_keepalive_connections=0)
+
+    return kwargs
 
 
 def _drop_session(url):
@@ -90,6 +108,7 @@ def request_with_retry(url, params=None, headers=None, timeout=30,
     Raises:
         RuntimeError: After all retries exhausted.
     """
+    last_error = None
     for attempt in range(max_retries):
         try:
             session = _get_session(url)
@@ -104,6 +123,7 @@ def request_with_retry(url, params=None, headers=None, timeout=30,
                 )
 
             if resp.status_code == 429:
+                last_error = 'rate_limited_429'
                 wait = 2 ** (attempt + 1)
                 logger.warning(
                     "Rate limited (429), waiting %ds (url=%s)",
@@ -113,6 +133,7 @@ def request_with_retry(url, params=None, headers=None, timeout=30,
                 continue
 
             if resp.status_code == 417:
+                last_error = 'expectation_failed_417'
                 wait = 2 ** (attempt + 1)
                 _drop_session(url)
                 logger.warning(
@@ -123,6 +144,7 @@ def request_with_retry(url, params=None, headers=None, timeout=30,
                 continue
 
             if resp.status_code >= 500:
+                last_error = f'server_error_{resp.status_code}'
                 wait = 2 ** (attempt + 1)
                 logger.warning(
                     "Server error %d, waiting %ds (url=%s)",
@@ -138,6 +160,7 @@ def request_with_retry(url, params=None, headers=None, timeout=30,
                 try:
                     validate_response(data)
                 except Exception as e:
+                    last_error = f'response_validation_error: {e}'
                     wait = 2 ** (attempt + 1)
                     logger.warning(
                         "Response validation failed: %s, waiting %ds (url=%s)",
@@ -148,8 +171,9 @@ def request_with_retry(url, params=None, headers=None, timeout=30,
 
             return data
 
-        except ValueError:
+        except ValueError as e:
             # json.JSONDecodeError is a subclass of ValueError
+            last_error = f'json_decode_error: {e}'
             wait = 2 ** (attempt + 1)
             logger.warning(
                 "JSON decode error, waiting %ds (url=%s)",
@@ -158,7 +182,8 @@ def request_with_retry(url, params=None, headers=None, timeout=30,
             time.sleep(wait)
             continue
 
-        except httpx.TransportError:
+        except httpx.TransportError as e:
+            last_error = f'transport_error: {e.__class__.__name__}: {e}'
             wait = 2 ** (attempt + 1)
             _drop_session(url)
             logger.warning(
@@ -168,8 +193,9 @@ def request_with_retry(url, params=None, headers=None, timeout=30,
             time.sleep(wait)
             continue
 
+    detail = f" (last_error: {last_error})" if last_error else ""
     raise RuntimeError(
-        f"Failed after {max_retries} retries: {url}"
+        f"Failed after {max_retries} retries: {url}{detail}"
     )
 
 

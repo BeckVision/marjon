@@ -1,0 +1,497 @@
+{% extends "visualization/_base_ops.html" %}
+{% load ops_tags %}
+
+{% block title %}U-001 Automation — Marjon{% endblock %}
+
+{% block ops_head_extra %}
+<style>
+    .automation-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+
+    .automation-header h1 {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+    }
+
+    .sidebar-panel {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 20px;
+        display: grid;
+        gap: 16px;
+    }
+
+    .sidebar-panel h3 {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0;
+    }
+
+    .sub-panel {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 14px;
+    }
+
+    .sub-panel h3 {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 10px;
+    }
+
+    .sub-panel code {
+        display: block;
+        margin-top: 10px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 8px 10px;
+        word-break: break-all;
+        white-space: pre-wrap;
+        color: var(--text-secondary);
+    }
+
+    .truth-lane-card {
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 12px;
+    }
+
+    .truth-lane-card + .truth-lane-card {
+        margin-top: 8px;
+    }
+
+    .truth-lane-card .kv-row {
+        font-size: 12px;
+        padding: 6px 0;
+    }
+
+    .truth-lane-card .kv-row:first-child {
+        padding-top: 0;
+    }
+
+    .result-summary {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 4px;
+    }
+
+    .tick-notes {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 4px;
+    }
+
+    .tick-flags {
+        display: grid;
+        gap: 2px;
+    }
+
+    .flag-item {
+        font-size: 11px;
+        color: var(--text-muted);
+        font-family: var(--font-mono);
+    }
+
+    .flag-item.flag-on {
+        color: var(--accent);
+    }
+</style>
+{% endblock %}
+
+{% block ops_content %}
+
+<div class="automation-header">
+    <div>
+        <h1>U-001 Automation</h1>
+        <span class="timestamp">Snapshot at {{ summary.generated_at|date:"Y-m-d H:i:s T" }}</span>
+    </div>
+</div>
+
+<!-- Summary Metrics -->
+<div class="grid grid-auto-sm" style="margin-bottom: 20px;">
+    <div class="metric-card">
+        <div class="label">Total Ticks</div>
+        <div class="value">{{ summary.headline.total_ticks }}</div>
+        <div class="detail">All persisted automation ticks</div>
+    </div>
+    <div class="metric-card">
+        <div class="label">Filtered Ticks</div>
+        <div class="value">{{ summary.headline.filtered_ticks }}</div>
+        <div class="detail">Ticks in current view</div>
+    </div>
+    <div class="metric-card">
+        <div class="label">Error Ticks</div>
+        <div class="value text-red">{{ summary.headline.error_ticks }}</div>
+        <div class="detail">Filtered ticks ending in error</div>
+    </div>
+    <div class="metric-card">
+        <div class="label">Complete Ticks</div>
+        <div class="value text-green">{{ summary.headline.complete_ticks }}</div>
+        <div class="detail">Complete in current filter</div>
+    </div>
+    <div class="metric-card">
+        <div class="label">Snapshot Ticks</div>
+        <div class="value">{{ summary.headline.snapshot_ticks }}</div>
+        <div class="detail">Also wrote daily snapshot</div>
+    </div>
+    <div class="metric-card">
+        <div class="label">Repair Ticks</div>
+        <div class="value">{{ summary.headline.repair_ticks }}</div>
+        <div class="detail">Ran stale-state repair first</div>
+    </div>
+</div>
+
+<div class="two-col" style="margin-bottom: 20px;">
+
+    <!-- Left: Filter + State -->
+    <div class="stack">
+
+        <!-- Filter Controls -->
+        <div class="panel">
+            <h3 style="margin-bottom: 14px;">Filters</h3>
+            <form method="get">
+                <div class="filters">
+                    <label>
+                        Action
+                        <select name="action">
+                            <option value="">All actions</option>
+                            {% for value in summary.filters.available_actions %}
+                            <option value="{{ value }}" {% if summary.filters.action == value %}selected{% endif %}>{{ value }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label>
+                        Status
+                        <select name="status">
+                            <option value="">All statuses</option>
+                            {% for value in summary.filters.available_statuses %}
+                            <option value="{{ value }}" {% if summary.filters.status == value %}selected{% endif %}>{{ value }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label>
+                        Limit
+                        <input type="number" min="1" max="200" name="limit" value="{{ summary.filters.limit }}">
+                    </label>
+                    <label>
+                        &nbsp;
+                        <button type="submit" class="btn btn-ghost" style="width:100%;">Apply</button>
+                    </label>
+                </div>
+            </form>
+        </div>
+
+        <!-- Controller State -->
+        <div class="panel">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+                <span class="state-tag state-{{ summary.state.state }}">{{ summary.state.state }}</span>
+                <h3 style="margin-bottom:0;">{{ summary.state.headline }}</h3>
+            </div>
+            <p style="font-size:13px;margin-bottom:12px;">{{ summary.state.detail }}</p>
+            <div class="kv-list">
+                <div class="kv-row">
+                    <span>Last tick</span>
+                    <span>{{ summary.state.last_tick_at|date:"Y-m-d H:i:s T"|default:"Never" }}</span>
+                </div>
+                <div class="kv-row">
+                    <span>Last action</span>
+                    <span>{{ summary.state.last_action|default:"none" }}</span>
+                </div>
+                <div class="kv-row">
+                    <span>Last action status</span>
+                    <span>{{ summary.state.last_action_status }}</span>
+                </div>
+                <div class="kv-row">
+                    <span>Consecutive failures</span>
+                    <span class="{% if summary.state.consecutive_failures > 0 %}text-red{% endif %}">{{ summary.state.consecutive_failures }}</span>
+                </div>
+                <div class="kv-row">
+                    <span>Guarded attempts today</span>
+                    <span>{{ summary.state.guarded_attempts_today }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- By Action / By Status -->
+        <div class="grid grid-2">
+            <div class="panel">
+                <h3 style="margin-bottom:10px;">By Action</h3>
+                <div class="count-list">
+                    {% for row in summary.action_counts %}
+                    <div class="count-row">
+                        <span>{{ row.action }}</span>
+                        <span>{{ row.count }}</span>
+                    </div>
+                    {% empty %}
+                    <div class="count-row">
+                        <span>No ticks</span>
+                        <span>0</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="panel">
+                <h3 style="margin-bottom:10px;">By Status</h3>
+                <div class="count-list">
+                    {% for row in summary.status_counts %}
+                    <div class="count-row">
+                        <span>{{ row.status }}</span>
+                        <span>{{ row.count }}</span>
+                    </div>
+                    {% empty %}
+                    <div class="count-row">
+                        <span>No ticks</span>
+                        <span>0</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: Risk Panels + Truth Audit -->
+    <div class="stack">
+
+        <!-- Manual Equivalent -->
+        <div class="sub-panel">
+            <h3>Current Manual Equivalent</h3>
+            <p style="font-size:13px;color:var(--text-secondary);">{{ summary.current_manual_equivalent.reason }}</p>
+            <code>{{ summary.current_manual_equivalent.command }}</code>
+        </div>
+
+        <!-- Connectivity Risk -->
+        <div class="panel">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <span class="state-tag state-{{ summary.connectivity_risk.state }}">{{ summary.connectivity_risk.state }}</span>
+                <h3 style="margin-bottom:0;">Connectivity Risk</h3>
+            </div>
+            <p style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">{{ summary.connectivity_risk.headline }}</p>
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;">{{ summary.connectivity_risk.detail }}</p>
+            <div class="kv-list">
+                <div class="kv-row">
+                    <span>Latest affected action</span>
+                    <span>{{ summary.connectivity_risk.latest_action|default:"none" }}</span>
+                </div>
+                <div class="kv-row">
+                    <span>Connectivity failure streak</span>
+                    <span class="{% if summary.connectivity_risk.streak_length > 0 %}text-red{% endif %}">{{ summary.connectivity_risk.streak_length }}</span>
+                </div>
+                <div class="kv-row">
+                    <span>Latest boot recovery</span>
+                    <span>{{ summary.connectivity_risk.latest_boot_recovery_status|default:"none" }}</span>
+                </div>
+                {% if summary.connectivity_risk.recovered_at %}
+                <div class="kv-row">
+                    <span>Recovered at</span>
+                    <span>{{ summary.connectivity_risk.recovered_at|date:"Y-m-d H:i T" }}</span>
+                </div>
+                {% endif %}
+            </div>
+            {% if summary.connectivity_risk.latest_note %}
+            <code style="display:block;margin-top:10px;font-family:var(--font-mono);font-size:11px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;word-break:break-all;white-space:pre-wrap;color:var(--text-muted);">{{ summary.connectivity_risk.latest_note }}</code>
+            {% endif %}
+        </div>
+
+        <!-- Dedicated Recent Runner -->
+        <div class="panel">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <span class="state-tag state-{{ summary.rd001_recent_runner.state }}">{{ summary.rd001_recent_runner.state }}</span>
+                <h3 style="margin-bottom:0;">RD-001 Recent Runner</h3>
+            </div>
+            <p style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">{{ summary.rd001_recent_runner.headline }}</p>
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;">{{ summary.rd001_recent_runner.detail }}</p>
+            <div class="kv-list">
+                <div class="kv-row">
+                    <span>Latest heartbeat</span>
+                    <span>{{ summary.rd001_recent_runner.age_label }}</span>
+                </div>
+                <div class="kv-row">
+                    <span>Process state</span>
+                    <span>{{ summary.rd001_recent_runner.status }}</span>
+                </div>
+                <div class="kv-row">
+                    <span>PID alive</span>
+                    <span>{% if summary.rd001_recent_runner.pid_alive %}<span class="text-green">yes</span>{% else %}<span class="text-red">no</span>{% endif %}</span>
+                </div>
+                <div class="kv-row">
+                    <span>Cycle</span>
+                    <span>{{ summary.rd001_recent_runner.cycle }}</span>
+                </div>
+            </div>
+            {% if summary.rd001_recent_runner.last_log_file %}
+            <code style="display:block;margin-top:10px;font-family:var(--font-mono);font-size:11px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;word-break:break-all;white-space:pre-wrap;color:var(--text-muted);">{{ summary.rd001_recent_runner.last_log_file }}</code>
+            {% endif %}
+        </div>
+
+        <!-- Spin Risk -->
+        <div class="panel">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <span class="state-tag state-{{ summary.spin_risk.state }}">{{ summary.spin_risk.state }}</span>
+                <h3 style="margin-bottom:0;">Spin Risk</h3>
+            </div>
+            <p style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">{{ summary.spin_risk.headline }}</p>
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;">{{ summary.spin_risk.detail }}</p>
+            <div class="kv-list">
+                <div class="kv-row">
+                    <span>Latest streak action</span>
+                    <span>{{ summary.spin_risk.action|default:"none" }}</span>
+                </div>
+                <div class="kv-row">
+                    <span>Streak length</span>
+                    <span>{{ summary.spin_risk.streak_length }} / {{ summary.spin_risk.threshold }}</span>
+                </div>
+                <div class="kv-row">
+                    <span>Structured ticks</span>
+                    <span>{{ summary.spin_risk.structured_ticks }} / {{ summary.spin_risk.streak_length }}</span>
+                </div>
+                <div class="kv-row">
+                    <span>Observed progress</span>
+                    <span>{{ summary.spin_risk.progress_label }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Truth Audit Lanes -->
+        <div class="panel">
+            <h3 style="margin-bottom:12px;">Truth Audit Lanes</h3>
+            <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Whether automation is running the Phase 0 audit lanes and the latest persisted audit results.</p>
+            {% for lane in summary.truth_audit_lanes %}
+            <div class="truth-lane-card">
+                <div class="kv-list">
+                    <div class="kv-row">
+                        <span style="font-weight:600;color:var(--text-primary);">{{ lane.label }}</span>
+                        <span class="status-pill status-{{ lane.audit.status|lower }}">{{ lane.audit.status|human_label }}</span>
+                    </div>
+                    <div class="kv-row">
+                        <span>Automation ticks</span>
+                        <span>{{ lane.total_ticks }} total / {{ lane.complete_ticks }} complete / <span class="{% if lane.error_ticks > 0 %}text-red{% endif %}">{{ lane.error_ticks }} error</span></span>
+                    </div>
+                    <div class="kv-row">
+                        <span>Latest controller tick</span>
+                        <span>{{ lane.latest_tick_status|human_label }}{% if lane.latest_tick_at %} · {{ lane.latest_tick_age_label }}{% endif %}</span>
+                    </div>
+                    <div class="kv-row">
+                        <span>Latest audit result</span>
+                        <span>{{ lane.audit.headline }}</span>
+                    </div>
+                    <div class="kv-row">
+                        <span>Audit age</span>
+                        <span>{{ lane.audit.age_label }}</span>
+                    </div>
+                    <div class="kv-row">
+                        <span>Findings / warnings</span>
+                        <span class="{% if lane.audit.finding_count > 0 %}text-amber{% endif %}">{{ lane.audit.finding_count }} / {{ lane.audit.warning_count }}</span>
+                    </div>
+                </div>
+                {% if lane.manual_command %}
+                <code style="display:block;margin-top:8px;font-family:var(--font-mono);font-size:11px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;word-break:break-all;white-space:pre-wrap;color:var(--text-muted);">{{ lane.manual_command }}</code>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+    </div>
+</div>
+
+<!-- Recent Ticks Table -->
+<div class="table-panel">
+    <div class="panel-head">
+        <h3 style="margin-bottom:0;">Recent Ticks</h3>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Started</th>
+                <th>Action</th>
+                <th>Status</th>
+                <th>Reason / Yield</th>
+                <th>Command</th>
+                <th>Manual Equivalent</th>
+                <th>Flags</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tick in summary.ticks %}
+            <tr>
+                <td>
+                    <span class="font-mono text-sm">{{ tick.started_at|date:"Y-m-d H:i:s T" }}</span>
+                    <div class="timestamp">{{ tick.age_label }}</div>
+                </td>
+                <td>{{ tick.action }}</td>
+                <td><span class="status-pill status-{{ tick.status|lower }}">{{ tick.status }}</span></td>
+                <td>
+                    <span>{{ tick.reason }}</span>
+                    {% if tick.notes %}
+                    <div class="tick-notes">Notes: {{ tick.notes }}</div>
+                    {% endif %}
+                    {% if tick.result_summary.records_loaded or tick.result_summary.failed or tick.result_summary.api_calls %}
+                    <div class="result-summary">
+                        {{ tick.result_summary.records_loaded|default:0 }} loaded,
+                        {{ tick.result_summary.records_skipped|default:0 }} skipped,
+                        {{ tick.result_summary.api_calls|default:0 }} calls,
+                        {{ tick.result_summary.succeeded|default:0 }} ok,
+                        {{ tick.result_summary.failed|default:0 }} fail
+                    </div>
+                    {% elif tick.result_summary.total_succeeded or tick.result_summary.total_failed or tick.result_summary.total_skipped %}
+                    <div class="result-summary">
+                        {{ tick.result_summary.total_succeeded|default:0 }} succeeded,
+                        {{ tick.result_summary.total_failed|default:0 }} failed,
+                        {{ tick.result_summary.total_skipped|default:0 }} skipped
+                    </div>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if tick.command %}
+                    <code>{{ tick.command }}</code>
+                    <div class="tick-notes" style="margin-top:4px;"><code>{{ tick.command_kwargs }}</code></div>
+                    {% else %}
+                    <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if tick.manual_command %}
+                    <code>{{ tick.manual_command }}</code>
+                    {% else %}
+                    <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="tick-flags">
+                        <span class="flag-item {% if tick.repaired_state %}flag-on{% endif %}">
+                            {% if tick.repaired_state %}repair{% else %}no repair{% endif %}
+                        </span>
+                        <span class="flag-item {% if tick.snapshot_taken %}flag-on{% endif %}">
+                            {% if tick.snapshot_taken %}snapshot{% else %}no snapshot{% endif %}
+                        </span>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" style="color:var(--text-muted);text-align:center;padding:24px;">
+                    No automation ticks match the current filters.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

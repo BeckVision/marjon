@@ -38,6 +38,7 @@ class RD001ConnectorFreeTierGuardTest(SimpleTestCase):
                     'POOL_HELIUS_LIMIT',
                     start=now - timedelta(hours=1),
                     end=now,
+                    max_filtered_signatures=1000,
                 )
 
         self.assertIn('exceeds free-tier guard', str(ctx.exception))
@@ -60,6 +61,53 @@ class RD001ConnectorFreeTierGuardTest(SimpleTestCase):
                     'POOL_SHYFT_LIMIT',
                     start=now - timedelta(hours=1),
                     end=now,
+                    max_filtered_signatures=1000,
                 )
 
         self.assertIn('exceeds free-tier guard', str(ctx.exception))
+
+    def test_shyft_parse_fallback_splits_failed_batch(self):
+        chunk = [f'sig_{i}' for i in range(20)]
+
+        def fake_parse(batch):
+            if len(batch) == 20:
+                raise RuntimeError('Server disconnected')
+            return [{'signatures': batch}]
+
+        with patch.object(shyft, '_parse_one_batch', side_effect=fake_parse):
+            parsed = shyft._parse_with_fallback(chunk)
+
+        self.assertEqual(len(parsed), 2)
+        self.assertEqual(parsed[0]['signatures'], chunk[:10])
+        self.assertEqual(parsed[1]['signatures'], chunk[10:])
+
+    def test_shyft_parse_fallback_stops_at_minimum_batch_size(self):
+        chunk = [f'sig_{i}' for i in range(shyft.MIN_PARSE_BATCH_SIZE)]
+
+        with patch.object(
+            shyft, '_parse_one_batch', side_effect=RuntimeError('Server disconnected')
+        ):
+            with self.assertRaises(RuntimeError) as ctx:
+                shyft._parse_with_fallback(chunk)
+
+        self.assertIn('Server disconnected', str(ctx.exception))
+
+    def test_shyft_parse_selected_respects_configured_batch_size(self):
+        signatures = [f'sig_{i}' for i in range(25)]
+
+        with patch.object(shyft, 'PARSE_BATCH_SIZE', 10), \
+                patch.object(
+                    shyft,
+                    '_parse_with_fallback',
+                    side_effect=lambda batch: [{'batch_size': len(batch)}],
+                ) as parse_batch:
+            parsed = shyft._parse_selected(signatures, max_workers=1)
+
+        self.assertEqual(
+            [row['batch_size'] for row in parsed],
+            [10, 10, 5],
+        )
+        self.assertEqual(
+            [len(call.args[0]) for call in parse_batch.call_args_list],
+            [10, 10, 5],
+        )

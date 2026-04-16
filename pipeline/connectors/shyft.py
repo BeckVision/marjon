@@ -38,11 +38,15 @@ REST_URL = "https://api.shyft.to/sol/v1"
 
 # Limits (verified in exploration)
 SIG_LIMIT = 1000          # max signatures per getSignaturesForAddress call
-PARSE_BATCH_SIZE = 100    # max signatures per parse_selected call (hard limit)
 RPC_BATCH_SIZE = 250      # max calls per batch RPC request (tested)
 RATE_LIMIT_SLEEP = 0.6    # min seconds between REST calls on the SAME key
-MAX_FILTERED_SIGNATURES = int(
-    os.environ.get('MARJON_U001_RD001_MAX_FILTERED_SIGNATURES', '1000')
+MIN_PARSE_BATCH_SIZE = 10
+PARSE_BATCH_SIZE = max(
+    MIN_PARSE_BATCH_SIZE,
+    min(int(os.environ.get('MARJON_U001_RD001_PARSE_BATCH_SIZE', '100')), 100),
+)   # hard cap is 100
+DEFAULT_MAX_FILTERED_SIGNATURES = int(
+    os.environ.get('MARJON_U001_RD001_MAX_FILTERED_SIGNATURES', '0')
 )
 
 # Round-robin iterator over Shyft API keys (thread-safe).
@@ -145,7 +149,14 @@ _validate_rpc_response = partial(validate_jsonrpc_response, source_name="Shyft R
 # Phase 1: Signature discovery via RPC
 # ---------------------------------------------------------------------------
 
-def _fetch_signatures(pool_address, start=None, end=None, until_sig=None):
+def _resolve_max_filtered_signatures(explicit=None):
+    if explicit is not None:
+        return explicit
+    value = os.environ.get('MARJON_U001_RD001_MAX_FILTERED_SIGNATURES')
+    return int(value) if value else DEFAULT_MAX_FILTERED_SIGNATURES
+
+
+def _fetch_signatures(pool_address, start=None, end=None, until_sig=None, max_filtered_signatures=None):
     """Fetch transaction signatures for a pool via getSignaturesForAddress.
 
     Paginates backward from newest. Stops when blockTime < start or
@@ -163,6 +174,7 @@ def _fetch_signatures(pool_address, start=None, end=None, until_sig=None):
     """
     api_key = _next_api_key()
     rpc_url = f"{RPC_URL}?api_key={api_key}"
+    max_filtered_signatures = _resolve_max_filtered_signatures(max_filtered_signatures)
 
     all_sigs = []
     cursor = None
@@ -193,10 +205,10 @@ def _fetch_signatures(pool_address, start=None, end=None, until_sig=None):
 
         all_sigs.extend(result)
         filtered_count += len(_filter_signatures(result, start, end))
-        if filtered_count > MAX_FILTERED_SIGNATURES:
+        if max_filtered_signatures and filtered_count > max_filtered_signatures:
             raise RuntimeError(
                 f"Filtered signature count {filtered_count} exceeds free-tier guard "
-                f"({MAX_FILTERED_SIGNATURES}) for pool {pool_address}"
+                f"({max_filtered_signatures}) for pool {pool_address}"
             )
 
         # Stop when oldest sig is before start
@@ -387,6 +399,31 @@ def _parse_one_batch(chunk):
             raise
 
 
+def _parse_with_fallback(chunk):
+    """Parse one chunk, splitting it if transport instability persists.
+
+    Shyft `parse_selected` accepts up to 100 signatures, but live RD-001 runs
+    still show intermittent disconnects on some larger batches. If a batch
+    fails after exhausting retries across all keys, recursively split it into
+    smaller chunks until it succeeds or reaches the minimum fallback size.
+    """
+    try:
+        return _parse_one_batch(chunk)
+    except Exception:
+        if len(chunk) <= MIN_PARSE_BATCH_SIZE:
+            raise
+
+        split_at = len(chunk) // 2
+        left = chunk[:split_at]
+        right = chunk[split_at:]
+        logger.warning(
+            "parse_selected batch of %d signatures failed; retrying as %d + %d",
+            len(chunk), len(left), len(right),
+            exc_info=True,
+        )
+        return _parse_with_fallback(left) + _parse_with_fallback(right)
+
+
 def _parse_selected(signatures, max_workers=1):
     """Parse transaction signatures via Shyft's parse_selected endpoint.
 
@@ -414,12 +451,12 @@ def _parse_selected(signatures, max_workers=1):
     if max_workers <= 1:
         all_parsed = []
         for batch in batches:
-            all_parsed.extend(_parse_one_batch(batch))
+            all_parsed.extend(_parse_with_fallback(batch))
         return all_parsed
 
     all_parsed = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(_parse_one_batch, b) for b in batches]
+        futures = [executor.submit(_parse_with_fallback, b) for b in batches]
         for future in as_completed(futures):
             all_parsed.extend(future.result())
     return all_parsed
@@ -429,7 +466,7 @@ def _parse_selected(signatures, max_workers=1):
 # Public API
 # ---------------------------------------------------------------------------
 
-def fetch_transactions(pool_address, start=None, end=None, max_workers=1):
+def fetch_transactions(pool_address, start=None, end=None, max_workers=1, max_filtered_signatures=None):
     """Fetch and parse transactions for a Pumpswap pool from Shyft.
 
     Two-phase approach:
@@ -447,7 +484,12 @@ def fetch_transactions(pool_address, start=None, end=None, max_workers=1):
         raw Shyft transaction dicts and metadata is {'api_calls': int}.
     """
     # Phase 1: discover signatures
-    raw_sigs = _fetch_signatures(pool_address, start, end)
+    raw_sigs = _fetch_signatures(
+        pool_address,
+        start,
+        end,
+        max_filtered_signatures=max_filtered_signatures,
+    )
     rpc_pages = (len(raw_sigs) // SIG_LIMIT) + 1 if raw_sigs else 1
 
     if not raw_sigs:
@@ -472,10 +514,11 @@ def fetch_transactions(pool_address, start=None, end=None, max_workers=1):
         )
         return [], {'api_calls': rpc_pages}
 
-    if len(filtered) > MAX_FILTERED_SIGNATURES:
+    max_filtered_signatures = _resolve_max_filtered_signatures(max_filtered_signatures)
+    if max_filtered_signatures and len(filtered) > max_filtered_signatures:
         raise RuntimeError(
             f"Filtered signature count {len(filtered)} exceeds free-tier guard "
-            f"({MAX_FILTERED_SIGNATURES}) for pool {pool_address}"
+            f"({max_filtered_signatures}) for pool {pool_address}"
         )
 
     # Phase 2: parse selected

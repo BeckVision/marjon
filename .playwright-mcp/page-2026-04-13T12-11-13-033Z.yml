@@ -1,0 +1,50 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - link "BTCUSDT" [ref=e4] [cursor=pointer]:
+        - /url: /chart/BTCUSDT/
+      - link "ETHUSDT" [ref=e5] [cursor=pointer]:
+        - /url: /chart/ETHUSDT/
+      - link "SOLUSDT" [ref=e6] [cursor=pointer]:
+        - /url: /chart/SOLUSDT/
+    - generic [ref=e8]:
+      - button "7D" [ref=e9] [cursor=pointer]
+      - button "30D" [ref=e10] [cursor=pointer]
+      - button "90D" [ref=e11] [cursor=pointer]
+      - button "1Y" [ref=e12] [cursor=pointer]
+    - generic [ref=e14]: Loading...
+  - generic [ref=e15]:
+    - table [ref=e18]:
+      - row "Charting by TradingView" [ref=e19]:
+        - cell
+        - cell "Charting by TradingView" [ref=e20]:
+          - link "Charting by TradingView" [ref=e24] [cursor=pointer]:
+            - /url: https://www.tradingview.com/?utm_medium=lwc-link&utm_campaign=lwc-chart&utm_source=127.0.0.1/chart/BTCUSDT/
+            - img [ref=e25]
+        - cell [ref=e29]
+      - row [ref=e33]:
+        - cell
+        - cell [ref=e34]
+        - cell [ref=e38]
+    - generic [ref=e41]: Open Interest (USDT)
+    - table [ref=e44]:
+      - row "Charting by TradingView" [ref=e45]:
+        - cell
+        - cell "Charting by TradingView" [ref=e46]:
+          - link "Charting by TradingView" [ref=e50] [cursor=pointer]:
+            - /url: https://www.tradingview.com/?utm_medium=lwc-link&utm_campaign=lwc-chart&utm_source=127.0.0.1/chart/BTCUSDT/
+            - img [ref=e51]
+        - cell [ref=e55]
+    - generic [ref=e59]: Funding Rate
+    - table [ref=e62]:
+      - row "Charting by TradingView" [ref=e63]:
+        - cell
+        - cell "Charting by TradingView" [ref=e64]:
+          - link "Charting by TradingView" [ref=e68] [cursor=pointer]:
+            - /url: https://www.tradingview.com/?utm_medium=lwc-link&utm_campaign=lwc-chart&utm_source=127.0.0.1/chart/BTCUSDT/
+            - img [ref=e69]
+        - cell [ref=e73]
+      - row [ref=e77]:
+        - cell
+        - cell [ref=e78]
+        - cell [ref=e82]

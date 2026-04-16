@@ -669,6 +669,187 @@ class U001PipelineStatus(PipelineStatusBase):
         return f"{self.coin_id} {self.layer_id} {self.status}"
 
 
+class U001OpsSnapshot(models.Model):
+    """Daily snapshot of U-001 operational coverage and error state."""
+
+    snapshot_date = models.DateField(unique=True)
+
+    discovered_count = models.IntegerField(default=0)
+    mapped_count = models.IntegerField(default=0)
+
+    fl001_complete_count = models.IntegerField(default=0)
+    fl002_complete_count = models.IntegerField(default=0)
+
+    rd001_complete_count = models.IntegerField(default=0)
+    rd001_partial_count = models.IntegerField(default=0)
+    rd001_error_count = models.IntegerField(default=0)
+    rd001_transport_error_count = models.IntegerField(default=0)
+    rd001_guard_error_count = models.IntegerField(default=0)
+    fl002_auth_error_count = models.IntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-snapshot_date']
+
+    def __str__(self):
+        return f"U-001 ops snapshot {self.snapshot_date.isoformat()}"
+
+
+class U001AutomationState(models.Model):
+    """Singleton-like controller state for automated U-001 scheduling."""
+
+    singleton_key = models.CharField(max_length=20, unique=True, default='u001')
+    last_tick_at = models.DateTimeField(null=True, blank=True)
+    last_action = models.CharField(max_length=64, null=True, blank=True)
+    last_action_reason = models.TextField(null=True, blank=True)
+    last_action_status = models.CharField(max_length=20, null=True, blank=True)
+    last_action_started_at = models.DateTimeField(null=True, blank=True)
+    last_action_completed_at = models.DateTimeField(null=True, blank=True)
+    last_snapshot_date = models.DateField(null=True, blank=True)
+    guarded_attempts_date = models.DateField(null=True, blank=True)
+    guarded_attempts_today = models.PositiveSmallIntegerField(default=0)
+    error_lane_tick_counter = models.PositiveIntegerField(default=0)
+    consecutive_failures = models.PositiveIntegerField(default=0)
+    notes = models.TextField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['singleton_key']
+
+    def __str__(self):
+        return f"U-001 automation state ({self.singleton_key})"
+
+
+class U001AutomationTick(models.Model):
+    """Immutable execution log for each non-dry-run U-001 automation tick."""
+
+    started_at = models.DateTimeField()
+    completed_at = models.DateTimeField(null=True, blank=True)
+    action = models.CharField(max_length=64)
+    reason = models.TextField()
+    status = models.CharField(max_length=20)
+    command = models.CharField(max_length=64, null=True, blank=True)
+    command_kwargs = models.JSONField(default=dict, blank=True)
+    result_summary = models.JSONField(default=dict, blank=True)
+    repaired_state = models.BooleanField(default=False)
+    snapshot_taken = models.BooleanField(default=False)
+    notes = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-started_at', '-id']
+        indexes = [
+            models.Index(fields=['started_at'], name='u001autotick_started_idx'),
+            models.Index(fields=['action', 'status'], name='u001autotick_action_status'),
+        ]
+
+    def __str__(self):
+        return f"U-001 automation tick {self.started_at.isoformat()} {self.action} {self.status}"
+
+
+class U001SourceAuditRun(models.Model):
+    """Persisted result of a sampled live-source audit against U-001 warehouse state."""
+
+    started_at = models.DateTimeField()
+    completed_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20)
+    options = models.JSONField(default=dict, blank=True)
+    finding_count = models.PositiveIntegerField(default=0)
+    warning_count = models.PositiveIntegerField(default=0)
+    summary = models.JSONField(default=dict, blank=True)
+    notes = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-started_at', '-id']
+        indexes = [
+            models.Index(fields=['started_at'], name='u001srcaudit_started_idx'),
+            models.Index(fields=['status'], name='u001srcaudit_status_idx'),
+        ]
+
+    def __str__(self):
+        return f"U-001 source audit {self.started_at.isoformat()} {self.status}"
+
+
+class U001BootRecoveryRun(models.Model):
+    """Persisted result of a local boot/recovery attempt for U-001 automation."""
+
+    started_at = models.DateTimeField()
+    completed_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20)
+    db_reachable = models.BooleanField(default=False)
+    migrations_ok = models.BooleanField(default=False)
+    automation_tick_started = models.BooleanField(default=False)
+    automation_tick_status = models.CharField(max_length=20, null=True, blank=True)
+    log_path = models.CharField(max_length=512, null=True, blank=True)
+    notes = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-started_at', '-id']
+        indexes = [
+            models.Index(fields=['started_at'], name='u001bootrecovery_started_idx'),
+            models.Index(fields=['status'], name='u001bootrecovery_status_idx'),
+        ]
+
+    def __str__(self):
+        return f"U-001 boot recovery {self.started_at.isoformat()} {self.status}"
+
+
+class U001RD001ChainAuditRun(models.Model):
+    """Persisted result of a sampled direct-RPC RD-001 chain audit."""
+
+    started_at = models.DateTimeField()
+    completed_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20)
+    options = models.JSONField(default=dict, blank=True)
+    coin_count = models.PositiveIntegerField(default=0)
+    transaction_count = models.PositiveIntegerField(default=0)
+    finding_count = models.PositiveIntegerField(default=0)
+    warning_count = models.PositiveIntegerField(default=0)
+    summary = models.JSONField(default=dict, blank=True)
+    notes = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-started_at', '-id']
+        indexes = [
+            models.Index(fields=['started_at'], name='u001rd001chain_started_idx'),
+            models.Index(fields=['status'], name='u001rd001chain_status_idx'),
+        ]
+
+    def __str__(self):
+        return f"U-001 RD-001 chain audit {self.started_at.isoformat()} {self.status}"
+
+
+class U001FL001DerivedAuditRun(models.Model):
+    """Persisted result of a sampled FL-001 audit derived from canonical RD-001."""
+
+    started_at = models.DateTimeField()
+    completed_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20)
+    options = models.JSONField(default=dict, blank=True)
+    coin_count = models.PositiveIntegerField(default=0)
+    candle_count = models.PositiveIntegerField(default=0)
+    finding_count = models.PositiveIntegerField(default=0)
+    warning_count = models.PositiveIntegerField(default=0)
+    summary = models.JSONField(default=dict, blank=True)
+    notes = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-started_at', '-id']
+        indexes = [
+            models.Index(fields=['started_at'], name='u001fl001derived_started_idx'),
+            models.Index(fields=['status'], name='u001fl001derived_status_idx'),
+        ]
+
+    def __str__(self):
+        return f"U-001 FL-001 derived audit {self.started_at.isoformat()} {self.status}"
+
+
 # ---------------------------------------------------------------------------
 # Concrete models — U-002 (Major Crypto Assets)
 # ---------------------------------------------------------------------------

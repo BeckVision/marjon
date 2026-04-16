@@ -15,7 +15,7 @@ FIXTURE_PATH = (
 )
 
 MINT = 'TEST_MINT_RD001'
-POOL = 'TEST_POOL_RD001'
+POOL = 'FaX71QvybvdEW7mB7MbMrPocYEUVjvtKUmdP5GJXmm5y'
 
 
 class RD001ShyftConformanceTest(TestCase):
@@ -165,3 +165,58 @@ class RD001ShyftConformanceTest(TestCase):
         self.assertEqual(skipped[0]['tx_signature'], 'SIG_NO_EVENTS')
         self.assertEqual(skipped[0]['tx_type'], 'SOL_TRANSFER')
         self.assertEqual(skipped[0]['pool_address'], POOL)
+
+    def test_multiple_trade_events_prefers_requested_pool_without_warning(self):
+        txs = copy.deepcopy(self.raw_transactions)
+        tx = txs[0]
+        foreign_event = copy.deepcopy(
+            next(e for e in tx['events'] if e['name'] == 'SellEvent')
+        )
+        foreign_event['data']['pool'] = 'FOREIGN_POOL_RD001'
+        tx['events'] = [foreign_event] + tx['events']
+
+        with self.assertNoLogs('pipeline.conformance.rd001_shyft', level='WARNING'):
+            parsed, skipped = conform([tx], MINT, POOL)
+
+        self.assertEqual(len(skipped), 0)
+        self.assertEqual(len(parsed), 1)
+        self.assertEqual(parsed[0]['pool_address'], POOL)
+        self.assertEqual(parsed[0]['trade_type'], 'SELL')
+
+    def test_duplicate_trade_events_are_deduplicated_without_warning(self):
+        txs = copy.deepcopy(self.raw_transactions)
+        tx = txs[1]
+        buy_event = copy.deepcopy(
+            next(e for e in tx['events'] if e['name'] == 'BuyEvent')
+        )
+        tx['events'] = [buy_event, buy_event]
+
+        with self.assertNoLogs('pipeline.conformance.rd001_shyft', level='WARNING'):
+            parsed, skipped = conform([tx], MINT, POOL)
+
+        self.assertEqual(len(skipped), 0)
+        self.assertEqual(len(parsed), 1)
+        self.assertEqual(parsed[0]['trade_type'], 'BUY')
+        self.assertEqual(parsed[0]['pool_address'], POOL)
+
+    def test_conflicting_trade_events_for_same_pool_warn(self):
+        txs = copy.deepcopy(self.raw_transactions)
+        tx = txs[1]
+        buy_event = copy.deepcopy(
+            next(e for e in tx['events'] if e['name'] == 'BuyEvent')
+        )
+        sell_event = copy.deepcopy(buy_event)
+        sell_event['name'] = 'SellEvent'
+        sell_event['data']['base_amount_in'] = buy_event['data']['base_amount_out']
+        sell_event['data']['quote_amount_out'] = buy_event['data']['quote_amount_in']
+        tx['events'] = [buy_event, sell_event]
+
+        with self.assertLogs(
+            'pipeline.conformance.rd001_shyft', level='WARNING',
+        ) as captured:
+            parsed, skipped = conform([tx], MINT, POOL)
+
+        self.assertEqual(len(skipped), 0)
+        self.assertEqual(len(parsed), 1)
+        self.assertEqual(parsed[0]['trade_type'], 'BUY')
+        self.assertIn('Multiple trade events found for requested pool', captured.output[0])

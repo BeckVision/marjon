@@ -16,7 +16,15 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import (
+    BaseCommand,
+    CommandError,
+    OutputWrapper,
+    connections,
+    DEFAULT_DB_ALIAS,
+    color_style,
+    no_style,
+)
 from django.utils import timezone
 
 from pipeline.exceptions import BudgetExhausted
@@ -37,6 +45,38 @@ logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
     help = "Run the full pipeline for a universe: discovery → pool mapping → feature layers"
+
+    def execute(self, *args, **options):
+        if options["force_color"] and options["no_color"]:
+            raise CommandError(
+                "The --no-color and --force-color options can't be used together."
+            )
+        if options["force_color"]:
+            self.style = color_style(force_color=True)
+        elif options["no_color"]:
+            self.style = no_style()
+            self.stderr.style_func = None
+        if options.get("stdout"):
+            self.stdout = OutputWrapper(options["stdout"])
+        if options.get("stderr"):
+            self.stderr = OutputWrapper(options["stderr"])
+
+        if self.requires_system_checks and not options["skip_checks"]:
+            check_kwargs = self.get_check_kwargs(options)
+            self.check(**check_kwargs)
+        if self.requires_migrations_checks:
+            self.check_migrations()
+        output = self.handle(*args, **options)
+        if isinstance(output, str) and output:
+            if self.output_transaction:
+                connection = connections[options.get("database", DEFAULT_DB_ALIAS)]
+                output = "%s\n%s\n%s" % (
+                    self.style.SQL_KEYWORD(connection.ops.start_transaction_sql()),
+                    output,
+                    self.style.SQL_KEYWORD(connection.ops.end_transaction_sql()),
+                )
+            self.stdout.write(output)
+        return output
 
     @staticmethod
     def _step_context(config, step):
@@ -135,6 +175,16 @@ class Command(BaseCommand):
         total_failed = 0
         total_skipped = 0
         num_loops = options.get('loops', 1)
+        run_summary = {
+            'universe': config['id'],
+            'dry_run': False,
+            'loops': num_loops,
+            'total_succeeded': 0,
+            'total_failed': 0,
+            'total_skipped': 0,
+            'discovery': None,
+            'steps': {},
+        }
 
         try:
             # 5. Run discovery (if requested) — only on first loop
@@ -147,6 +197,10 @@ class Command(BaseCommand):
                         discovery_handler, config,
                         days=options.get('days'),
                     )
+                    run_summary['discovery'] = {
+                        'created': discovery_result.get('created', 0),
+                        'updated': discovery_result.get('updated', 0),
+                    }
                     logger.info(
                         "Discovery: %d new, %d updated",
                         discovery_result.get('created', 0),
@@ -192,10 +246,21 @@ class Command(BaseCommand):
                             continue
                         logger.info("Step '%s': batch mode", step_name)
                         self.stdout.write(f"\nStep '{step_name}': batch mode")
+                        step_summary = run_summary['steps'].setdefault(
+                            step_name,
+                            {
+                                'mode': 'batch',
+                                'mapped': 0,
+                                'unmapped': 0,
+                                'failed': 0,
+                                'skipped': 0,
+                            },
+                        )
 
                         batch_coins = [c for c in coins if not should_skip(c, step, retry_failed, config)]
                         if not batch_coins:
                             self.stdout.write(f"Step '{step_name}': all coins skipped")
+                            step_summary['skipped'] += len(coins)
                             continue
 
                         try:
@@ -204,6 +269,8 @@ class Command(BaseCommand):
                             mapped = result['dexscreener_mapped'] + result['geckoterminal_mapped']
                             unmapped = result['unmapped']
                             loop_succeeded += mapped
+                            step_summary['mapped'] += mapped
+                            step_summary['unmapped'] += unmapped
                             logger.info(
                                 "%s: %d mapped, %d unmapped",
                                 step_name, mapped, unmapped,
@@ -215,6 +282,7 @@ class Command(BaseCommand):
                             logger.error("%s failed: %s", step_name, e, exc_info=True)
                             self.stderr.write(f"Step '{step_name}' failed: {e}")
                             loop_failed += len(batch_coins)
+                            step_summary['failed'] += len(batch_coins)
                         continue
                         # --- END batch step handling ---
 
@@ -236,21 +304,46 @@ class Command(BaseCommand):
 
                     if not work_coins:
                         loop_skipped += skipped
+                        step_summary = run_summary['steps'].setdefault(
+                            step_name,
+                            {
+                                'mode': 'per_coin',
+                                'succeeded': 0,
+                                'failed': 0,
+                                'skipped': 0,
+                                'records_loaded': 0,
+                            },
+                        )
+                        step_summary['skipped'] += skipped
                         continue
 
                     step_context = self._step_context(config, step)
                     if workers > 1:
-                        succeeded, failed = self._run_concurrent(
+                        succeeded, failed, records_loaded = self._run_concurrent(
                             step, work_coins, step_context, workers,
                         )
                     else:
-                        succeeded, failed = self._run_serial(
+                        succeeded, failed, records_loaded = self._run_serial(
                             step, work_coins, step_context,
                         )
 
                     loop_succeeded += succeeded
                     loop_failed += failed
                     loop_skipped += skipped
+                    step_summary = run_summary['steps'].setdefault(
+                        step_name,
+                        {
+                            'mode': 'per_coin',
+                            'succeeded': 0,
+                            'failed': 0,
+                            'skipped': 0,
+                            'records_loaded': 0,
+                        },
+                    )
+                    step_summary['succeeded'] += succeeded
+                    step_summary['failed'] += failed
+                    step_summary['skipped'] += skipped
+                    step_summary['records_loaded'] += records_loaded
 
                     if num_loops == 1:
                         summary = (
@@ -277,6 +370,9 @@ class Command(BaseCommand):
             batch.coins_succeeded = total_succeeded
             batch.coins_failed = total_failed
             batch.save()
+            run_summary['total_succeeded'] = total_succeeded
+            run_summary['total_failed'] = total_failed
+            run_summary['total_skipped'] = total_skipped
 
         except Exception as e:
             batch.status = RunStatus.ERROR
@@ -308,12 +404,14 @@ class Command(BaseCommand):
             f"\nComplete: {total_succeeded} succeeded, "
             f"{total_failed} failed, {total_skipped} skipped"
         )
+        return run_summary
 
     def _run_serial(self, step, coins, config):
         """Process coins one at a time. Returns (succeeded, failed)."""
         step_name = step['name']
         succeeded = 0
         failed = 0
+        records_loaded = 0
 
         for coin in coins:
             try:
@@ -323,6 +421,7 @@ class Command(BaseCommand):
 
                 records = result.get('records_loaded')
                 if records is not None:
+                    records_loaded += records
                     logger.info(
                         "%s %s: %d records loaded",
                         step_name, coin, records,
@@ -347,7 +446,7 @@ class Command(BaseCommand):
             if sleep_time:
                 time.sleep(sleep_time)
 
-        return succeeded, failed
+        return succeeded, failed, records_loaded
 
     def _run_concurrent(self, step, coins, config, workers):
         """Process coins concurrently with ThreadPoolExecutor.
@@ -355,11 +454,12 @@ class Command(BaseCommand):
         Each worker gets its own Django DB connection (thread-local).
         Each coin writes to disjoint rows, so no locking needed.
 
-        Returns (succeeded, failed).
+        Returns (succeeded, failed, records_loaded).
         """
         step_name = step['name']
         succeeded = 0
         failed = 0
+        records_loaded = 0
 
         def _process_coin(coin):
             result = call_handler(step['handler'], coin, config)
@@ -380,6 +480,7 @@ class Command(BaseCommand):
 
                     records = result.get('records_loaded')
                     if records is not None:
+                        records_loaded += records
                         logger.info(
                             "%s %s: %d records loaded",
                             step_name, coin, records,
@@ -393,7 +494,7 @@ class Command(BaseCommand):
                     mark_error(coin, step, str(e), config)
                     failed += 1
 
-        return succeeded, failed
+        return succeeded, failed, records_loaded
 
     def _dry_run(self, config, steps, run_discovery, options, retry_failed=False):
         """Show what would be executed without doing it."""

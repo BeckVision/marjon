@@ -349,6 +349,29 @@ class ConcurrentExecutionTest(TestCase):
         failed_coin = mock_mark.call_args[0][0]
         self.assertEqual(failed_coin.mint_address, 'CONC_COIN_1')
 
+    @patch('pipeline.management.commands.orchestrate.update_pipeline_status')
+    @patch('pipeline.management.commands.orchestrate.call_handler')
+    def test_orchestrate_returns_structured_summary(self, mock_handler, mock_status):
+        mock_handler.return_value = {
+            'records_loaded': 2,
+            'status': PipelineCompleteness.WINDOW_COMPLETE,
+            'error_message': None,
+        }
+
+        summary = call_command(
+            'orchestrate',
+            universe='u001',
+            steps='ohlcv',
+            workers=1,
+            coins=3,
+            stdout=io.StringIO(),
+        )
+
+        self.assertEqual(summary['total_succeeded'], 3)
+        self.assertEqual(summary['total_failed'], 0)
+        self.assertEqual(summary['steps']['ohlcv']['records_loaded'], 6)
+        self.assertEqual(summary['steps']['ohlcv']['succeeded'], 3)
+
 
 class StepConfigForwardingTest(TestCase):
     def setUp(self):

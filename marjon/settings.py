@@ -157,6 +157,42 @@ HELIUS_API_KEYS = [
 ]
 
 # ---------------------------------------------------------------------------
+# Solscan settings for optional RD-001 parser spot checks
+# ---------------------------------------------------------------------------
+SOLSCAN_API_KEY = (
+    os.environ.get('SOLSCAN_API_KEY')
+    or os.environ.get('MARJON_SOLSCAN_API_KEY')
+)
+SOLSCAN_API_BASE_URL = (
+    os.environ.get('SOLSCAN_API_BASE_URL')
+    or os.environ.get('MARJON_SOLSCAN_API_BASE_URL')
+    or 'https://pro-api.solscan.io/v2.0'
+)
+
+# ---------------------------------------------------------------------------
+# Direct RPC settings for Phase 0 chain-truth audits
+# ---------------------------------------------------------------------------
+U001_CHAIN_AUDIT_RPC_PUBLIC_URL = 'https://api.mainnet-beta.solana.com'
+if os.environ.get('U001_CHAIN_AUDIT_RPC_URL'):
+    U001_CHAIN_AUDIT_RPC_URL = os.environ['U001_CHAIN_AUDIT_RPC_URL']
+    U001_CHAIN_AUDIT_RPC_SOURCE = 'u001_chain_audit_rpc_url'
+elif os.environ.get('MARJON_U001_CHAIN_AUDIT_RPC_URL'):
+    U001_CHAIN_AUDIT_RPC_URL = os.environ['MARJON_U001_CHAIN_AUDIT_RPC_URL']
+    U001_CHAIN_AUDIT_RPC_SOURCE = 'marjon_u001_chain_audit_rpc_url'
+elif os.environ.get('SOLANA_RPC_URL'):
+    U001_CHAIN_AUDIT_RPC_URL = os.environ['SOLANA_RPC_URL']
+    U001_CHAIN_AUDIT_RPC_SOURCE = 'solana_rpc_url'
+elif os.environ.get('MARJON_SOLANA_RPC_URL'):
+    U001_CHAIN_AUDIT_RPC_URL = os.environ['MARJON_SOLANA_RPC_URL']
+    U001_CHAIN_AUDIT_RPC_SOURCE = 'marjon_solana_rpc_url'
+elif HELIUS_API_KEYS:
+    U001_CHAIN_AUDIT_RPC_URL = f"https://mainnet.helius-rpc.com/?api-key={HELIUS_API_KEYS[0]}"
+    U001_CHAIN_AUDIT_RPC_SOURCE = 'helius_api_key_1'
+else:
+    U001_CHAIN_AUDIT_RPC_URL = U001_CHAIN_AUDIT_RPC_PUBLIC_URL
+    U001_CHAIN_AUDIT_RPC_SOURCE = 'public_fallback'
+
+# ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
 LOGGING = {

@@ -1,0 +1,1213 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - link "marjon" [ref=e5] [cursor=pointer]:
+          - /url: /
+        - generic [ref=e6]: quant research
+      - generic [ref=e7]:
+        - link "Home" [ref=e8] [cursor=pointer]:
+          - /url: /
+        - link "Charts" [ref=e9] [cursor=pointer]:
+          - /url: /chart/BTCUSDT/
+        - link "Operations" [ref=e10] [cursor=pointer]:
+          - /url: /ops/u001/
+  - main [ref=e11]:
+    - generic [ref=e12]:
+      - link "Overview" [ref=e13] [cursor=pointer]:
+        - /url: /ops/u001/
+      - link "Automation" [ref=e14] [cursor=pointer]:
+        - /url: /ops/u001/automation/
+      - link "Coverage" [ref=e15] [cursor=pointer]:
+        - /url: /ops/u001/coverage/
+      - link "Queues" [ref=e16] [cursor=pointer]:
+        - /url: /ops/u001/queues/
+      - link "Trends" [ref=e17] [cursor=pointer]:
+        - /url: /ops/u001/trends/
+    - generic [ref=e19]:
+      - heading "U-001 Automation" [level=1] [ref=e20]
+      - text: Snapshot at 2026-04-13 18:41:35 UTC
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - generic [ref=e23]: Total Ticks
+        - generic [ref=e24]: "109"
+        - generic [ref=e25]: All persisted automation ticks
+      - generic [ref=e26]:
+        - generic [ref=e27]: Filtered Ticks
+        - generic [ref=e28]: "109"
+        - generic [ref=e29]: Ticks in current view
+      - generic [ref=e30]:
+        - generic [ref=e31]: Error Ticks
+        - generic [ref=e32]: "27"
+        - generic [ref=e33]: Filtered ticks ending in error
+      - generic [ref=e34]:
+        - generic [ref=e35]: Complete Ticks
+        - generic [ref=e36]: "82"
+        - generic [ref=e37]: Complete in current filter
+      - generic [ref=e38]:
+        - generic [ref=e39]: Snapshot Ticks
+        - generic [ref=e40]: "3"
+        - generic [ref=e41]: Also wrote daily snapshot
+      - generic [ref=e42]:
+        - generic [ref=e43]: Repair Ticks
+        - generic [ref=e44]: "109"
+        - generic [ref=e45]: Ran stale-state repair first
+    - generic [ref=e46]:
+      - generic [ref=e47]:
+        - generic [ref=e48]:
+          - heading "Filters" [level=3] [ref=e49]
+          - generic [ref=e51]:
+            - generic [ref=e52]:
+              - text: Action
+              - combobox "Action" [ref=e53]:
+                - option "All actions" [selected]
+                - option "pool_mapping_recent"
+                - option "refresh_core"
+                - option "rd001_recent"
+                - option "holders_catchup"
+            - generic [ref=e54]:
+              - text: Status
+              - combobox "Status" [ref=e55]:
+                - option "All statuses" [selected]
+                - option "error"
+                - option "complete"
+            - generic [ref=e56]:
+              - text: Limit
+              - spinbutton "Limit" [ref=e57]: "50"
+            - button [ref=e59] [cursor=pointer]: Apply
+        - generic [ref=e60]:
+          - generic [ref=e61]:
+            - generic [ref=e62]: healthy
+            - heading "Controller is active" [level=3] [ref=e63]
+          - paragraph [ref=e64]: The latest automation tick completed without an active circuit breaker.
+          - generic [ref=e65]:
+            - generic [ref=e66]:
+              - generic [ref=e67]: Last tick
+              - generic [ref=e68]: 2026-04-13 18:30:02 UTC
+            - generic [ref=e69]:
+              - generic [ref=e70]: Last action
+              - generic [ref=e71]: holders_catchup
+            - generic [ref=e72]:
+              - generic [ref=e73]: Last action status
+              - generic [ref=e74]: complete
+            - generic [ref=e75]:
+              - generic [ref=e76]: Consecutive failures
+              - generic [ref=e77]: "0"
+            - generic [ref=e78]:
+              - generic [ref=e79]: Guarded attempts today
+              - generic [ref=e80]: "0"
+        - generic [ref=e81]:
+          - generic [ref=e82]:
+            - heading "By Action" [level=3] [ref=e83]
+            - generic [ref=e84]:
+              - generic [ref=e85]:
+                - generic [ref=e86]: holders_catchup
+                - generic [ref=e87]: "51"
+              - generic [ref=e88]:
+                - generic [ref=e89]: pool_mapping_recent
+                - generic [ref=e90]: "3"
+              - generic [ref=e91]:
+                - generic [ref=e92]: rd001_recent
+                - generic [ref=e93]: "38"
+              - generic [ref=e94]:
+                - generic [ref=e95]: refresh_core
+                - generic [ref=e96]: "17"
+          - generic [ref=e97]:
+            - heading "By Status" [level=3] [ref=e98]
+            - generic [ref=e99]:
+              - generic [ref=e100]:
+                - generic [ref=e101]: complete
+                - generic [ref=e102]: "82"
+              - generic [ref=e103]:
+                - generic [ref=e104]: error
+                - generic [ref=e105]: "27"
+      - generic [ref=e106]:
+        - generic [ref=e107]:
+          - heading "Current Manual Equivalent" [level=3] [ref=e108]
+          - paragraph [ref=e109]: Safe recent RD-001 candidates are available inside Shyft retention.
+          - code [ref=e110]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+        - generic [ref=e111]:
+          - generic [ref=e112]:
+            - generic [ref=e113]: warn
+            - heading "Connectivity Risk" [level=3] [ref=e114]
+          - paragraph [ref=e115]: Latest boot recovery failed on reachability
+          - paragraph [ref=e116]: The latest post-boot recovery reached local services, but the first automation tick failed with a transport or reachability error.
+          - generic [ref=e117]:
+            - generic [ref=e118]:
+              - generic [ref=e119]: Latest affected action
+              - generic [ref=e120]: holders_catchup
+            - generic [ref=e121]:
+              - generic [ref=e122]: Connectivity failure streak
+              - generic [ref=e123]: "0"
+            - generic [ref=e124]:
+              - generic [ref=e125]: Latest boot recovery
+              - generic [ref=e126]: error
+          - code [ref=e127]: "U-001 automation action 'rd001_recent' failed: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ReadTimeout: The read operation timed out)"
+        - generic [ref=e128]:
+          - generic [ref=e129]:
+            - generic [ref=e130]: warn
+            - heading "RD-001 Recent Runner" [level=3] [ref=e131]
+          - paragraph [ref=e132]: Dedicated recent RD-001 runner recovered from a failed cycle
+          - paragraph [ref=e133]: The runner is still alive, but the latest cycle failed and it is backing off before the next attempt.
+          - generic [ref=e134]:
+            - generic [ref=e135]:
+              - generic [ref=e136]: Latest heartbeat
+              - generic [ref=e137]: 2m old
+            - generic [ref=e138]:
+              - generic [ref=e139]: Process state
+              - generic [ref=e140]: cycle_error
+            - generic [ref=e141]:
+              - generic [ref=e142]: PID alive
+              - generic [ref=e143]: "yes"
+            - generic [ref=e144]:
+              - generic [ref=e145]: Cycle
+              - generic [ref=e146]: "24"
+          - code [ref=e147]: /home/beck/Desktop/projects/marjon/logs/u001_rd001_recent_20260414_033609_cycle24.log
+        - generic [ref=e148]:
+          - generic [ref=e149]:
+            - generic [ref=e150]: healthy
+            - heading "Spin Risk" [level=3] [ref=e151]
+          - paragraph [ref=e152]: No active spin risk
+          - paragraph [ref=e153]: The latest complete automation streak is 1 holders_catchup tick(s), below the warning threshold of 4.
+          - generic [ref=e154]:
+            - generic [ref=e155]:
+              - generic [ref=e156]: Latest streak action
+              - generic [ref=e157]: holders_catchup
+            - generic [ref=e158]:
+              - generic [ref=e159]: Streak length
+              - generic [ref=e160]: 1 / 4
+            - generic [ref=e161]:
+              - generic [ref=e162]: Structured ticks
+              - generic [ref=e163]: 1 / 1
+            - generic [ref=e164]:
+              - generic [ref=e165]: Observed progress
+              - generic [ref=e166]: 0 loaded holder rows across the streak
+        - generic [ref=e167]:
+          - heading "Truth Audit Lanes" [level=3] [ref=e168]
+          - paragraph [ref=e169]: Whether automation is running the Phase 0 audit lanes and the latest persisted audit results.
+          - generic [ref=e170]:
+            - generic [ref=e171]:
+              - generic [ref=e172]:
+                - generic [ref=e173]: Live Source Audit Lane
+                - generic [ref=e174]: Finding
+              - generic [ref=e175]:
+                - generic [ref=e176]: Automation ticks
+                - generic [ref=e177]: 0 total / 0 complete / 0 error
+              - generic [ref=e178]:
+                - generic [ref=e179]: Latest controller tick
+                - generic [ref=e180]: Not Started
+              - generic [ref=e181]:
+                - generic [ref=e182]: Latest audit result
+                - generic [ref=e183]: Latest live source audit found mismatches
+              - generic [ref=e184]:
+                - generic [ref=e185]: Audit age
+                - generic [ref=e186]: 2.9h old
+              - generic [ref=e187]:
+                - generic [ref=e188]: Findings / warnings
+                - generic [ref=e189]: 1 / 0
+            - code [ref=e190]: ./scripts/manage.sh audit_u001_sources
+          - generic [ref=e191]:
+            - generic [ref=e192]:
+              - generic [ref=e193]:
+                - generic [ref=e194]: RD-001 Chain Audit Lane
+                - generic [ref=e195]: Ok
+              - generic [ref=e196]:
+                - generic [ref=e197]: Automation ticks
+                - generic [ref=e198]: 0 total / 0 complete / 0 error
+              - generic [ref=e199]:
+                - generic [ref=e200]: Latest controller tick
+                - generic [ref=e201]: Not Started
+              - generic [ref=e202]:
+                - generic [ref=e203]: Latest audit result
+                - generic [ref=e204]: Latest RD-001 chain audit passed
+              - generic [ref=e205]:
+                - generic [ref=e206]: Audit age
+                - generic [ref=e207]: 12.5h old
+              - generic [ref=e208]:
+                - generic [ref=e209]: Findings / warnings
+                - generic [ref=e210]: 0 / 0
+            - code [ref=e211]: ./scripts/manage.sh audit_u001_rd001_chain
+          - generic [ref=e212]:
+            - generic [ref=e213]:
+              - generic [ref=e214]:
+                - generic [ref=e215]: FL-001 Derived Audit Lane
+                - generic [ref=e216]: Ok
+              - generic [ref=e217]:
+                - generic [ref=e218]: Automation ticks
+                - generic [ref=e219]: 0 total / 0 complete / 0 error
+              - generic [ref=e220]:
+                - generic [ref=e221]: Latest controller tick
+                - generic [ref=e222]: Not Started
+              - generic [ref=e223]:
+                - generic [ref=e224]: Latest audit result
+                - generic [ref=e225]: Latest FL-001 derived audit passed
+              - generic [ref=e226]:
+                - generic [ref=e227]: Audit age
+                - generic [ref=e228]: 12.3h old
+              - generic [ref=e229]:
+                - generic [ref=e230]: Findings / warnings
+                - generic [ref=e231]: 0 / 0
+            - code [ref=e232]: ./scripts/manage.sh audit_u001_fl001_derived
+    - generic [ref=e233]:
+      - heading "Recent Ticks" [level=3] [ref=e235]
+      - table [ref=e236]:
+        - rowgroup [ref=e237]:
+          - row "Started Action Status Reason / Yield Command Manual Equivalent Flags" [ref=e238]:
+            - columnheader "Started" [ref=e239]
+            - columnheader "Action" [ref=e240]
+            - columnheader "Status" [ref=e241]
+            - columnheader "Reason / Yield" [ref=e242]
+            - columnheader "Command" [ref=e243]
+            - columnheader "Manual Equivalent" [ref=e244]
+            - columnheader "Flags" [ref=e245]
+        - rowgroup [ref=e246]:
+          - 'row "2026-04-13 18:30:02 UTC 11m old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e247]':
+            - cell "2026-04-13 18:30:02 UTC 11m old" [ref=e248]:
+              - text: 2026-04-13 18:30:02 UTC
+              - generic [ref=e249]: 11m old
+            - cell "holders_catchup" [ref=e250]
+            - cell "complete" [ref=e251]:
+              - generic [ref=e252]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e253]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e254]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e255]':
+              - code [ref=e256]: orchestrate
+              - code [ref=e258]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e259]:
+              - code [ref=e260]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e261]:
+              - generic [ref=e262]:
+                - generic [ref=e263]: repair
+                - generic [ref=e264]: no snapshot
+          - 'row "2026-04-13 18:00:01 UTC 41m old rd001_recent complete Safe recent RD-001 candidates are available inside Shyft retention. 16 loaded, 0 skipped, 22 calls, 9 ok, 16 fail fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e265]':
+            - cell "2026-04-13 18:00:01 UTC 41m old" [ref=e266]:
+              - text: 2026-04-13 18:00:01 UTC
+              - generic [ref=e267]: 41m old
+            - cell "rd001_recent" [ref=e268]
+            - cell "complete" [ref=e269]:
+              - generic [ref=e270]: complete
+            - cell "Safe recent RD-001 candidates are available inside Shyft retention. 16 loaded, 0 skipped, 22 calls, 9 ok, 16 fail" [ref=e271]:
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e272]: 16 loaded, 0 skipped, 22 calls, 9 ok, 16 fail
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e273]':
+              - code [ref=e274]: fetch_transactions_batch
+              - code [ref=e276]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e277]:
+              - code [ref=e278]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e279]:
+              - generic [ref=e280]:
+                - generic [ref=e281]: repair
+                - generic [ref=e282]: no snapshot
+          - 'row "2026-04-13 17:30:01 UTC 1.2h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e283]':
+            - cell "2026-04-13 17:30:01 UTC 1.2h old" [ref=e284]:
+              - text: 2026-04-13 17:30:01 UTC
+              - generic [ref=e285]: 1.2h old
+            - cell "holders_catchup" [ref=e286]
+            - cell "complete" [ref=e287]:
+              - generic [ref=e288]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e289]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e290]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e291]':
+              - code [ref=e292]: orchestrate
+              - code [ref=e294]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e295]:
+              - code [ref=e296]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e297]:
+              - generic [ref=e298]:
+                - generic [ref=e299]: repair
+                - generic [ref=e300]: no snapshot
+          - 'row "2026-04-13 17:00:01 UTC 1.7h old rd001_recent complete Safe recent RD-001 candidates are available inside Shyft retention. 1750 loaded, 7 skipped, 57 calls, 10 ok, 15 fail fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e301]':
+            - cell "2026-04-13 17:00:01 UTC 1.7h old" [ref=e302]:
+              - text: 2026-04-13 17:00:01 UTC
+              - generic [ref=e303]: 1.7h old
+            - cell "rd001_recent" [ref=e304]
+            - cell "complete" [ref=e305]:
+              - generic [ref=e306]: complete
+            - cell "Safe recent RD-001 candidates are available inside Shyft retention. 1750 loaded, 7 skipped, 57 calls, 10 ok, 15 fail" [ref=e307]:
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e308]: 1750 loaded, 7 skipped, 57 calls, 10 ok, 15 fail
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e309]':
+              - code [ref=e310]: fetch_transactions_batch
+              - code [ref=e312]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e313]:
+              - code [ref=e314]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e315]:
+              - generic [ref=e316]:
+                - generic [ref=e317]: repair
+                - generic [ref=e318]: no snapshot
+          - 'row "2026-04-13 16:30:02 UTC 2.2h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e319]':
+            - cell "2026-04-13 16:30:02 UTC 2.2h old" [ref=e320]:
+              - text: 2026-04-13 16:30:02 UTC
+              - generic [ref=e321]: 2.2h old
+            - cell "holders_catchup" [ref=e322]
+            - cell "complete" [ref=e323]:
+              - generic [ref=e324]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e325]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e326]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e327]':
+              - code [ref=e328]: orchestrate
+              - code [ref=e330]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e331]:
+              - code [ref=e332]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e333]:
+              - generic [ref=e334]:
+                - generic [ref=e335]: repair
+                - generic [ref=e336]: no snapshot
+          - 'row "2026-04-13 16:00:01 UTC 2.7h old rd001_recent complete Safe recent RD-001 candidates are available inside Shyft retention. 642 loaded, 1 skipped, 51 calls, 15 ok, 10 fail fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e337]':
+            - cell "2026-04-13 16:00:01 UTC 2.7h old" [ref=e338]:
+              - text: 2026-04-13 16:00:01 UTC
+              - generic [ref=e339]: 2.7h old
+            - cell "rd001_recent" [ref=e340]
+            - cell "complete" [ref=e341]:
+              - generic [ref=e342]: complete
+            - cell "Safe recent RD-001 candidates are available inside Shyft retention. 642 loaded, 1 skipped, 51 calls, 15 ok, 10 fail" [ref=e343]:
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e344]: 642 loaded, 1 skipped, 51 calls, 15 ok, 10 fail
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e345]':
+              - code [ref=e346]: fetch_transactions_batch
+              - code [ref=e348]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e349]:
+              - code [ref=e350]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e351]:
+              - generic [ref=e352]:
+                - generic [ref=e353]: repair
+                - generic [ref=e354]: no snapshot
+          - 'row "2026-04-13 15:30:01 UTC 3.2h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e355]':
+            - cell "2026-04-13 15:30:01 UTC 3.2h old" [ref=e356]:
+              - text: 2026-04-13 15:30:01 UTC
+              - generic [ref=e357]: 3.2h old
+            - cell "holders_catchup" [ref=e358]
+            - cell "complete" [ref=e359]:
+              - generic [ref=e360]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e361]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e362]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e363]':
+              - code [ref=e364]: orchestrate
+              - code [ref=e366]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e367]:
+              - code [ref=e368]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e369]:
+              - generic [ref=e370]:
+                - generic [ref=e371]: repair
+                - generic [ref=e372]: no snapshot
+          - 'row "2026-04-13 15:00:02 UTC 3.7h old rd001_recent complete Safe recent RD-001 candidates are available inside Shyft retention. 1209 loaded, 5 skipped, 64 calls, 15 ok, 10 fail fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e373]':
+            - cell "2026-04-13 15:00:02 UTC 3.7h old" [ref=e374]:
+              - text: 2026-04-13 15:00:02 UTC
+              - generic [ref=e375]: 3.7h old
+            - cell "rd001_recent" [ref=e376]
+            - cell "complete" [ref=e377]:
+              - generic [ref=e378]: complete
+            - cell "Safe recent RD-001 candidates are available inside Shyft retention. 1209 loaded, 5 skipped, 64 calls, 15 ok, 10 fail" [ref=e379]:
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e380]: 1209 loaded, 5 skipped, 64 calls, 15 ok, 10 fail
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e381]':
+              - code [ref=e382]: fetch_transactions_batch
+              - code [ref=e384]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e385]:
+              - code [ref=e386]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e387]:
+              - generic [ref=e388]:
+                - generic [ref=e389]: repair
+                - generic [ref=e390]: no snapshot
+          - 'row "2026-04-13 14:30:01 UTC 4.2h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e391]':
+            - cell "2026-04-13 14:30:01 UTC 4.2h old" [ref=e392]:
+              - text: 2026-04-13 14:30:01 UTC
+              - generic [ref=e393]: 4.2h old
+            - cell "holders_catchup" [ref=e394]
+            - cell "complete" [ref=e395]:
+              - generic [ref=e396]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e397]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e398]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e399]':
+              - code [ref=e400]: orchestrate
+              - code [ref=e402]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e403]:
+              - code [ref=e404]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e405]:
+              - generic [ref=e406]:
+                - generic [ref=e407]: repair
+                - generic [ref=e408]: no snapshot
+          - 'row "2026-04-13 14:00:02 UTC 4.7h old rd001_recent complete Safe recent RD-001 candidates are available inside Shyft retention. 980 loaded, 13 skipped, 57 calls, 22 ok, 3 fail fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e409]':
+            - cell "2026-04-13 14:00:02 UTC 4.7h old" [ref=e410]:
+              - text: 2026-04-13 14:00:02 UTC
+              - generic [ref=e411]: 4.7h old
+            - cell "rd001_recent" [ref=e412]
+            - cell "complete" [ref=e413]:
+              - generic [ref=e414]: complete
+            - cell "Safe recent RD-001 candidates are available inside Shyft retention. 980 loaded, 13 skipped, 57 calls, 22 ok, 3 fail" [ref=e415]:
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e416]: 980 loaded, 13 skipped, 57 calls, 22 ok, 3 fail
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e417]':
+              - code [ref=e418]: fetch_transactions_batch
+              - code [ref=e420]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e421]:
+              - code [ref=e422]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e423]:
+              - generic [ref=e424]:
+                - generic [ref=e425]: repair
+                - generic [ref=e426]: no snapshot
+          - 'row "2026-04-13 13:30:02 UTC 5.2h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e427]':
+            - cell "2026-04-13 13:30:02 UTC 5.2h old" [ref=e428]:
+              - text: 2026-04-13 13:30:02 UTC
+              - generic [ref=e429]: 5.2h old
+            - cell "holders_catchup" [ref=e430]
+            - cell "complete" [ref=e431]:
+              - generic [ref=e432]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e433]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e434]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e435]':
+              - code [ref=e436]: orchestrate
+              - code [ref=e438]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e439]:
+              - code [ref=e440]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e441]:
+              - generic [ref=e442]:
+                - generic [ref=e443]: repair
+                - generic [ref=e444]: no snapshot
+          - 'row "2026-04-13 13:00:02 UTC 5.7h old rd001_recent error Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ReadTimeout: The read operation timed out) fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e445]':
+            - cell "2026-04-13 13:00:02 UTC 5.7h old" [ref=e446]:
+              - text: 2026-04-13 13:00:02 UTC
+              - generic [ref=e447]: 5.7h old
+            - cell "rd001_recent" [ref=e448]
+            - cell "error" [ref=e449]:
+              - generic [ref=e450]: error
+            - 'cell "Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ReadTimeout: The read operation timed out)" [ref=e451]':
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e452]: "Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ReadTimeout: The read operation timed out)"
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e453]':
+              - code [ref=e454]: fetch_transactions_batch
+              - code [ref=e456]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e457]:
+              - code [ref=e458]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e459]:
+              - generic [ref=e460]:
+                - generic [ref=e461]: repair
+                - generic [ref=e462]: no snapshot
+          - 'row "2026-04-13 12:30:02 UTC 6.2h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e463]':
+            - cell "2026-04-13 12:30:02 UTC 6.2h old" [ref=e464]:
+              - text: 2026-04-13 12:30:02 UTC
+              - generic [ref=e465]: 6.2h old
+            - cell "holders_catchup" [ref=e466]
+            - cell "complete" [ref=e467]:
+              - generic [ref=e468]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e469]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e470]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e471]':
+              - code [ref=e472]: orchestrate
+              - code [ref=e474]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e475]:
+              - code [ref=e476]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e477]:
+              - generic [ref=e478]:
+                - generic [ref=e479]: repair
+                - generic [ref=e480]: no snapshot
+          - 'row "2026-04-13 12:00:02 UTC 6.7h old rd001_recent complete Safe recent RD-001 candidates are available inside Shyft retention. 815 loaded, 16 skipped, 59 calls, 25 ok, 0 fail fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e481]':
+            - cell "2026-04-13 12:00:02 UTC 6.7h old" [ref=e482]:
+              - text: 2026-04-13 12:00:02 UTC
+              - generic [ref=e483]: 6.7h old
+            - cell "rd001_recent" [ref=e484]
+            - cell "complete" [ref=e485]:
+              - generic [ref=e486]: complete
+            - cell "Safe recent RD-001 candidates are available inside Shyft retention. 815 loaded, 16 skipped, 59 calls, 25 ok, 0 fail" [ref=e487]:
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e488]: 815 loaded, 16 skipped, 59 calls, 25 ok, 0 fail
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e489]':
+              - code [ref=e490]: fetch_transactions_batch
+              - code [ref=e492]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e493]:
+              - code [ref=e494]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e495]:
+              - generic [ref=e496]:
+                - generic [ref=e497]: repair
+                - generic [ref=e498]: no snapshot
+          - 'row "2026-04-13 11:30:01 UTC 7.2h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e499]':
+            - cell "2026-04-13 11:30:01 UTC 7.2h old" [ref=e500]:
+              - text: 2026-04-13 11:30:01 UTC
+              - generic [ref=e501]: 7.2h old
+            - cell "holders_catchup" [ref=e502]
+            - cell "complete" [ref=e503]:
+              - generic [ref=e504]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e505]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e506]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e507]':
+              - code [ref=e508]: orchestrate
+              - code [ref=e510]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e511]:
+              - code [ref=e512]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e513]:
+              - generic [ref=e514]:
+                - generic [ref=e515]: repair
+                - generic [ref=e516]: no snapshot
+          - 'row "2026-04-13 11:00:02 UTC 7.7h old rd001_recent complete Safe recent RD-001 candidates are available inside Shyft retention. 157 loaded, 3 skipped, 50 calls, 25 ok, 0 fail fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e517]':
+            - cell "2026-04-13 11:00:02 UTC 7.7h old" [ref=e518]:
+              - text: 2026-04-13 11:00:02 UTC
+              - generic [ref=e519]: 7.7h old
+            - cell "rd001_recent" [ref=e520]
+            - cell "complete" [ref=e521]:
+              - generic [ref=e522]: complete
+            - cell "Safe recent RD-001 candidates are available inside Shyft retention. 157 loaded, 3 skipped, 50 calls, 25 ok, 0 fail" [ref=e523]:
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e524]: 157 loaded, 3 skipped, 50 calls, 25 ok, 0 fail
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e525]':
+              - code [ref=e526]: fetch_transactions_batch
+              - code [ref=e528]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e529]:
+              - code [ref=e530]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e531]:
+              - generic [ref=e532]:
+                - generic [ref=e533]: repair
+                - generic [ref=e534]: no snapshot
+          - 'row "2026-04-13 10:30:01 UTC 8.2h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e535]':
+            - cell "2026-04-13 10:30:01 UTC 8.2h old" [ref=e536]:
+              - text: 2026-04-13 10:30:01 UTC
+              - generic [ref=e537]: 8.2h old
+            - cell "holders_catchup" [ref=e538]
+            - cell "complete" [ref=e539]:
+              - generic [ref=e540]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e541]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e542]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e543]':
+              - code [ref=e544]: orchestrate
+              - code [ref=e546]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e547]:
+              - code [ref=e548]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e549]:
+              - generic [ref=e550]:
+                - generic [ref=e551]: repair
+                - generic [ref=e552]: no snapshot
+          - 'row "2026-04-13 10:00:02 UTC 8.7h old rd001_recent complete Safe recent RD-001 candidates are available inside Shyft retention. 94 loaded, 0 skipped, 52 calls, 25 ok, 0 fail fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e553]':
+            - cell "2026-04-13 10:00:02 UTC 8.7h old" [ref=e554]:
+              - text: 2026-04-13 10:00:02 UTC
+              - generic [ref=e555]: 8.7h old
+            - cell "rd001_recent" [ref=e556]
+            - cell "complete" [ref=e557]:
+              - generic [ref=e558]: complete
+            - cell "Safe recent RD-001 candidates are available inside Shyft retention. 94 loaded, 0 skipped, 52 calls, 25 ok, 0 fail" [ref=e559]:
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e560]: 94 loaded, 0 skipped, 52 calls, 25 ok, 0 fail
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e561]':
+              - code [ref=e562]: fetch_transactions_batch
+              - code [ref=e564]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e565]:
+              - code [ref=e566]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e567]:
+              - generic [ref=e568]:
+                - generic [ref=e569]: repair
+                - generic [ref=e570]: no snapshot
+          - 'row "2026-04-13 09:30:01 UTC 9.2h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e571]':
+            - cell "2026-04-13 09:30:01 UTC 9.2h old" [ref=e572]:
+              - text: 2026-04-13 09:30:01 UTC
+              - generic [ref=e573]: 9.2h old
+            - cell "holders_catchup" [ref=e574]
+            - cell "complete" [ref=e575]:
+              - generic [ref=e576]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e577]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e578]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e579]':
+              - code [ref=e580]: orchestrate
+              - code [ref=e582]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e583]:
+              - code [ref=e584]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e585]:
+              - generic [ref=e586]:
+                - generic [ref=e587]: repair
+                - generic [ref=e588]: no snapshot
+          - 'row "2026-04-13 09:00:02 UTC 9.7h old rd001_recent error Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ReadTimeout: The read operation timed out) fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e589]':
+            - cell "2026-04-13 09:00:02 UTC 9.7h old" [ref=e590]:
+              - text: 2026-04-13 09:00:02 UTC
+              - generic [ref=e591]: 9.7h old
+            - cell "rd001_recent" [ref=e592]
+            - cell "error" [ref=e593]:
+              - generic [ref=e594]: error
+            - 'cell "Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ReadTimeout: The read operation timed out)" [ref=e595]':
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e596]: "Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ReadTimeout: The read operation timed out)"
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e597]':
+              - code [ref=e598]: fetch_transactions_batch
+              - code [ref=e600]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e601]:
+              - code [ref=e602]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e603]:
+              - generic [ref=e604]:
+                - generic [ref=e605]: repair
+                - generic [ref=e606]: no snapshot
+          - 'row "2026-04-13 08:30:01 UTC 10.2h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e607]':
+            - cell "2026-04-13 08:30:01 UTC 10.2h old" [ref=e608]:
+              - text: 2026-04-13 08:30:01 UTC
+              - generic [ref=e609]: 10.2h old
+            - cell "holders_catchup" [ref=e610]
+            - cell "complete" [ref=e611]:
+              - generic [ref=e612]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e613]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e614]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e615]':
+              - code [ref=e616]: orchestrate
+              - code [ref=e618]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e619]:
+              - code [ref=e620]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e621]:
+              - generic [ref=e622]:
+                - generic [ref=e623]: repair
+                - generic [ref=e624]: no snapshot
+          - 'row "2026-04-13 08:00:01 UTC 10.7h old rd001_recent error Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ReadTimeout: The read operation timed out) fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e625]':
+            - cell "2026-04-13 08:00:01 UTC 10.7h old" [ref=e626]:
+              - text: 2026-04-13 08:00:01 UTC
+              - generic [ref=e627]: 10.7h old
+            - cell "rd001_recent" [ref=e628]
+            - cell "error" [ref=e629]:
+              - generic [ref=e630]: error
+            - 'cell "Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ReadTimeout: The read operation timed out)" [ref=e631]':
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e632]: "Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ReadTimeout: The read operation timed out)"
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e633]':
+              - code [ref=e634]: fetch_transactions_batch
+              - code [ref=e636]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e637]:
+              - code [ref=e638]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e639]:
+              - generic [ref=e640]:
+                - generic [ref=e641]: repair
+                - generic [ref=e642]: no snapshot
+          - 'row "2026-04-13 07:30:01 UTC 11.2h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e643]':
+            - cell "2026-04-13 07:30:01 UTC 11.2h old" [ref=e644]:
+              - text: 2026-04-13 07:30:01 UTC
+              - generic [ref=e645]: 11.2h old
+            - cell "holders_catchup" [ref=e646]
+            - cell "complete" [ref=e647]:
+              - generic [ref=e648]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e649]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e650]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e651]':
+              - code [ref=e652]: orchestrate
+              - code [ref=e654]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e655]:
+              - code [ref=e656]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e657]:
+              - generic [ref=e658]:
+                - generic [ref=e659]: repair
+                - generic [ref=e660]: no snapshot
+          - 'row "2026-04-13 07:00:01 UTC 11.7h old rd001_recent complete Safe recent RD-001 candidates are available inside Shyft retention. 917 loaded, 0 skipped, 65 calls, 25 ok, 0 fail fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e661]':
+            - cell "2026-04-13 07:00:01 UTC 11.7h old" [ref=e662]:
+              - text: 2026-04-13 07:00:01 UTC
+              - generic [ref=e663]: 11.7h old
+            - cell "rd001_recent" [ref=e664]
+            - cell "complete" [ref=e665]:
+              - generic [ref=e666]: complete
+            - cell "Safe recent RD-001 candidates are available inside Shyft retention. 917 loaded, 0 skipped, 65 calls, 25 ok, 0 fail" [ref=e667]:
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e668]: 917 loaded, 0 skipped, 65 calls, 25 ok, 0 fail
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e669]':
+              - code [ref=e670]: fetch_transactions_batch
+              - code [ref=e672]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e673]:
+              - code [ref=e674]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e675]:
+              - generic [ref=e676]:
+                - generic [ref=e677]: repair
+                - generic [ref=e678]: no snapshot
+          - 'row "2026-04-13 06:30:01 UTC 12.2h old refresh_core complete Discovery freshness is past the configured stale threshold. 49 succeeded, 1 failed, 0 skipped orchestrate {''days'': 20, ''coins'': 50, ''steps'': ''discovery,pool_mapping,ohlcv'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps discovery,pool_mapping,ohlcv --days 20 --coins 50 --mature-only repair no snapshot" [ref=e679]':
+            - cell "2026-04-13 06:30:01 UTC 12.2h old" [ref=e680]:
+              - text: 2026-04-13 06:30:01 UTC
+              - generic [ref=e681]: 12.2h old
+            - cell "refresh_core" [ref=e682]
+            - cell "complete" [ref=e683]:
+              - generic [ref=e684]: complete
+            - cell "Discovery freshness is past the configured stale threshold. 49 succeeded, 1 failed, 0 skipped" [ref=e685]:
+              - text: Discovery freshness is past the configured stale threshold.
+              - generic [ref=e686]: 49 succeeded, 1 failed, 0 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 50, ''steps'': ''discovery,pool_mapping,ohlcv'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e687]':
+              - code [ref=e688]: orchestrate
+              - code [ref=e690]: "{'days': 20, 'coins': 50, 'steps': 'discovery,pool_mapping,ohlcv', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps discovery,pool_mapping,ohlcv --days 20 --coins 50 --mature-only" [ref=e691]:
+              - code [ref=e692]: ./scripts/manage.sh orchestrate --universe u001 --steps discovery,pool_mapping,ohlcv --days 20 --coins 50 --mature-only
+            - cell "repair no snapshot" [ref=e693]:
+              - generic [ref=e694]:
+                - generic [ref=e695]: repair
+                - generic [ref=e696]: no snapshot
+          - 'row "2026-04-13 06:00:01 UTC 12.7h old refresh_core complete Discovery freshness is past the configured stale threshold. 0 succeeded, 51 failed, 0 skipped orchestrate {''days'': 20, ''coins'': 50, ''steps'': ''discovery,pool_mapping,ohlcv'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps discovery,pool_mapping,ohlcv --days 20 --coins 50 --mature-only repair no snapshot" [ref=e697]':
+            - cell "2026-04-13 06:00:01 UTC 12.7h old" [ref=e698]:
+              - text: 2026-04-13 06:00:01 UTC
+              - generic [ref=e699]: 12.7h old
+            - cell "refresh_core" [ref=e700]
+            - cell "complete" [ref=e701]:
+              - generic [ref=e702]: complete
+            - cell "Discovery freshness is past the configured stale threshold. 0 succeeded, 51 failed, 0 skipped" [ref=e703]:
+              - text: Discovery freshness is past the configured stale threshold.
+              - generic [ref=e704]: 0 succeeded, 51 failed, 0 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 50, ''steps'': ''discovery,pool_mapping,ohlcv'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e705]':
+              - code [ref=e706]: orchestrate
+              - code [ref=e708]: "{'days': 20, 'coins': 50, 'steps': 'discovery,pool_mapping,ohlcv', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps discovery,pool_mapping,ohlcv --days 20 --coins 50 --mature-only" [ref=e709]:
+              - code [ref=e710]: ./scripts/manage.sh orchestrate --universe u001 --steps discovery,pool_mapping,ohlcv --days 20 --coins 50 --mature-only
+            - cell "repair no snapshot" [ref=e711]:
+              - generic [ref=e712]:
+                - generic [ref=e713]: repair
+                - generic [ref=e714]: no snapshot
+          - 'row "2026-04-13 05:30:01 UTC 13.2h old rd001_recent error Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution) fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e715]':
+            - cell "2026-04-13 05:30:01 UTC 13.2h old" [ref=e716]:
+              - text: 2026-04-13 05:30:01 UTC
+              - generic [ref=e717]: 13.2h old
+            - cell "rd001_recent" [ref=e718]
+            - cell "error" [ref=e719]:
+              - generic [ref=e720]: error
+            - 'cell "Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)" [ref=e721]':
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e722]: "Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)"
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e723]':
+              - code [ref=e724]: fetch_transactions_batch
+              - code [ref=e726]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e727]:
+              - code [ref=e728]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e729]:
+              - generic [ref=e730]:
+                - generic [ref=e731]: repair
+                - generic [ref=e732]: no snapshot
+          - 'row "2026-04-13 05:00:01 UTC 13.7h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e733]':
+            - cell "2026-04-13 05:00:01 UTC 13.7h old" [ref=e734]:
+              - text: 2026-04-13 05:00:01 UTC
+              - generic [ref=e735]: 13.7h old
+            - cell "holders_catchup" [ref=e736]
+            - cell "complete" [ref=e737]:
+              - generic [ref=e738]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e739]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e740]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e741]':
+              - code [ref=e742]: orchestrate
+              - code [ref=e744]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e745]:
+              - code [ref=e746]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e747]:
+              - generic [ref=e748]:
+                - generic [ref=e749]: repair
+                - generic [ref=e750]: no snapshot
+          - 'row "2026-04-13 04:30:01 UTC 14.2h old rd001_recent error Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution) fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e751]':
+            - cell "2026-04-13 04:30:01 UTC 14.2h old" [ref=e752]:
+              - text: 2026-04-13 04:30:01 UTC
+              - generic [ref=e753]: 14.2h old
+            - cell "rd001_recent" [ref=e754]
+            - cell "error" [ref=e755]:
+              - generic [ref=e756]: error
+            - 'cell "Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)" [ref=e757]':
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e758]: "Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)"
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e759]':
+              - code [ref=e760]: fetch_transactions_batch
+              - code [ref=e762]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e763]:
+              - code [ref=e764]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e765]:
+              - generic [ref=e766]:
+                - generic [ref=e767]: repair
+                - generic [ref=e768]: no snapshot
+          - 'row "2026-04-13 04:00:01 UTC 14.7h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e769]':
+            - cell "2026-04-13 04:00:01 UTC 14.7h old" [ref=e770]:
+              - text: 2026-04-13 04:00:01 UTC
+              - generic [ref=e771]: 14.7h old
+            - cell "holders_catchup" [ref=e772]
+            - cell "complete" [ref=e773]:
+              - generic [ref=e774]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e775]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e776]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e777]':
+              - code [ref=e778]: orchestrate
+              - code [ref=e780]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e781]:
+              - code [ref=e782]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e783]:
+              - generic [ref=e784]:
+                - generic [ref=e785]: repair
+                - generic [ref=e786]: no snapshot
+          - 'row "2026-04-13 03:30:02 UTC 15.2h old rd001_recent error Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution) fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e787]':
+            - cell "2026-04-13 03:30:02 UTC 15.2h old" [ref=e788]:
+              - text: 2026-04-13 03:30:02 UTC
+              - generic [ref=e789]: 15.2h old
+            - cell "rd001_recent" [ref=e790]
+            - cell "error" [ref=e791]:
+              - generic [ref=e792]: error
+            - 'cell "Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)" [ref=e793]':
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e794]: "Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)"
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e795]':
+              - code [ref=e796]: fetch_transactions_batch
+              - code [ref=e798]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e799]:
+              - code [ref=e800]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e801]:
+              - generic [ref=e802]:
+                - generic [ref=e803]: repair
+                - generic [ref=e804]: no snapshot
+          - 'row "2026-04-13 03:00:01 UTC 15.7h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e805]':
+            - cell "2026-04-13 03:00:01 UTC 15.7h old" [ref=e806]:
+              - text: 2026-04-13 03:00:01 UTC
+              - generic [ref=e807]: 15.7h old
+            - cell "holders_catchup" [ref=e808]
+            - cell "complete" [ref=e809]:
+              - generic [ref=e810]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e811]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e812]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e813]':
+              - code [ref=e814]: orchestrate
+              - code [ref=e816]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e817]:
+              - code [ref=e818]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e819]:
+              - generic [ref=e820]:
+                - generic [ref=e821]: repair
+                - generic [ref=e822]: no snapshot
+          - 'row "2026-04-13 02:30:01 UTC 16.2h old rd001_recent error Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution) fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e823]':
+            - cell "2026-04-13 02:30:01 UTC 16.2h old" [ref=e824]:
+              - text: 2026-04-13 02:30:01 UTC
+              - generic [ref=e825]: 16.2h old
+            - cell "rd001_recent" [ref=e826]
+            - cell "error" [ref=e827]:
+              - generic [ref=e828]: error
+            - 'cell "Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)" [ref=e829]':
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e830]: "Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)"
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e831]':
+              - code [ref=e832]: fetch_transactions_batch
+              - code [ref=e834]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e835]:
+              - code [ref=e836]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e837]:
+              - generic [ref=e838]:
+                - generic [ref=e839]: repair
+                - generic [ref=e840]: no snapshot
+          - 'row "2026-04-13 02:00:01 UTC 16.7h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e841]':
+            - cell "2026-04-13 02:00:01 UTC 16.7h old" [ref=e842]:
+              - text: 2026-04-13 02:00:01 UTC
+              - generic [ref=e843]: 16.7h old
+            - cell "holders_catchup" [ref=e844]
+            - cell "complete" [ref=e845]:
+              - generic [ref=e846]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e847]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e848]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e849]':
+              - code [ref=e850]: orchestrate
+              - code [ref=e852]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e853]:
+              - code [ref=e854]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e855]:
+              - generic [ref=e856]:
+                - generic [ref=e857]: repair
+                - generic [ref=e858]: no snapshot
+          - 'row "2026-04-13 01:30:02 UTC 17.2h old rd001_recent error Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution) fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e859]':
+            - cell "2026-04-13 01:30:02 UTC 17.2h old" [ref=e860]:
+              - text: 2026-04-13 01:30:02 UTC
+              - generic [ref=e861]: 17.2h old
+            - cell "rd001_recent" [ref=e862]
+            - cell "error" [ref=e863]:
+              - generic [ref=e864]: error
+            - 'cell "Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)" [ref=e865]':
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e866]: "Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)"
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e867]':
+              - code [ref=e868]: fetch_transactions_batch
+              - code [ref=e870]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e871]:
+              - code [ref=e872]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e873]:
+              - generic [ref=e874]:
+                - generic [ref=e875]: repair
+                - generic [ref=e876]: no snapshot
+          - 'row "2026-04-13 01:00:01 UTC 17.7h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e877]':
+            - cell "2026-04-13 01:00:01 UTC 17.7h old" [ref=e878]:
+              - text: 2026-04-13 01:00:01 UTC
+              - generic [ref=e879]: 17.7h old
+            - cell "holders_catchup" [ref=e880]
+            - cell "complete" [ref=e881]:
+              - generic [ref=e882]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e883]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e884]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e885]':
+              - code [ref=e886]: orchestrate
+              - code [ref=e888]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e889]:
+              - code [ref=e890]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e891]:
+              - generic [ref=e892]:
+                - generic [ref=e893]: repair
+                - generic [ref=e894]: no snapshot
+          - 'row "2026-04-13 00:30:01 UTC 18.2h old rd001_recent error Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution) fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e895]':
+            - cell "2026-04-13 00:30:01 UTC 18.2h old" [ref=e896]:
+              - text: 2026-04-13 00:30:01 UTC
+              - generic [ref=e897]: 18.2h old
+            - cell "rd001_recent" [ref=e898]
+            - cell "error" [ref=e899]:
+              - generic [ref=e900]: error
+            - 'cell "Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)" [ref=e901]':
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e902]: "Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)"
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e903]':
+              - code [ref=e904]: fetch_transactions_batch
+              - code [ref=e906]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e907]:
+              - code [ref=e908]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e909]:
+              - generic [ref=e910]:
+                - generic [ref=e911]: repair
+                - generic [ref=e912]: no snapshot
+          - 'row "2026-04-13 00:00:02 UTC 18.7h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair snapshot" [ref=e913]':
+            - cell "2026-04-13 00:00:02 UTC 18.7h old" [ref=e914]:
+              - text: 2026-04-13 00:00:02 UTC
+              - generic [ref=e915]: 18.7h old
+            - cell "holders_catchup" [ref=e916]
+            - cell "complete" [ref=e917]:
+              - generic [ref=e918]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e919]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e920]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e921]':
+              - code [ref=e922]: orchestrate
+              - code [ref=e924]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e925]:
+              - code [ref=e926]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair snapshot" [ref=e927]:
+              - generic [ref=e928]:
+                - generic [ref=e929]: repair
+                - generic [ref=e930]: snapshot
+          - 'row "2026-04-12 23:30:02 UTC 19.2h old rd001_recent error Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution) fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e931]':
+            - cell "2026-04-12 23:30:02 UTC 19.2h old" [ref=e932]:
+              - text: 2026-04-12 23:30:02 UTC
+              - generic [ref=e933]: 19.2h old
+            - cell "rd001_recent" [ref=e934]
+            - cell "error" [ref=e935]:
+              - generic [ref=e936]: error
+            - 'cell "Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)" [ref=e937]':
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e938]: "Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)"
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e939]':
+              - code [ref=e940]: fetch_transactions_batch
+              - code [ref=e942]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e943]:
+              - code [ref=e944]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e945]:
+              - generic [ref=e946]:
+                - generic [ref=e947]: repair
+                - generic [ref=e948]: no snapshot
+          - 'row "2026-04-12 23:00:01 UTC 19.7h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e949]':
+            - cell "2026-04-12 23:00:01 UTC 19.7h old" [ref=e950]:
+              - text: 2026-04-12 23:00:01 UTC
+              - generic [ref=e951]: 19.7h old
+            - cell "holders_catchup" [ref=e952]
+            - cell "complete" [ref=e953]:
+              - generic [ref=e954]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e955]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e956]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e957]':
+              - code [ref=e958]: orchestrate
+              - code [ref=e960]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e961]:
+              - code [ref=e962]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e963]:
+              - generic [ref=e964]:
+                - generic [ref=e965]: repair
+                - generic [ref=e966]: no snapshot
+          - 'row "2026-04-12 22:30:01 UTC 20.2h old rd001_recent error Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution) fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e967]':
+            - cell "2026-04-12 22:30:01 UTC 20.2h old" [ref=e968]:
+              - text: 2026-04-12 22:30:01 UTC
+              - generic [ref=e969]: 20.2h old
+            - cell "rd001_recent" [ref=e970]
+            - cell "error" [ref=e971]:
+              - generic [ref=e972]: error
+            - 'cell "Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)" [ref=e973]':
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e974]: "Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)"
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e975]':
+              - code [ref=e976]: fetch_transactions_batch
+              - code [ref=e978]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e979]:
+              - code [ref=e980]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e981]:
+              - generic [ref=e982]:
+                - generic [ref=e983]: repair
+                - generic [ref=e984]: no snapshot
+          - 'row "2026-04-12 22:00:01 UTC 20.7h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e985]':
+            - cell "2026-04-12 22:00:01 UTC 20.7h old" [ref=e986]:
+              - text: 2026-04-12 22:00:01 UTC
+              - generic [ref=e987]: 20.7h old
+            - cell "holders_catchup" [ref=e988]
+            - cell "complete" [ref=e989]:
+              - generic [ref=e990]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e991]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e992]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e993]':
+              - code [ref=e994]: orchestrate
+              - code [ref=e996]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e997]:
+              - code [ref=e998]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e999]:
+              - generic [ref=e1000]:
+                - generic [ref=e1001]: repair
+                - generic [ref=e1002]: no snapshot
+          - 'row "2026-04-12 21:30:01 UTC 21.2h old rd001_recent error Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution) fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e1003]':
+            - cell "2026-04-12 21:30:01 UTC 21.2h old" [ref=e1004]:
+              - text: 2026-04-12 21:30:01 UTC
+              - generic [ref=e1005]: 21.2h old
+            - cell "rd001_recent" [ref=e1006]
+            - cell "error" [ref=e1007]:
+              - generic [ref=e1008]: error
+            - 'cell "Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)" [ref=e1009]':
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e1010]: "Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)"
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e1011]':
+              - code [ref=e1012]: fetch_transactions_batch
+              - code [ref=e1014]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e1015]:
+              - code [ref=e1016]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e1017]:
+              - generic [ref=e1018]:
+                - generic [ref=e1019]: repair
+                - generic [ref=e1020]: no snapshot
+          - 'row "2026-04-12 21:00:02 UTC 21.7h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e1021]':
+            - cell "2026-04-12 21:00:02 UTC 21.7h old" [ref=e1022]:
+              - text: 2026-04-12 21:00:02 UTC
+              - generic [ref=e1023]: 21.7h old
+            - cell "holders_catchup" [ref=e1024]
+            - cell "complete" [ref=e1025]:
+              - generic [ref=e1026]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e1027]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e1028]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e1029]':
+              - code [ref=e1030]: orchestrate
+              - code [ref=e1032]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e1033]:
+              - code [ref=e1034]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e1035]:
+              - generic [ref=e1036]:
+                - generic [ref=e1037]: repair
+                - generic [ref=e1038]: no snapshot
+          - 'row "2026-04-12 20:30:02 UTC 22.2h old rd001_recent error Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution) fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e1039]':
+            - cell "2026-04-12 20:30:02 UTC 22.2h old" [ref=e1040]:
+              - text: 2026-04-12 20:30:02 UTC
+              - generic [ref=e1041]: 22.2h old
+            - cell "rd001_recent" [ref=e1042]
+            - cell "error" [ref=e1043]:
+              - generic [ref=e1044]: error
+            - 'cell "Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)" [ref=e1045]':
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e1046]: "Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)"
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e1047]':
+              - code [ref=e1048]: fetch_transactions_batch
+              - code [ref=e1050]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e1051]:
+              - code [ref=e1052]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e1053]:
+              - generic [ref=e1054]:
+                - generic [ref=e1055]: repair
+                - generic [ref=e1056]: no snapshot
+          - 'row "2026-04-12 20:00:01 UTC 22.7h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e1057]':
+            - cell "2026-04-12 20:00:01 UTC 22.7h old" [ref=e1058]:
+              - text: 2026-04-12 20:00:01 UTC
+              - generic [ref=e1059]: 22.7h old
+            - cell "holders_catchup" [ref=e1060]
+            - cell "complete" [ref=e1061]:
+              - generic [ref=e1062]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e1063]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e1064]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e1065]':
+              - code [ref=e1066]: orchestrate
+              - code [ref=e1068]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e1069]:
+              - code [ref=e1070]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e1071]:
+              - generic [ref=e1072]:
+                - generic [ref=e1073]: repair
+                - generic [ref=e1074]: no snapshot
+          - 'row "2026-04-12 19:30:01 UTC 23.2h old rd001_recent error Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution) fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e1075]':
+            - cell "2026-04-12 19:30:01 UTC 23.2h old" [ref=e1076]:
+              - text: 2026-04-12 19:30:01 UTC
+              - generic [ref=e1077]: 23.2h old
+            - cell "rd001_recent" [ref=e1078]
+            - cell "error" [ref=e1079]:
+              - generic [ref=e1080]: error
+            - 'cell "Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)" [ref=e1081]':
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e1082]: "Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)"
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e1083]':
+              - code [ref=e1084]: fetch_transactions_batch
+              - code [ref=e1086]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e1087]:
+              - code [ref=e1088]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e1089]:
+              - generic [ref=e1090]:
+                - generic [ref=e1091]: repair
+                - generic [ref=e1092]: no snapshot
+          - 'row "2026-04-12 19:00:02 UTC 23.7h old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e1093]':
+            - cell "2026-04-12 19:00:02 UTC 23.7h old" [ref=e1094]:
+              - text: 2026-04-12 19:00:02 UTC
+              - generic [ref=e1095]: 23.7h old
+            - cell "holders_catchup" [ref=e1096]
+            - cell "complete" [ref=e1097]:
+              - generic [ref=e1098]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e1099]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e1100]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e1101]':
+              - code [ref=e1102]: orchestrate
+              - code [ref=e1104]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e1105]:
+              - code [ref=e1106]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e1107]:
+              - generic [ref=e1108]:
+                - generic [ref=e1109]: repair
+                - generic [ref=e1110]: no snapshot
+          - 'row "2026-04-12 18:30:02 UTC 1.0d old rd001_recent error Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution) fetch_transactions_batch {''max_coins'': 25} ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000 repair no snapshot" [ref=e1111]':
+            - cell "2026-04-12 18:30:02 UTC 1.0d old" [ref=e1112]:
+              - text: 2026-04-12 18:30:02 UTC
+              - generic [ref=e1113]: 1.0d old
+            - cell "rd001_recent" [ref=e1114]
+            - cell "error" [ref=e1115]:
+              - generic [ref=e1116]: error
+            - 'cell "Safe recent RD-001 candidates are available inside Shyft retention. Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)" [ref=e1117]':
+              - text: Safe recent RD-001 candidates are available inside Shyft retention.
+              - generic [ref=e1118]: "Notes: Failed after 3 retries: https://rpc.shyft.to?api_key=3CLkNbQthIqfaqnN (last_error: transport_error: ConnectError: [Errno -3] Temporary failure in name resolution)"
+            - 'cell "fetch_transactions_batch {''max_coins'': 25}" [ref=e1119]':
+              - code [ref=e1120]: fetch_transactions_batch
+              - code [ref=e1122]: "{'max_coins': 25}"
+            - cell "./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000" [ref=e1123]:
+              - code [ref=e1124]: ./scripts/run_batch.sh --max-coins 25 --max-new-sigs 1000
+            - cell "repair no snapshot" [ref=e1125]:
+              - generic [ref=e1126]:
+                - generic [ref=e1127]: repair
+                - generic [ref=e1128]: no snapshot
+          - 'row "2026-04-12 18:00:01 UTC 1.0d old holders_catchup complete FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True} ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only repair no snapshot" [ref=e1129]':
+            - cell "2026-04-12 18:00:01 UTC 1.0d old" [ref=e1130]:
+              - text: 2026-04-12 18:00:01 UTC
+              - generic [ref=e1131]: 1.0d old
+            - cell "holders_catchup" [ref=e1132]
+            - cell "complete" [ref=e1133]:
+              - generic [ref=e1134]: complete
+            - cell "FL-002 mature coverage remains below the configured floor. 0 succeeded, 0 failed, 10 skipped" [ref=e1135]:
+              - text: FL-002 mature coverage remains below the configured floor.
+              - generic [ref=e1136]: 0 succeeded, 0 failed, 10 skipped
+            - 'cell "orchestrate {''days'': 20, ''coins'': 10, ''steps'': ''holders'', ''universe'': ''u001'', ''mature_only'': True}" [ref=e1137]':
+              - code [ref=e1138]: orchestrate
+              - code [ref=e1140]: "{'days': 20, 'coins': 10, 'steps': 'holders', 'universe': 'u001', 'mature_only': True}"
+            - cell "./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only" [ref=e1141]:
+              - code [ref=e1142]: ./scripts/manage.sh orchestrate --universe u001 --steps holders --days 20 --coins 10 --mature-only
+            - cell "repair no snapshot" [ref=e1143]:
+              - generic [ref=e1144]:
+                - generic [ref=e1145]: repair
+                - generic [ref=e1146]: no snapshot

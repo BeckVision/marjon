@@ -1,0 +1,191 @@
+{% extends "visualization/_base_ops.html" %}
+{% load ops_tags %}
+
+{% block title %}{{ summary.coin.mint|truncatechars:12 }} — U-001 Coin Detail{% endblock %}
+
+{% block ops_content %}
+<div class="ops-header">
+    <div>
+        <h1>{{ summary.coin.symbol|default:"Coin Detail" }}</h1>
+        <div class="mono" style="margin-top: 4px;">{{ summary.coin.mint }}</div>
+    </div>
+    <div style="text-align:right;">
+        <span class="text-sm text-muted">{{ summary.coin.name|default:"" }}</span>
+    </div>
+</div>
+
+<!-- Headline Metrics -->
+<div class="grid grid-3" style="margin-bottom: 24px;">
+    <div class="metric-card">
+        <span class="label">Age</span>
+        <span class="value">{{ summary.coin.age_label }}</span>
+        <span class="detail">Since anchor event</span>
+    </div>
+    <div class="metric-card">
+        <span class="label">Observation State</span>
+        <span class="value">{% if summary.coin.is_mature %}Mature{% else %}Open{% endif %}</span>
+        <span class="detail">{% if summary.coin.is_mature %}Window closed{% else %}Still collecting{% endif %}</span>
+    </div>
+    <div class="metric-card">
+        <span class="label">Pool Mappings</span>
+        <span class="value">{{ summary.coin.pool_mappings|length }}</span>
+        <span class="detail">mapping{{ summary.coin.pool_mappings|length|pluralize }}</span>
+    </div>
+</div>
+
+<!-- Identity + Warehouse Counts -->
+<div class="two-col" style="margin-bottom: 24px;">
+    <div class="panel">
+        <h2>Identity</h2>
+        <div class="kv-list">
+            <div class="kv-row">
+                <span>Mint</span>
+                <strong class="mono">{{ summary.coin.mint }}</strong>
+            </div>
+            <div class="kv-row">
+                <span>Anchor event</span>
+                <strong>{% if summary.coin.anchor_event %}{{ summary.coin.anchor_event|date:"Y-m-d H:i:s T" }}{% else %}-{% endif %}</strong>
+            </div>
+            <div class="kv-row">
+                <span>Discovered at</span>
+                <strong>{{ summary.coin.ingested_at|date:"Y-m-d H:i:s T" }}</strong>
+            </div>
+            <div class="kv-row">
+                <span>Window end</span>
+                <strong>{% if summary.coin.window_end_time %}{{ summary.coin.window_end_time|date:"Y-m-d H:i:s T" }}{% else %}-{% endif %}</strong>
+            </div>
+        </div>
+
+        <h3 style="margin-top: 20px;">Pool Mappings</h3>
+        <div class="kv-list" style="margin-top: 8px;">
+            {% for mapping in summary.coin.pool_mappings %}
+            <div class="kv-row">
+                <span>{{ mapping.dex }} via {{ mapping.source }}</span>
+                <div style="text-align: right;">
+                    <strong class="mono">{{ mapping.pool_address }}</strong>
+                    <div class="timestamp">{{ mapping.discovered_at|date:"Y-m-d H:i:s T" }}</div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="kv-row">
+                <span>No pool mappings</span>
+                <strong>-</strong>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="stack">
+        <div class="panel">
+            <h2>Warehouse Counts</h2>
+            <div class="kv-list">
+                <div class="kv-row">
+                    <span>OHLCV rows</span>
+                    <strong>{{ summary.warehouse_counts.ohlcv_count }}</strong>
+                </div>
+                <div class="kv-row">
+                    <span>Holder rows</span>
+                    <strong>{{ summary.warehouse_counts.holder_count }}</strong>
+                </div>
+                <div class="kv-row">
+                    <span>Raw transaction rows</span>
+                    <strong>{{ summary.warehouse_counts.raw_transaction_count }}</strong>
+                </div>
+                <div class="kv-row">
+                    <span>Skipped transaction rows</span>
+                    <strong>{{ summary.warehouse_counts.skipped_transaction_count }}</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>Timeline</h2>
+            <div class="timeline-list">
+                {% for item in summary.timeline %}
+                <div class="timeline-item">
+                    <div>
+                        <strong style="color: var(--text-primary);">{{ item.label }}</strong>
+                        <div class="text-sm text-muted">{{ item.detail }}</div>
+                    </div>
+                    <div class="timestamp">{{ item.timestamp|date:"Y-m-d H:i:s T" }}</div>
+                </div>
+                {% empty %}
+                <div class="text-sm text-muted">No timeline events.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Layer Statuses -->
+<div class="section">
+    <div class="section-header">
+        <h2>Layer Statuses</h2>
+    </div>
+    <div class="grid grid-auto">
+        {% for layer in summary.layer_statuses %}
+        <div class="layer-card">
+            <div class="layer-head">
+                <h3>{{ layer.title }}</h3>
+                <span class="status-pill status-{{ layer.status|lower }}">{{ layer.status }}</span>
+            </div>
+            <div class="layer-stats">
+                <div class="stat-row">
+                    <span>Watermark</span>
+                    <strong>{% if layer.watermark %}{{ layer.watermark|date:"Y-m-d H:i:s T" }}{% else %}-{% endif %}</strong>
+                </div>
+                <div class="stat-row">
+                    <span>Last run</span>
+                    <strong>{% if layer.last_run_at %}{{ layer.last_run_at|date:"Y-m-d H:i:s T" }}{% else %}-{% endif %}</strong>
+                </div>
+                <div class="stat-row">
+                    <span>Last error</span>
+                    <strong class="mono">{{ layer.last_error|default:"-" }}</strong>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Recent Run History -->
+<div class="section">
+    <div class="section-header">
+        <h2>Recent Run History</h2>
+    </div>
+    <div class="table-panel">
+        <table>
+            <thead>
+                <tr>
+                    <th>Layer</th>
+                    <th>Mode</th>
+                    <th>Status</th>
+                    <th>Started</th>
+                    <th>Completed</th>
+                    <th>Loaded</th>
+                    <th>API Calls</th>
+                    <th>Error</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in summary.run_history %}
+                <tr>
+                    <td><strong>{{ run.layer_id }}</strong></td>
+                    <td>{{ run.mode }}</td>
+                    <td><span class="status-pill status-{{ run.status|lower }}">{{ run.status }}</span></td>
+                    <td class="timestamp">{% if run.started_at %}{{ run.started_at|date:"Y-m-d H:i:s T" }}{% else %}-{% endif %}</td>
+                    <td class="timestamp">{% if run.completed_at %}{{ run.completed_at|date:"Y-m-d H:i:s T" }}{% else %}-{% endif %}</td>
+                    <td>{{ run.records_loaded }}</td>
+                    <td>{{ run.api_calls }}</td>
+                    <td class="mono">{{ run.error_message|default:"-" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="text-muted">No U-001 run history for this coin.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

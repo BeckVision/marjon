@@ -14,7 +14,8 @@ from pipeline.runner import run_for_coin
 
 
 def fetch_transactions_for_coin(mint_address, start=None, end=None,
-                                source='auto', parse_workers=1):
+                                source='auto', parse_workers=1,
+                                max_filtered_signatures=None):
     """Core transaction fetch logic for one coin.
 
     Returns:
@@ -23,7 +24,9 @@ def fetch_transactions_for_coin(mint_address, start=None, end=None,
     """
     return run_for_coin(
         RD001, mint_address, start, end,
-        source=source, parse_workers=parse_workers,
+        source=source,
+        parse_workers=parse_workers,
+        max_filtered_signatures=max_filtered_signatures,
     )
 
 

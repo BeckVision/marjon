@@ -39,8 +39,8 @@ ENHANCED_URL = "https://api-mainnet.helius-rpc.com"
 SIG_LIMIT = 1000          # max signatures per getSignaturesForAddress call
 PARSE_BATCH_SIZE = 100    # max signatures per POST /v0/transactions call
 RATE_LIMIT_SLEEP = 0.3    # min seconds between calls on the SAME key
-MAX_FILTERED_SIGNATURES = int(
-    os.environ.get('MARJON_U001_RD001_MAX_FILTERED_SIGNATURES', '1000')
+DEFAULT_MAX_FILTERED_SIGNATURES = int(
+    os.environ.get('MARJON_U001_RD001_MAX_FILTERED_SIGNATURES', '0')
 )
 
 # Credit costs (for logging/tracking)
@@ -93,7 +93,14 @@ _validate_rpc_response = partial(validate_jsonrpc_response, source_name="Helius 
 # Phase 1: Signature discovery via RPC
 # ---------------------------------------------------------------------------
 
-def _fetch_signatures(pool_address, start=None, end=None):
+def _resolve_max_filtered_signatures(explicit=None):
+    if explicit is not None:
+        return explicit
+    value = os.environ.get('MARJON_U001_RD001_MAX_FILTERED_SIGNATURES')
+    return int(value) if value else DEFAULT_MAX_FILTERED_SIGNATURES
+
+
+def _fetch_signatures(pool_address, start=None, end=None, max_filtered_signatures=None):
     """Fetch transaction signatures for a pool via Helius RPC.
 
     Full historical depth — can reach back to Solana genesis.
@@ -109,6 +116,7 @@ def _fetch_signatures(pool_address, start=None, end=None):
     """
     api_key = _next_api_key()
     rpc_url = f"{RPC_URL}/?api-key={api_key}"
+    max_filtered_signatures = _resolve_max_filtered_signatures(max_filtered_signatures)
 
     all_sigs = []
     cursor = None
@@ -139,10 +147,10 @@ def _fetch_signatures(pool_address, start=None, end=None):
 
         all_sigs.extend(result)
         filtered_count += len(_filter_signatures(result, start, end))
-        if filtered_count > MAX_FILTERED_SIGNATURES:
+        if max_filtered_signatures and filtered_count > max_filtered_signatures:
             raise RuntimeError(
                 f"Filtered signature count {filtered_count} exceeds free-tier guard "
-                f"({MAX_FILTERED_SIGNATURES}) for pool {pool_address}"
+                f"({max_filtered_signatures}) for pool {pool_address}"
             )
 
         # Stop when oldest sig is before start
@@ -242,7 +250,7 @@ def _parse_transactions(signatures, max_workers=1):
 # Public API
 # ---------------------------------------------------------------------------
 
-def fetch_transactions(pool_address, start=None, end=None, max_workers=1):
+def fetch_transactions(pool_address, start=None, end=None, max_workers=1, max_filtered_signatures=None):
     """Fetch and parse transactions for a Pumpswap pool from Helius.
 
     Two-phase approach with full historical access:
@@ -261,7 +269,12 @@ def fetch_transactions(pool_address, start=None, end=None, max_workers=1):
         {'api_calls': int, 'credits_used': int}.
     """
     # Phase 1: discover signatures
-    raw_sigs, rpc_credits = _fetch_signatures(pool_address, start, end)
+    raw_sigs, rpc_credits = _fetch_signatures(
+        pool_address,
+        start,
+        end,
+        max_filtered_signatures=max_filtered_signatures,
+    )
     rpc_calls = (len(raw_sigs) // SIG_LIMIT) + 1 if raw_sigs else 1
 
     if not raw_sigs:

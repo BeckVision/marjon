@@ -7,6 +7,9 @@ from pipeline.connectors import http
 
 
 class HttpConnectorTest(SimpleTestCase):
+    def tearDown(self):
+        http.shutdown_sessions()
+
     def test_http2_disabled_for_shyft_hosts_by_default(self):
         self.assertFalse(
             http._http2_enabled_for_url('https://api.shyft.to/sol/v1/transaction/parse_selected')
@@ -22,6 +25,23 @@ class HttpConnectorTest(SimpleTestCase):
     def test_http2_can_be_disabled_via_env(self):
         self.assertFalse(http._http2_enabled_for_url('https://example.com/data'))
         self.assertTrue(http._http2_enabled_for_url('https://another.example/data'))
+
+    def test_shyft_client_kwargs_disable_keepalive_pooling(self):
+        kwargs = http._client_kwargs_for_url(
+            'https://api.shyft.to/sol/v1/transaction/parse_selected'
+        )
+
+        self.assertFalse(kwargs['http2'])
+        self.assertIn('limits', kwargs)
+        self.assertEqual(kwargs['limits'].max_keepalive_connections, 0)
+
+    def test_non_shyft_client_kwargs_keep_default_pooling(self):
+        kwargs = http._client_kwargs_for_url(
+            'https://api.geckoterminal.com/api/v2/networks/solana'
+        )
+
+        self.assertTrue(kwargs['http2'])
+        self.assertNotIn('limits', kwargs)
 
     def test_request_with_retry_retries_417_with_fresh_session(self):
         first_response = Mock()
@@ -59,3 +79,19 @@ class HttpConnectorTest(SimpleTestCase):
 
         self.assertEqual(data, {'ok': True})
         drop_session.assert_called_once_with('https://rpc.shyft.to?api_key=test')
+
+    def test_request_with_retry_raises_last_transport_error_detail(self):
+        session = Mock()
+        session.get.side_effect = httpx.RemoteProtocolError(
+            'Server disconnected without sending a response.',
+        )
+
+        with patch.object(http, '_get_session', return_value=session), \
+                patch.object(http, '_drop_session') as drop_session, \
+                patch('pipeline.connectors.http.time.sleep'):
+            with self.assertRaises(RuntimeError) as ctx:
+                http.request_with_retry('https://rpc.shyft.to?api_key=test')
+
+        self.assertIn('transport_error', str(ctx.exception))
+        self.assertIn('Server disconnected without sending a response.', str(ctx.exception))
+        self.assertEqual(drop_session.call_count, 3)

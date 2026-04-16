@@ -56,3 +56,17 @@ ensure_env_file() {
     cp "$root/.env.example" "$root/.env"
     printf 'Created %s/.env from .env.example\n' "$root"
 }
+
+wait_for_tcp() {
+    local host="$1" port="$2" timeout_seconds="$3"
+    local deadline=$((SECONDS + timeout_seconds))
+
+    while (( SECONDS < deadline )); do
+        if (echo >"/dev/tcp/$host/$port") >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 2
+    done
+
+    return 1
+}

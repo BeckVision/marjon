@@ -1,0 +1,720 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: Marjon Ops
+      - strong [ref=e6]: U-001 Trends
+    - generic [ref=e7]:
+      - link "Overview" [ref=e8] [cursor=pointer]:
+        - /url: /ops/u001/
+      - link "Coverage" [ref=e9] [cursor=pointer]:
+        - /url: /ops/u001/coverage/
+      - link "Queues" [ref=e10] [cursor=pointer]:
+        - /url: /ops/u001/queues/
+      - generic [ref=e11]: Coin Via Mint
+      - link "Trends" [ref=e12] [cursor=pointer]:
+        - /url: /ops/u001/trends/
+  - generic [ref=e13]:
+    - generic [ref=e14]:
+      - generic [ref=e15]: Trend Dashboard
+      - heading "See whether operations are actually improving." [level=1] [ref=e16]
+      - paragraph [ref=e17]: This view tracks current pressure alongside recent run history, so you can see whether RD-001 transport residue is still dominating, whether FL-002 auth issues are active, and whether recent batch slices are loading meaningful data.
+      - paragraph [ref=e19]: Daily backlog rows come from U001OpsSnapshot when available. Recent batch and layer activity still come from run history. Dates without a snapshot remain operational approximations only. Truth-audit rows below come from persisted sampled source, direct-RPC, and derived-candle audits.
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - strong [ref=e22]: "14"
+        - text: Days in the current trend window
+      - generic [ref=e23]:
+        - strong [ref=e24]: 2026-03-31
+        - text: Trend window start
+      - generic [ref=e25]:
+        - strong [ref=e26]: "3"
+        - text: Days with stored snapshots in this window
+  - generic [ref=e27]:
+    - heading "Current Pressure" [level=2] [ref=e28]
+    - generic [ref=e29]:
+      - generic [ref=e30]:
+        - strong [ref=e31]: "109"
+        - text: RD-001 transport statuses
+      - generic [ref=e32]:
+        - strong [ref=e33]: "15"
+        - text: RD-001 free-tier-guard statuses
+      - generic [ref=e34]:
+        - strong [ref=e35]: "0"
+        - text: FL-002 auth statuses
+      - generic [ref=e36]:
+        - strong [ref=e37]: "837"
+        - text: RD-001 partial statuses
+  - generic [ref=e38]:
+    - heading "Current Layer Snapshot" [level=2] [ref=e39]
+    - generic [ref=e40]:
+      - generic [ref=e41]:
+        - strong [ref=e42]: FL-001
+        - generic [ref=e43]:
+          - generic [ref=e44]:
+            - generic [ref=e45]: Window Complete
+            - strong [ref=e46]: "8195"
+          - generic [ref=e47]:
+            - generic [ref=e48]: Error
+            - strong [ref=e49]: "252"
+      - generic [ref=e50]:
+        - strong [ref=e51]: FL-002
+        - generic [ref=e52]:
+          - generic [ref=e53]:
+            - generic [ref=e54]: Window Complete
+            - strong [ref=e55]: "178"
+          - generic [ref=e56]:
+            - generic [ref=e57]: Error
+            - strong [ref=e58]: "30"
+      - generic [ref=e59]:
+        - strong [ref=e60]: RD-001
+        - generic [ref=e61]:
+          - generic [ref=e62]:
+            - generic [ref=e63]: Window Complete
+            - strong [ref=e64]: "215"
+          - generic [ref=e65]:
+            - generic [ref=e66]: Partial
+            - strong [ref=e67]: "837"
+          - generic [ref=e68]:
+            - generic [ref=e69]: Error
+            - strong [ref=e70]: "164"
+  - generic [ref=e71]:
+    - heading "Current Truth Audits" [level=2] [ref=e72]
+    - generic [ref=e73]:
+      - generic [ref=e74]:
+        - strong [ref=e75]: Latest live source audit found mismatches
+        - text: At least one sampled upstream comparison disagreed with local warehouse state.
+        - generic [ref=e76]:
+          - generic [ref=e77]:
+            - generic [ref=e78]: Status
+            - strong [ref=e79]: Finding
+          - generic [ref=e80]:
+            - generic [ref=e81]: Age
+            - strong [ref=e82]: 20.4h old
+          - generic [ref=e83]:
+            - generic [ref=e84]: Discovery status
+            - strong [ref=e85]: finding
+          - generic [ref=e86]:
+            - generic [ref=e87]: Discovery lag hours
+            - strong [ref=e88]: "10.3"
+          - generic [ref=e89]:
+            - generic [ref=e90]: FL-001 informative samples
+            - strong [ref=e91]: "1"
+          - generic [ref=e92]:
+            - generic [ref=e93]: FL-002 informative samples
+            - strong [ref=e94]: "1"
+          - generic [ref=e95]:
+            - generic [ref=e96]: RD-001 informative samples
+            - strong [ref=e97]: "1"
+      - generic [ref=e98]:
+        - strong [ref=e99]: Latest RD-001 chain audit passed
+        - text: The most recent sampled direct-RPC RD-001 check found no mismatches.
+        - generic [ref=e100]:
+          - generic [ref=e101]:
+            - generic [ref=e102]: Status
+            - strong [ref=e103]: Ok
+          - generic [ref=e104]:
+            - generic [ref=e105]: Age
+            - strong [ref=e106]: 6.0h old
+          - generic [ref=e107]:
+            - generic [ref=e108]: Sampled coins
+            - strong [ref=e109]: "1"
+          - generic [ref=e110]:
+            - generic [ref=e111]: Sampled transactions
+            - strong [ref=e112]: "1"
+          - generic [ref=e113]:
+            - generic [ref=e114]: Row matches
+            - strong [ref=e115]: "1"
+      - generic [ref=e116]:
+        - strong [ref=e117]: Latest FL-001 derived audit passed
+        - text: The latest sampled candle derivation matched stored FL-001 rows.
+        - generic [ref=e118]:
+          - generic [ref=e119]:
+            - generic [ref=e120]: Status
+            - strong [ref=e121]: Ok
+          - generic [ref=e122]:
+            - generic [ref=e123]: Age
+            - strong [ref=e124]: 5.9h old
+          - generic [ref=e125]:
+            - generic [ref=e126]: Sampled coins
+            - strong [ref=e127]: "1"
+          - generic [ref=e128]:
+            - generic [ref=e129]: Derived candles
+            - strong [ref=e130]: "3"
+          - generic [ref=e131]:
+            - generic [ref=e132]: Matched windows
+            - strong [ref=e133]: "1"
+  - generic [ref=e134]:
+    - heading "Truth Audit Coverage" [level=2] [ref=e135]
+    - generic [ref=e136]:
+      - generic [ref=e137]:
+        - strong [ref=e138]: "3"
+        - text: Days with any truth audit in this window
+      - generic [ref=e139]:
+        - strong [ref=e140]: "11"
+        - text: Days with no truth-audit coverage at all
+      - generic [ref=e141]:
+        - strong [ref=e142]: "0"
+        - text: Days where all three truth audits ran
+      - generic [ref=e143]:
+        - strong [ref=e144]: "3"
+        - text: Days with finding-producing truth audits
+      - generic [ref=e145]:
+        - strong [ref=e146]: "3"
+        - text: Days with warnings or audit execution issues
+      - generic [ref=e147]:
+        - strong [ref=e148]: 21.4%
+        - text: Days with any Phase 0 truth coverage
+  - generic [ref=e149]:
+    - heading "Daily Snapshot Backlog" [level=2] [ref=e150]
+    - table [ref=e151]:
+      - rowgroup [ref=e152]:
+        - row "Date Snapshot Discovered Mapped FL-001 Complete FL-002 Complete RD-001 Complete RD-001 Partial RD-001 Error RD-001 Transport RD-001 Guard FL-002 Auth" [ref=e153]:
+          - columnheader "Date" [ref=e154]
+          - columnheader "Snapshot" [ref=e155]
+          - columnheader "Discovered" [ref=e156]
+          - columnheader "Mapped" [ref=e157]
+          - columnheader "FL-001 Complete" [ref=e158]
+          - columnheader "FL-002 Complete" [ref=e159]
+          - columnheader "RD-001 Complete" [ref=e160]
+          - columnheader "RD-001 Partial" [ref=e161]
+          - columnheader "RD-001 Error" [ref=e162]
+          - columnheader "RD-001 Transport" [ref=e163]
+          - columnheader "RD-001 Guard" [ref=e164]
+          - columnheader "FL-002 Auth" [ref=e165]
+      - rowgroup [ref=e166]:
+        - row "2026-03-31 no - - - - - - - - - -" [ref=e167]:
+          - cell "2026-03-31" [ref=e168]
+          - cell "no" [ref=e169]
+          - cell "-" [ref=e170]
+          - cell "-" [ref=e171]
+          - cell "-" [ref=e172]
+          - cell "-" [ref=e173]
+          - cell "-" [ref=e174]
+          - cell "-" [ref=e175]
+          - cell "-" [ref=e176]
+          - cell "-" [ref=e177]
+          - cell "-" [ref=e178]
+          - cell "-" [ref=e179]
+        - row "2026-04-01 no - - - - - - - - - -" [ref=e180]:
+          - cell "2026-04-01" [ref=e181]
+          - cell "no" [ref=e182]
+          - cell "-" [ref=e183]
+          - cell "-" [ref=e184]
+          - cell "-" [ref=e185]
+          - cell "-" [ref=e186]
+          - cell "-" [ref=e187]
+          - cell "-" [ref=e188]
+          - cell "-" [ref=e189]
+          - cell "-" [ref=e190]
+          - cell "-" [ref=e191]
+          - cell "-" [ref=e192]
+        - row "2026-04-02 no - - - - - - - - - -" [ref=e193]:
+          - cell "2026-04-02" [ref=e194]
+          - cell "no" [ref=e195]
+          - cell "-" [ref=e196]
+          - cell "-" [ref=e197]
+          - cell "-" [ref=e198]
+          - cell "-" [ref=e199]
+          - cell "-" [ref=e200]
+          - cell "-" [ref=e201]
+          - cell "-" [ref=e202]
+          - cell "-" [ref=e203]
+          - cell "-" [ref=e204]
+          - cell "-" [ref=e205]
+        - row "2026-04-03 no - - - - - - - - - -" [ref=e206]:
+          - cell "2026-04-03" [ref=e207]
+          - cell "no" [ref=e208]
+          - cell "-" [ref=e209]
+          - cell "-" [ref=e210]
+          - cell "-" [ref=e211]
+          - cell "-" [ref=e212]
+          - cell "-" [ref=e213]
+          - cell "-" [ref=e214]
+          - cell "-" [ref=e215]
+          - cell "-" [ref=e216]
+          - cell "-" [ref=e217]
+          - cell "-" [ref=e218]
+        - row "2026-04-04 no - - - - - - - - - -" [ref=e219]:
+          - cell "2026-04-04" [ref=e220]
+          - cell "no" [ref=e221]
+          - cell "-" [ref=e222]
+          - cell "-" [ref=e223]
+          - cell "-" [ref=e224]
+          - cell "-" [ref=e225]
+          - cell "-" [ref=e226]
+          - cell "-" [ref=e227]
+          - cell "-" [ref=e228]
+          - cell "-" [ref=e229]
+          - cell "-" [ref=e230]
+          - cell "-" [ref=e231]
+        - row "2026-04-05 no - - - - - - - - - -" [ref=e232]:
+          - cell "2026-04-05" [ref=e233]
+          - cell "no" [ref=e234]
+          - cell "-" [ref=e235]
+          - cell "-" [ref=e236]
+          - cell "-" [ref=e237]
+          - cell "-" [ref=e238]
+          - cell "-" [ref=e239]
+          - cell "-" [ref=e240]
+          - cell "-" [ref=e241]
+          - cell "-" [ref=e242]
+          - cell "-" [ref=e243]
+          - cell "-" [ref=e244]
+        - row "2026-04-06 no - - - - - - - - - -" [ref=e245]:
+          - cell "2026-04-06" [ref=e246]
+          - cell "no" [ref=e247]
+          - cell "-" [ref=e248]
+          - cell "-" [ref=e249]
+          - cell "-" [ref=e250]
+          - cell "-" [ref=e251]
+          - cell "-" [ref=e252]
+          - cell "-" [ref=e253]
+          - cell "-" [ref=e254]
+          - cell "-" [ref=e255]
+          - cell "-" [ref=e256]
+          - cell "-" [ref=e257]
+        - row "2026-04-07 no - - - - - - - - - -" [ref=e258]:
+          - cell "2026-04-07" [ref=e259]
+          - cell "no" [ref=e260]
+          - cell "-" [ref=e261]
+          - cell "-" [ref=e262]
+          - cell "-" [ref=e263]
+          - cell "-" [ref=e264]
+          - cell "-" [ref=e265]
+          - cell "-" [ref=e266]
+          - cell "-" [ref=e267]
+          - cell "-" [ref=e268]
+          - cell "-" [ref=e269]
+          - cell "-" [ref=e270]
+        - row "2026-04-08 no - - - - - - - - - -" [ref=e271]:
+          - cell "2026-04-08" [ref=e272]
+          - cell "no" [ref=e273]
+          - cell "-" [ref=e274]
+          - cell "-" [ref=e275]
+          - cell "-" [ref=e276]
+          - cell "-" [ref=e277]
+          - cell "-" [ref=e278]
+          - cell "-" [ref=e279]
+          - cell "-" [ref=e280]
+          - cell "-" [ref=e281]
+          - cell "-" [ref=e282]
+          - cell "-" [ref=e283]
+        - row "2026-04-09 no - - - - - - - - - -" [ref=e284]:
+          - cell "2026-04-09" [ref=e285]
+          - cell "no" [ref=e286]
+          - cell "-" [ref=e287]
+          - cell "-" [ref=e288]
+          - cell "-" [ref=e289]
+          - cell "-" [ref=e290]
+          - cell "-" [ref=e291]
+          - cell "-" [ref=e292]
+          - cell "-" [ref=e293]
+          - cell "-" [ref=e294]
+          - cell "-" [ref=e295]
+          - cell "-" [ref=e296]
+        - row "2026-04-10 no - - - - - - - - - -" [ref=e297]:
+          - cell "2026-04-10" [ref=e298]
+          - cell "no" [ref=e299]
+          - cell "-" [ref=e300]
+          - cell "-" [ref=e301]
+          - cell "-" [ref=e302]
+          - cell "-" [ref=e303]
+          - cell "-" [ref=e304]
+          - cell "-" [ref=e305]
+          - cell "-" [ref=e306]
+          - cell "-" [ref=e307]
+          - cell "-" [ref=e308]
+          - cell "-" [ref=e309]
+        - row "2026-04-11 yes 14881 9150 8000 148 215 769 163 109 14 -" [ref=e310]:
+          - cell "2026-04-11" [ref=e311]
+          - cell "yes" [ref=e312]
+          - cell "14881" [ref=e313]
+          - cell "9150" [ref=e314]
+          - cell "8000" [ref=e315]
+          - cell "148" [ref=e316]
+          - cell "215" [ref=e317]
+          - cell "769" [ref=e318]
+          - cell "163" [ref=e319]
+          - cell "109" [ref=e320]
+          - cell "14" [ref=e321]
+          - cell "-" [ref=e322]
+        - row "2026-04-12 yes 15034 10209 8146 178 215 818 164 109 15 -" [ref=e323]:
+          - cell "2026-04-12" [ref=e324]
+          - cell "yes" [ref=e325]
+          - cell "15034" [ref=e326]
+          - cell "10209" [ref=e327]
+          - cell "8146" [ref=e328]
+          - cell "178" [ref=e329]
+          - cell "215" [ref=e330]
+          - cell "818" [ref=e331]
+          - cell "164" [ref=e332]
+          - cell "109" [ref=e333]
+          - cell "15" [ref=e334]
+          - cell "-" [ref=e335]
+        - row "2026-04-13 yes 15034 10209 8146 178 215 818 164 109 15 -" [ref=e336]:
+          - cell "2026-04-13" [ref=e337]
+          - cell "yes" [ref=e338]
+          - cell "15034" [ref=e339]
+          - cell "10209" [ref=e340]
+          - cell "8146" [ref=e341]
+          - cell "178" [ref=e342]
+          - cell "215" [ref=e343]
+          - cell "818" [ref=e344]
+          - cell "164" [ref=e345]
+          - cell "109" [ref=e346]
+          - cell "15" [ref=e347]
+          - cell "-" [ref=e348]
+  - generic [ref=e349]:
+    - heading "Daily Truth Audits" [level=2] [ref=e350]
+    - table [ref=e351]:
+      - rowgroup [ref=e352]:
+        - row "Date Live Source RD-001 Chain FL-001 Derived" [ref=e353]:
+          - columnheader "Date" [ref=e354]
+          - columnheader "Live Source" [ref=e355]
+          - columnheader "RD-001 Chain" [ref=e356]
+          - columnheader "FL-001 Derived" [ref=e357]
+      - rowgroup [ref=e358]:
+        - row "2026-03-31 runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e359]:
+          - cell "2026-03-31" [ref=e360]
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0" [ref=e361]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e363]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e365]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+        - row "2026-04-01 runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e367]:
+          - cell "2026-04-01" [ref=e368]
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0" [ref=e369]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e371]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e373]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+        - row "2026-04-02 runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e375]:
+          - cell "2026-04-02" [ref=e376]
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0" [ref=e377]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e379]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e381]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+        - row "2026-04-03 runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e383]:
+          - cell "2026-04-03" [ref=e384]
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0" [ref=e385]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e387]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e389]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+        - row "2026-04-04 runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e391]:
+          - cell "2026-04-04" [ref=e392]
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0" [ref=e393]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e395]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e397]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+        - row "2026-04-05 runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e399]:
+          - cell "2026-04-05" [ref=e400]
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0" [ref=e401]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e403]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e405]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+        - row "2026-04-06 runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e407]:
+          - cell "2026-04-06" [ref=e408]
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0" [ref=e409]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e411]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e413]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+        - row "2026-04-07 runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e415]:
+          - cell "2026-04-07" [ref=e416]
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0" [ref=e417]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e419]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e421]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+        - row "2026-04-08 runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e423]:
+          - cell "2026-04-08" [ref=e424]
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0" [ref=e425]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e427]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e429]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+        - row "2026-04-09 runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e431]:
+          - cell "2026-04-09" [ref=e432]
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0" [ref=e433]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e435]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e437]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+        - row "2026-04-10 runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e439]:
+          - cell "2026-04-10" [ref=e440]
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0" [ref=e441]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e443]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e445]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+        - row "2026-04-11 runs 1 / ok 0 / warn 0 / find 1 / err 0 findings 1 / warnings 1 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e447]:
+          - cell "2026-04-11" [ref=e448]
+          - cell "runs 1 / ok 0 / warn 0 / find 1 / err 0 findings 1 / warnings 1" [ref=e449]:
+            - text: runs 1 / ok 0 / warn 0 / find 1 / err 0
+            - text: findings 1 / warnings 1
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e452]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e454]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+        - row "2026-04-12 runs 4 / ok 1 / warn 2 / find 1 / err 0 findings 2 / warnings 2 runs 3 / ok 1 / warn 1 / find 0 / err 1 sampled 2 / findings 0 / warnings 1 runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e456]:
+          - cell "2026-04-12" [ref=e457]
+          - cell "runs 4 / ok 1 / warn 2 / find 1 / err 0 findings 2 / warnings 2" [ref=e458]:
+            - text: runs 4 / ok 1 / warn 2 / find 1 / err 0
+            - text: findings 2 / warnings 2
+          - cell "runs 3 / ok 1 / warn 1 / find 0 / err 1 sampled 2 / findings 0 / warnings 1" [ref=e461]:
+            - text: runs 3 / ok 1 / warn 1 / find 0 / err 1
+            - text: sampled 2 / findings 0 / warnings 1
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 sampled 0 / findings 0 / warnings 0" [ref=e464]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: sampled 0 / findings 0 / warnings 0
+        - row "2026-04-13 runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0 runs 3 / ok 1 / warn 0 / find 2 / err 0 sampled 3 / findings 2 / warnings 0 runs 7 / ok 1 / warn 6 / find 0 / err 0 sampled 3 / findings 0 / warnings 6" [ref=e466]:
+          - cell "2026-04-13" [ref=e467]
+          - cell "runs 0 / ok 0 / warn 0 / find 0 / err 0 findings 0 / warnings 0" [ref=e468]:
+            - text: runs 0 / ok 0 / warn 0 / find 0 / err 0
+            - text: findings 0 / warnings 0
+          - cell "runs 3 / ok 1 / warn 0 / find 2 / err 0 sampled 3 / findings 2 / warnings 0" [ref=e470]:
+            - text: runs 3 / ok 1 / warn 0 / find 2 / err 0
+            - text: sampled 3 / findings 2 / warnings 0
+          - cell "runs 7 / ok 1 / warn 6 / find 0 / err 0 sampled 3 / findings 0 / warnings 6" [ref=e473]:
+            - text: runs 7 / ok 1 / warn 6 / find 0 / err 0
+            - text: sampled 3 / findings 0 / warnings 6
+  - generic [ref=e476]:
+    - heading "Daily Batch Outcomes" [level=2] [ref=e477]
+    - table [ref=e478]:
+      - rowgroup [ref=e479]:
+        - row "Date Batches Complete Batches Error Coins Succeeded Coins Failed API Calls" [ref=e480]:
+          - columnheader "Date" [ref=e481]
+          - columnheader "Batches Complete" [ref=e482]
+          - columnheader "Batches Error" [ref=e483]
+          - columnheader "Coins Succeeded" [ref=e484]
+          - columnheader "Coins Failed" [ref=e485]
+          - columnheader "API Calls" [ref=e486]
+      - rowgroup [ref=e487]:
+        - row "2026-03-31 0 0 0 0 0" [ref=e488]:
+          - cell "2026-03-31" [ref=e489]
+          - cell "0" [ref=e490]
+          - cell "0" [ref=e491]
+          - cell "0" [ref=e492]
+          - cell "0" [ref=e493]
+          - cell "0" [ref=e494]
+        - row "2026-04-01 0 0 0 0 0" [ref=e495]:
+          - cell "2026-04-01" [ref=e496]
+          - cell "0" [ref=e497]
+          - cell "0" [ref=e498]
+          - cell "0" [ref=e499]
+          - cell "0" [ref=e500]
+          - cell "0" [ref=e501]
+        - row "2026-04-02 0 0 0 0 0" [ref=e502]:
+          - cell "2026-04-02" [ref=e503]
+          - cell "0" [ref=e504]
+          - cell "0" [ref=e505]
+          - cell "0" [ref=e506]
+          - cell "0" [ref=e507]
+          - cell "0" [ref=e508]
+        - row "2026-04-03 0 0 0 0 0" [ref=e509]:
+          - cell "2026-04-03" [ref=e510]
+          - cell "0" [ref=e511]
+          - cell "0" [ref=e512]
+          - cell "0" [ref=e513]
+          - cell "0" [ref=e514]
+          - cell "0" [ref=e515]
+        - row "2026-04-04 0 0 0 0 0" [ref=e516]:
+          - cell "2026-04-04" [ref=e517]
+          - cell "0" [ref=e518]
+          - cell "0" [ref=e519]
+          - cell "0" [ref=e520]
+          - cell "0" [ref=e521]
+          - cell "0" [ref=e522]
+        - row "2026-04-05 0 0 0 0 0" [ref=e523]:
+          - cell "2026-04-05" [ref=e524]
+          - cell "0" [ref=e525]
+          - cell "0" [ref=e526]
+          - cell "0" [ref=e527]
+          - cell "0" [ref=e528]
+          - cell "0" [ref=e529]
+        - row "2026-04-06 0 0 0 0 0" [ref=e530]:
+          - cell "2026-04-06" [ref=e531]
+          - cell "0" [ref=e532]
+          - cell "0" [ref=e533]
+          - cell "0" [ref=e534]
+          - cell "0" [ref=e535]
+          - cell "0" [ref=e536]
+        - row "2026-04-07 0 0 0 0 0" [ref=e537]:
+          - cell "2026-04-07" [ref=e538]
+          - cell "0" [ref=e539]
+          - cell "0" [ref=e540]
+          - cell "0" [ref=e541]
+          - cell "0" [ref=e542]
+          - cell "0" [ref=e543]
+        - row "2026-04-08 4 0 157 64 0" [ref=e544]:
+          - cell "2026-04-08" [ref=e545]
+          - cell "4" [ref=e546]
+          - cell "0" [ref=e547]
+          - cell "157" [ref=e548]
+          - cell "64" [ref=e549]
+          - cell "0" [ref=e550]
+        - row "2026-04-09 1 0 100 0 0" [ref=e551]:
+          - cell "2026-04-09" [ref=e552]
+          - cell "1" [ref=e553]
+          - cell "0" [ref=e554]
+          - cell "100" [ref=e555]
+          - cell "0" [ref=e556]
+          - cell "0" [ref=e557]
+        - row "2026-04-10 0 0 0 0 0" [ref=e558]:
+          - cell "2026-04-10" [ref=e559]
+          - cell "0" [ref=e560]
+          - cell "0" [ref=e561]
+          - cell "0" [ref=e562]
+          - cell "0" [ref=e563]
+          - cell "0" [ref=e564]
+        - row "2026-04-11 17 0 181 205 0" [ref=e565]:
+          - cell "2026-04-11" [ref=e566]
+          - cell "17" [ref=e567]
+          - cell "0" [ref=e568]
+          - cell "181" [ref=e569]
+          - cell "205" [ref=e570]
+          - cell "0" [ref=e571]
+        - row "2026-04-12 34 0 1152 2 0" [ref=e572]:
+          - cell "2026-04-12" [ref=e573]
+          - cell "34" [ref=e574]
+          - cell "0" [ref=e575]
+          - cell "1152" [ref=e576]
+          - cell "2" [ref=e577]
+          - cell "0" [ref=e578]
+        - row "2026-04-13 13 0 49 52 0" [ref=e579]:
+          - cell "2026-04-13" [ref=e580]
+          - cell "13" [ref=e581]
+          - cell "0" [ref=e582]
+          - cell "49" [ref=e583]
+          - cell "52" [ref=e584]
+          - cell "0" [ref=e585]
+  - generic [ref=e586]:
+    - heading "Daily Layer Activity" [level=2] [ref=e587]
+    - table [ref=e588]:
+      - rowgroup [ref=e589]:
+        - row "Date FL-001 FL-002 RD-001" [ref=e590]:
+          - columnheader "Date" [ref=e591]
+          - columnheader "FL-001" [ref=e592]
+          - columnheader "FL-002" [ref=e593]
+          - columnheader "RD-001" [ref=e594]
+      - rowgroup [ref=e595]:
+        - row "2026-03-31 ok 0 / err 0 / loaded 0 ok 0 / err 0 / auth 0 / loaded 0 ok 0 / err 0 / transport 0 / guard 0 / loaded 0" [ref=e596]:
+          - cell "2026-03-31" [ref=e597]
+          - cell "ok 0 / err 0 / loaded 0" [ref=e598]
+          - cell "ok 0 / err 0 / auth 0 / loaded 0" [ref=e599]
+          - cell "ok 0 / err 0 / transport 0 / guard 0 / loaded 0" [ref=e600]: ok 0 / err 0 / transport 0 / guard 0 / loaded 0
+        - row "2026-04-01 ok 0 / err 0 / loaded 0 ok 0 / err 0 / auth 0 / loaded 0 ok 0 / err 0 / transport 0 / guard 0 / loaded 0" [ref=e602]:
+          - cell "2026-04-01" [ref=e603]
+          - cell "ok 0 / err 0 / loaded 0" [ref=e604]
+          - cell "ok 0 / err 0 / auth 0 / loaded 0" [ref=e605]
+          - cell "ok 0 / err 0 / transport 0 / guard 0 / loaded 0" [ref=e606]: ok 0 / err 0 / transport 0 / guard 0 / loaded 0
+        - row "2026-04-02 ok 0 / err 0 / loaded 0 ok 0 / err 0 / auth 0 / loaded 0 ok 0 / err 0 / transport 0 / guard 0 / loaded 0" [ref=e608]:
+          - cell "2026-04-02" [ref=e609]
+          - cell "ok 0 / err 0 / loaded 0" [ref=e610]
+          - cell "ok 0 / err 0 / auth 0 / loaded 0" [ref=e611]
+          - cell "ok 0 / err 0 / transport 0 / guard 0 / loaded 0" [ref=e612]: ok 0 / err 0 / transport 0 / guard 0 / loaded 0
+        - row "2026-04-03 ok 0 / err 0 / loaded 0 ok 0 / err 0 / auth 0 / loaded 0 ok 0 / err 0 / transport 0 / guard 0 / loaded 0" [ref=e614]:
+          - cell "2026-04-03" [ref=e615]
+          - cell "ok 0 / err 0 / loaded 0" [ref=e616]
+          - cell "ok 0 / err 0 / auth 0 / loaded 0" [ref=e617]
+          - cell "ok 0 / err 0 / transport 0 / guard 0 / loaded 0" [ref=e618]: ok 0 / err 0 / transport 0 / guard 0 / loaded 0
+        - row "2026-04-04 ok 0 / err 0 / loaded 0 ok 0 / err 0 / auth 0 / loaded 0 ok 0 / err 0 / transport 0 / guard 0 / loaded 0" [ref=e620]:
+          - cell "2026-04-04" [ref=e621]
+          - cell "ok 0 / err 0 / loaded 0" [ref=e622]
+          - cell "ok 0 / err 0 / auth 0 / loaded 0" [ref=e623]
+          - cell "ok 0 / err 0 / transport 0 / guard 0 / loaded 0" [ref=e624]: ok 0 / err 0 / transport 0 / guard 0 / loaded 0
+        - row "2026-04-05 ok 0 / err 0 / loaded 0 ok 0 / err 0 / auth 0 / loaded 0 ok 0 / err 0 / transport 0 / guard 0 / loaded 0" [ref=e626]:
+          - cell "2026-04-05" [ref=e627]
+          - cell "ok 0 / err 0 / loaded 0" [ref=e628]
+          - cell "ok 0 / err 0 / auth 0 / loaded 0" [ref=e629]
+          - cell "ok 0 / err 0 / transport 0 / guard 0 / loaded 0" [ref=e630]: ok 0 / err 0 / transport 0 / guard 0 / loaded 0
+        - row "2026-04-06 ok 0 / err 0 / loaded 0 ok 0 / err 0 / auth 0 / loaded 0 ok 0 / err 0 / transport 0 / guard 0 / loaded 0" [ref=e632]:
+          - cell "2026-04-06" [ref=e633]
+          - cell "ok 0 / err 0 / loaded 0" [ref=e634]
+          - cell "ok 0 / err 0 / auth 0 / loaded 0" [ref=e635]
+          - cell "ok 0 / err 0 / transport 0 / guard 0 / loaded 0" [ref=e636]: ok 0 / err 0 / transport 0 / guard 0 / loaded 0
+        - row "2026-04-07 ok 0 / err 0 / loaded 0 ok 0 / err 0 / auth 0 / loaded 0 ok 0 / err 0 / transport 0 / guard 0 / loaded 0" [ref=e638]:
+          - cell "2026-04-07" [ref=e639]
+          - cell "ok 0 / err 0 / loaded 0" [ref=e640]
+          - cell "ok 0 / err 0 / auth 0 / loaded 0" [ref=e641]
+          - cell "ok 0 / err 0 / transport 0 / guard 0 / loaded 0" [ref=e642]: ok 0 / err 0 / transport 0 / guard 0 / loaded 0
+        - row "2026-04-08 ok 50 / err 0 / loaded 8598 ok 7 / err 0 / auth 0 / loaded 7007 ok 94 / err 12 / transport 0 / guard 10 / loaded 8448" [ref=e644]:
+          - cell "2026-04-08" [ref=e645]
+          - cell "ok 50 / err 0 / loaded 8598" [ref=e646]
+          - cell "ok 7 / err 0 / auth 0 / loaded 7007" [ref=e647]
+          - cell "ok 94 / err 12 / transport 0 / guard 10 / loaded 8448" [ref=e648]: ok 94 / err 12 / transport 0 / guard 10 / loaded 8448
+        - row "2026-04-09 ok 50 / err 0 / loaded 10437 ok 0 / err 0 / auth 0 / loaded 0 ok 14 / err 1 / transport 0 / guard 1 / loaded 102" [ref=e651]:
+          - cell "2026-04-09" [ref=e652]
+          - cell "ok 50 / err 0 / loaded 10437" [ref=e653]
+          - cell "ok 0 / err 0 / auth 0 / loaded 0" [ref=e654]
+          - cell "ok 14 / err 1 / transport 0 / guard 1 / loaded 102" [ref=e655]: ok 14 / err 1 / transport 0 / guard 1 / loaded 102
+        - row "2026-04-10 ok 0 / err 0 / loaded 0 ok 0 / err 0 / auth 0 / loaded 0 ok 0 / err 0 / transport 0 / guard 0 / loaded 0" [ref=e658]:
+          - cell "2026-04-10" [ref=e659]
+          - cell "ok 0 / err 0 / loaded 0" [ref=e660]
+          - cell "ok 0 / err 0 / auth 0 / loaded 0" [ref=e661]
+          - cell "ok 0 / err 0 / transport 0 / guard 0 / loaded 0" [ref=e662]: ok 0 / err 0 / transport 0 / guard 0 / loaded 0
+        - row "2026-04-11 ok 97 / err 27 / loaded 19971 ok 17 / err 0 / auth 0 / loaded 17017 ok 18 / err 7 / transport 0 / guard 7 / loaded 2862" [ref=e664]:
+          - cell "2026-04-11" [ref=e665]
+          - cell "ok 97 / err 27 / loaded 19971" [ref=e666]
+          - cell "ok 17 / err 0 / auth 0 / loaded 17017" [ref=e667]
+          - cell "ok 18 / err 7 / transport 0 / guard 7 / loaded 2862" [ref=e668]: ok 18 / err 7 / transport 0 / guard 7 / loaded 2862
+        - row "2026-04-12 ok 99 / err 0 / loaded 15684 ok 13 / err 0 / auth 0 / loaded 13013 ok 49 / err 1 / transport 0 / guard 1 / loaded 6209" [ref=e671]:
+          - cell "2026-04-12" [ref=e672]
+          - cell "ok 99 / err 0 / loaded 15684" [ref=e673]
+          - cell "ok 13 / err 0 / auth 0 / loaded 13013" [ref=e674]
+          - cell "ok 49 / err 1 / transport 0 / guard 1 / loaded 6209" [ref=e675]: ok 49 / err 1 / transport 0 / guard 1 / loaded 6209
+        - row "2026-04-13 ok 49 / err 49 / loaded 7801 ok 0 / err 0 / auth 0 / loaded 0 ok 100 / err 0 / transport 0 / guard 0 / loaded 1983" [ref=e678]:
+          - cell "2026-04-13" [ref=e679]
+          - cell "ok 49 / err 49 / loaded 7801" [ref=e680]
+          - cell "ok 0 / err 0 / auth 0 / loaded 0" [ref=e681]
+          - cell "ok 100 / err 0 / transport 0 / guard 0 / loaded 1983" [ref=e682]: ok 100 / err 0 / transport 0 / guard 0 / loaded 1983

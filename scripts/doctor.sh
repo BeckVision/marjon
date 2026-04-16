@@ -58,4 +58,11 @@ pass "no unapplied migrations"
     || fail "Django cannot connect to the configured database."
 pass "Django database connection succeeds"
 
+CHAIN_AUDIT_RPC_SOURCE="$("$SCRIPT_DIR/manage.sh" shell -c "from django.conf import settings; print(settings.U001_CHAIN_AUDIT_RPC_SOURCE)" 2>/dev/null | tail -n 1)"
+if [[ "$CHAIN_AUDIT_RPC_SOURCE" == "public_fallback" ]]; then
+    warn "RD-001 chain audit is using the public Solana RPC fallback. Configure U001_CHAIN_AUDIT_RPC_URL for more reliable Phase 0 audits."
+else
+    pass "RD-001 chain audit RPC source: $CHAIN_AUDIT_RPC_SOURCE"
+fi
+
 printf 'Doctor finished successfully.\n'

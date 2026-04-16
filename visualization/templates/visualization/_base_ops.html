@@ -1,0 +1,293 @@
+{% extends "visualization/_base.html" %}
+
+{% block head_extra %}
+<style>
+    /* ── Ops Sub-Navigation ────────────────────────────────────── */
+    .ops-tabs {
+        display: flex;
+        gap: 2px;
+        padding: 0;
+        margin-bottom: 24px;
+        border-bottom: 1px solid var(--border);
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+
+    .ops-tabs::-webkit-scrollbar { display: none; }
+
+    .ops-tab {
+        padding: 12px 18px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-muted);
+        white-space: nowrap;
+        transition: all 0.2s;
+        position: relative;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+    }
+
+    .ops-tab:hover {
+        color: var(--text-primary);
+    }
+
+    .ops-tab.active {
+        color: var(--accent-hover);
+        border-bottom-color: var(--accent);
+    }
+
+    /* ── Ops Page Header ───────────────────────────────────────── */
+    .ops-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .ops-header h1 {
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+    }
+
+    .ops-header .meta {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    /* ── Layer Cards ───────────────────────────────────────────── */
+    .layer-card {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 18px;
+        display: grid;
+        gap: 12px;
+        position: relative;
+        transition: border-color 0.2s;
+    }
+
+    .layer-card:hover { border-color: var(--border-strong); }
+
+    .layer-card .layer-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        gap: 8px;
+    }
+
+    .layer-card .layer-stats { display: grid; gap: 0; }
+
+    .layer-card .stat-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 8px 0;
+        border-top: 1px solid var(--border);
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .layer-card .stat-row:first-child {
+        border-top: 0;
+        padding-top: 0;
+    }
+
+    /* ── Bucket / Error Cards ──────────────────────────────────── */
+    .bucket-card {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 18px;
+        display: grid;
+        gap: 8px;
+        transition: border-color 0.2s;
+    }
+
+    .bucket-card:hover { border-color: var(--border-strong); }
+
+    .bucket-card .bucket-value {
+        font-size: 26px;
+        font-weight: 700;
+        line-height: 1;
+        font-feature-settings: 'tnum';
+    }
+
+    .bucket-card .bucket-list { display: grid; gap: 0; }
+
+    .bucket-card .bucket-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 7px 0;
+        border-top: 1px solid var(--border);
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .bucket-card .bucket-row:first-child {
+        border-top: 0;
+        padding-top: 0;
+    }
+
+    /* ── Queue Cards ───────────────────────────────────────────── */
+    .queue-card {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 20px;
+        display: grid;
+        gap: 12px;
+        border-left: 3px solid var(--border-strong);
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .queue-card:hover {
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .queue-card.lane-safe { border-left-color: var(--green); }
+    .queue-card.lane-risky { border-left-color: var(--amber); }
+    .queue-card.lane-error { border-left-color: var(--red); }
+    .queue-card.lane-partial { border-left-color: var(--purple); }
+
+    .queue-card .queue-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        gap: 8px;
+    }
+
+    /* ── Count List ────────────────────────────────────────────── */
+    .count-list { display: grid; gap: 0; }
+
+    .count-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 7px 0;
+        border-top: 1px solid var(--border);
+        font-size: 13px;
+    }
+
+    .count-row:first-child { border-top: 0; padding-top: 0; }
+    .count-row span:first-child { color: var(--text-muted); }
+
+    /* ── Freshness Items ───────────────────────────────────────── */
+    .freshness-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+    }
+
+    .freshness-item {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 14px;
+        display: grid;
+        gap: 6px;
+        transition: border-color 0.2s;
+    }
+
+    .freshness-item:hover { border-color: var(--border-strong); }
+
+    .freshness-item .label {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+    }
+
+    .freshness-item .value {
+        font-size: 15px;
+        font-weight: 700;
+        font-feature-settings: 'tnum';
+    }
+
+    /* ── Recommendation Box ────────────────────────────────────── */
+    .recommendation {
+        background: var(--bg-primary);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius-lg);
+        padding: 20px;
+        border-left: 3px solid var(--accent);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    }
+
+    .recommendation h3 { color: var(--accent-hover); margin-bottom: 8px; }
+    .recommendation p { font-size: 13px; color: var(--text-secondary); line-height: 1.65; }
+
+    /* ── Stage / Funnel ────────────────────────────────────────── */
+    .stage {
+        display: grid;
+        gap: 6px;
+        padding: 14px 0;
+        border-top: 1px solid var(--border);
+    }
+
+    .stage:first-child { border-top: 0; }
+
+    .stage-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+    }
+
+    .stage-label {
+        font-weight: 600;
+        font-size: 13px;
+    }
+
+    .stage-metrics {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-feature-settings: 'tnum';
+    }
+
+    /* ── Bottleneck ────────────────────────────────────────────── */
+    .bottleneck {
+        background: var(--amber-soft);
+        border: 1px solid var(--amber-strong);
+        border-radius: var(--radius-md);
+        padding: 16px;
+    }
+
+    .bottleneck h3 { color: var(--amber); }
+    .bottleneck p { color: var(--text-secondary); font-size: 13px; }
+
+    /* ── Timeline Items ────────────────────────────────────────── */
+    .timeline-list { display: grid; gap: 0; }
+
+    .timeline-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        gap: 12px;
+        padding: 10px 0;
+        border-top: 1px solid var(--border);
+        font-size: 13px;
+        transition: background 0.12s;
+    }
+
+    .timeline-item:first-child { border-top: 0; padding-top: 0; }
+    .timeline-item:hover { background: rgba(255, 255, 255, 0.02); }
+</style>
+{% block ops_head_extra %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<div class="ops-tabs">
+    <a href="/ops/u001/" class="ops-tab {% if ops_tab == 'overview' %}active{% endif %}">Overview</a>
+    <a href="/ops/u001/automation/" class="ops-tab {% if ops_tab == 'automation' %}active{% endif %}">Automation</a>
+    <a href="/ops/u001/coverage/" class="ops-tab {% if ops_tab == 'coverage' %}active{% endif %}">Coverage</a>
+    <a href="/ops/u001/queues/" class="ops-tab {% if ops_tab == 'queues' %}active{% endif %}">Queues</a>
+    <a href="/ops/u001/trends/" class="ops-tab {% if ops_tab == 'trends' %}active{% endif %}">Trends</a>
+</div>
+
+{% block ops_content %}{% endblock %}
+{% endblock %}

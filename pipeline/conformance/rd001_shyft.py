@@ -6,6 +6,7 @@ records; failed transactions and those without BuyEvent/SellEvent are routed
 to the skipped list with a reason code.
 """
 
+import json
 import logging
 from decimal import Decimal
 
@@ -45,7 +46,7 @@ def conform(raw_transactions, mint_address, pool_address):
             continue
 
         # 2. Find first BuyEvent or SellEvent
-        trade_event = _find_trade_event(tx.get('events', []))
+        trade_event = _find_trade_event(tx.get('events', []), pool_address)
         if trade_event is None:
             skipped_records.append(make_skipped(
                 tx_signature, timestamp, mint_address, pool_address,
@@ -73,24 +74,81 @@ def conform(raw_transactions, mint_address, pool_address):
     return parsed_records, skipped_records
 
 
-def _find_trade_event(events):
-    """Find the first BuyEvent or SellEvent in the events list.
+def _event_identity(event):
+    """Return a stable identity for a trade event.
 
-    Returns the event dict, or None if no trade event found.
-    Logs a warning if multiple trade events are present.
+    Shyft occasionally emits duplicate BuyEvent/SellEvent payloads for the
+    same transaction. Deduplicating them keeps warning noise focused on
+    genuinely ambiguous transactions.
     """
-    trade_events = [
+    return json.dumps(
+        {
+            'name': event.get('name'),
+            'data': event.get('data', {}),
+        },
+        sort_keys=True,
+    )
+
+
+def _dedupe_trade_events(events):
+    """Drop duplicate trade events while preserving order."""
+    seen = set()
+    unique = []
+    for event in events:
+        identity = _event_identity(event)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        unique.append(event)
+    return unique
+
+
+def _find_trade_event(events, pool_address):
+    """Find the best BuyEvent/SellEvent candidate for the requested pool.
+
+    Preference order:
+      1. Unique trade event whose `data.pool` matches the requested pool.
+      2. Unique trade event overall.
+      3. First remaining trade event, with a warning because the transaction
+         is ambiguous for the requested pool.
+    """
+    trade_events = _dedupe_trade_events([
         e for e in events if e.get('name') in ('BuyEvent', 'SellEvent')
-    ]
+    ])
 
     if not trade_events:
         return None
 
-    if len(trade_events) > 1:
+    matching_pool = [
+        event for event in trade_events
+        if event.get('data', {}).get('pool') == pool_address
+    ]
+    if len(matching_pool) == 1:
+        return matching_pool[0]
+
+    if len(trade_events) == 1:
+        only_event = trade_events[0]
+        if only_event.get('data', {}).get('pool') != pool_address:
+            logger.warning(
+                'Trade event pool mismatch for requested pool %s, using %s',
+                pool_address,
+                only_event.get('data', {}).get('pool'),
+            )
+        return only_event
+
+    if len(matching_pool) > 1:
         logger.warning(
-            'Multiple trade events found (%d), taking the first',
-            len(trade_events),
+            'Multiple trade events found for requested pool %s (%d), taking the first',
+            pool_address,
+            len(matching_pool),
         )
+        return matching_pool[0]
+
+    logger.warning(
+        'Multiple trade events found with no pool match for requested pool %s (%d), taking the first',
+        pool_address,
+        len(trade_events),
+    )
 
     return trade_events[0]
 
@@ -118,5 +176,4 @@ def _extract_record(tx, trade_event, tx_signature, timestamp, mint_address):
         'pool_sol_reserves': int(data['pool_quote_token_reserves']),
         'coin_id': mint_address,
     }
-
 

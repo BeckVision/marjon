@@ -29,6 +29,8 @@ cd "$PROJECT_DIR"
     --rpc-batch-size "${MARJON_U001_RD001_RPC_BATCH_SIZE:-100}" \
     --max-coins "$MAX_COINS" \
     --max-new-sigs "${MARJON_U001_RD001_MAX_NEW_SIGS:-500}" \
+    --max-bootstrap-new-sigs "${MARJON_U001_RD001_MAX_BOOTSTRAP_NEW_SIGS:-400}" \
     --min-sigs "${MARJON_U001_RD001_MIN_SIGS:-3}" \
+    --min-steady-state-sigs "${MARJON_U001_RD001_MIN_STEADY_STATE_SIGS:-1}" \
     --sleep "${MARJON_U001_RD001_SLEEP:-1.0}" \
     "$@"

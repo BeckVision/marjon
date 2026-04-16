@@ -117,6 +117,16 @@ class Command(BaseCommand):
                     f"  free_tier_guarded_statuses: {free_tier_guarded}"
                 )
 
+            error_buckets = self._error_bucket_counts(layer_id)
+            if error_buckets:
+                self.stdout.write(
+                    "  current_error_buckets: "
+                    + ", ".join(
+                        f"{bucket}={count}"
+                        for bucket, count in error_buckets.items()
+                    )
+                )
+
             if latest_ingested is None:
                 blockers.append(f"{layer_id} has no ingested data.")
             elif latest_ingested < stale_cutoff:
@@ -144,10 +154,7 @@ class Command(BaseCommand):
                 for count, message in top_errors:
                     self.stdout.write(f"    {count}x {message}")
 
-                if any(
-                    '401 Unauthorized' in message or '403 Forbidden' in message
-                    for count, message in top_errors
-                ):
+                if error_buckets.get('auth'):
                     blockers.append(
                         f"{layer_id} is seeing authentication failures from its upstream provider."
                     )
@@ -227,3 +234,58 @@ class Command(BaseCommand):
             layer_id=layer_id,
             last_error__icontains=FREE_TIER_GUARD_TEXT,
         ).count()
+
+    def _error_bucket_counts(self, layer_id):
+        rows = (
+            U001PipelineStatus.objects
+            .filter(layer_id=layer_id, last_error__isnull=False)
+            .values_list('last_error', flat=True)
+        )
+        counts = Counter()
+        for error in rows:
+            bucket = self._classify_error_bucket(error)
+            if bucket:
+                counts[bucket] += 1
+
+        ordered = {}
+        for bucket in (
+            'auth',
+            'transport',
+            'free_tier_guard',
+            'expectation_failed',
+            'rate_limited',
+            'server_error',
+            'response_validation',
+            'json_decode',
+            'other',
+        ):
+            if counts.get(bucket):
+                ordered[bucket] = counts[bucket]
+        return ordered
+
+    def _classify_error_bucket(self, error):
+        text = (error or '').lower()
+        if not text:
+            return None
+        if '401 unauthorized' in text or '403 forbidden' in text:
+            return 'auth'
+        if FREE_TIER_GUARD_TEXT in text:
+            return 'free_tier_guard'
+        if (
+            'transport_error' in text or
+            'server disconnected' in text or
+            'remoteprotocolerror' in text or
+            'network error' in text
+        ):
+            return 'transport'
+        if 'expectation failed' in text or 'expectation_failed_417' in text:
+            return 'expectation_failed'
+        if 'rate limited' in text or 'rate_limited_429' in text:
+            return 'rate_limited'
+        if 'server_error_' in text or 'server error ' in text:
+            return 'server_error'
+        if 'response_validation_error:' in text:
+            return 'response_validation'
+        if 'json_decode_error:' in text or 'json decode error' in text:
+            return 'json_decode'
+        return 'other'

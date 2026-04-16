@@ -1,0 +1,429 @@
+{% extends "visualization/_base_ops.html" %}
+{% load ops_tags %}
+
+{% block title %}U-001 Trends{% endblock %}
+
+{% block ops_head_extra %}
+<style>
+    .trends-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+
+    .trends-header h1 {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+    }
+
+    .trends-header .sub {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-top: 2px;
+    }
+
+    .audit-cell {
+        display: grid;
+        gap: 4px;
+        font-size: 12px;
+    }
+
+    .audit-cell .audit-line {
+        color: var(--text-secondary);
+    }
+
+    .audit-cell .audit-counts {
+        color: var(--text-muted);
+        font-size: 11px;
+        font-family: var(--font-mono);
+    }
+
+    .layer-activity-cell {
+        font-size: 12px;
+        color: var(--text-secondary);
+        display: grid;
+        gap: 3px;
+    }
+
+    .layer-activity-cell .bar {
+        height: 5px;
+        margin-top: 4px;
+    }
+
+    td.snapshot-yes { color: var(--green); }
+    td.snapshot-no  { color: var(--text-muted); }
+</style>
+{% endblock %}
+
+{% block ops_content %}
+<div class="trends-header">
+    <div>
+        <h1>U-001 Trends</h1>
+        <div class="sub">{{ summary.days }}-day window &mdash; <span class="timestamp">{{ summary.start|date:"Y-m-d" }} onwards</span></div>
+    </div>
+    <div class="pill-strip">
+        <a href="?days=7"  class="pill {% if summary.days == 7  %}active{% endif %}">7 days</a>
+        <a href="?days=14" class="pill {% if summary.days == 14 %}active{% endif %}">14 days</a>
+        <a href="?days=30" class="pill {% if summary.days == 30 %}active{% endif %}">30 days</a>
+        <a href="?days=60" class="pill {% if summary.days == 60 %}active{% endif %}">60 days</a>
+    </div>
+</div>
+
+<div class="stack-lg">
+
+    {# ── Headline metrics ──────────────────────────────────────── #}
+    <div class="grid grid-auto">
+        <div class="metric-card">
+            <div class="label">Days in Window</div>
+            <div class="value">{{ summary.days }}</div>
+            <div class="detail">from {{ summary.start|date:"Y-m-d" }}</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Days With Snapshots</div>
+            <div class="value">{{ summary.snapshot_days }}</div>
+            <div class="detail">of {{ summary.days }} total days</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Truth Audit Coverage</div>
+            <div class="value text-{% if summary.truth_audit_summary.coverage_pct >= 80 %}green{% elif summary.truth_audit_summary.coverage_pct >= 50 %}amber{% else %}red{% endif %}">
+                {{ summary.truth_audit_summary.coverage_pct|floatformat:0 }}%
+            </div>
+            <div class="detail">{{ summary.truth_audit_summary.days_with_any }} of {{ summary.days }} days</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Days With Findings</div>
+            <div class="value {% if summary.truth_audit_summary.days_with_findings %}text-red{% endif %}">
+                {{ summary.truth_audit_summary.days_with_findings }}
+            </div>
+            <div class="detail">truth-audit finding days</div>
+        </div>
+    </div>
+
+    {# ── Note ──────────────────────────────────────────────────── #}
+    <div class="note">{{ summary.note }}</div>
+
+    {# ── Current Pressure ──────────────────────────────────────── #}
+    <div>
+        <div class="section-header">
+            <h2>Current Pressure</h2>
+        </div>
+        <div class="grid grid-auto">
+            {% for item in summary.current_highlights %}
+            <div class="metric-card">
+                <div class="label">{{ item.label }}</div>
+                <div class="value {% if item.value > 0 %}text-amber{% endif %}">{{ item.value }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {# ── Current Layer Snapshot ────────────────────────────────── #}
+    <div>
+        <div class="section-header">
+            <h2>Current Layer Snapshot</h2>
+            <p>Live status counts across the universe right now</p>
+        </div>
+        <div class="grid grid-3">
+            {% for layer in summary.current_layers %}
+            <div class="layer-card">
+                <div class="layer-head">
+                    <strong>{{ layer.title }}</strong>
+                </div>
+                <div class="layer-stats">
+                    {% for key, value in layer.counts.items %}
+                    <div class="stat-row">
+                        <span>{{ key|human_label }}</span>
+                        <strong>{{ value }}</strong>
+                    </div>
+                    {% empty %}
+                    <div class="stat-row">
+                        <span>No status rows</span>
+                        <strong>0</strong>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {# ── Current Truth Audits ──────────────────────────────────── #}
+    <div>
+        <div class="section-header">
+            <h2>Current Truth Audits</h2>
+            <p>Most recent Phase 0 audit results</p>
+        </div>
+        <div class="grid grid-3">
+            {% for audit in summary.truth_audits %}
+            <div class="panel">
+                <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;margin-bottom:10px;">
+                    <strong>{{ audit.headline }}</strong>
+                    <span class="state-tag state-{% if audit.status == 'ok' %}healthy{% elif audit.status == 'warning' %}warn{% else %}critical{% endif %}">
+                        {{ audit.status|human_label }}
+                    </span>
+                </div>
+                <p style="font-size:12px;margin-bottom:12px;">{{ audit.detail }}</p>
+                <div class="kv-list">
+                    <div class="kv-row">
+                        <span>Age</span>
+                        <span>{{ audit.age_label }}</span>
+                    </div>
+                    {% for item in audit.highlights %}
+                    <div class="kv-row">
+                        <span>{{ item.label }}</span>
+                        <span>{{ item.value }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {# ── Truth Audit Coverage Summary ──────────────────────────── #}
+    <div>
+        <div class="section-header">
+            <h2>Truth Audit Coverage</h2>
+            <p>{{ summary.days }}-day trend window breakdown</p>
+        </div>
+        <div class="grid grid-auto">
+            <div class="metric-card">
+                <div class="label">Days With Any Audit</div>
+                <div class="value">{{ summary.truth_audit_summary.days_with_any }}</div>
+                <div class="detail">of {{ summary.days }} days</div>
+            </div>
+            <div class="metric-card">
+                <div class="label">Days Without Audit</div>
+                <div class="value {% if summary.truth_audit_summary.days_without_any > 0 %}text-amber{% endif %}">
+                    {{ summary.truth_audit_summary.days_without_any }}
+                </div>
+                <div class="detail">no Phase 0 coverage</div>
+            </div>
+            <div class="metric-card">
+                <div class="label">Full Coverage Days</div>
+                <div class="value">{{ summary.truth_audit_summary.days_with_full }}</div>
+                <div class="detail">all 3 audits ran</div>
+            </div>
+            <div class="metric-card">
+                <div class="label">Finding Days</div>
+                <div class="value {% if summary.truth_audit_summary.days_with_findings > 0 %}text-red{% endif %}">
+                    {{ summary.truth_audit_summary.days_with_findings }}
+                </div>
+                <div class="detail">audits found mismatches</div>
+            </div>
+            <div class="metric-card">
+                <div class="label">Warning Days</div>
+                <div class="value {% if summary.truth_audit_summary.days_with_warnings > 0 %}text-amber{% endif %}">
+                    {{ summary.truth_audit_summary.days_with_warnings }}
+                </div>
+                <div class="detail">warnings or execution issues</div>
+            </div>
+            <div class="metric-card">
+                <div class="label">Coverage %</div>
+                <div class="value">{{ summary.truth_audit_summary.coverage_pct|floatformat:1 }}%</div>
+                <div class="detail">any Phase 0 truth coverage</div>
+            </div>
+        </div>
+    </div>
+
+    {# ── Daily Snapshot Backlog ────────────────────────────────── #}
+    <div class="table-panel">
+        <div class="panel-head">
+            <h2>Daily Snapshot Backlog</h2>
+        </div>
+        <div style="overflow-x:auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Snapshot</th>
+                        <th>Discovered</th>
+                        <th>Mapped</th>
+                        <th>FL-001 Complete</th>
+                        <th>FL-002 Complete</th>
+                        <th>RD-001 Complete</th>
+                        <th>RD-001 Partial</th>
+                        <th>RD-001 Error</th>
+                        <th>RD-001 Transport</th>
+                        <th>RD-001 Guard</th>
+                        <th>FL-002 Auth</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in summary.daily_rows %}
+                    <tr>
+                        <td class="timestamp">{{ row.label }}</td>
+                        <td class="{% if row.has_snapshot %}snapshot-yes{% else %}snapshot-no{% endif %}">
+                            {% if row.has_snapshot %}yes{% else %}no{% endif %}
+                        </td>
+                        <td>{{ row.discovered_count|default:"-" }}</td>
+                        <td>{{ row.mapped_count|default:"-" }}</td>
+                        <td>{{ row.fl001_complete_count|default:"-" }}</td>
+                        <td>{{ row.fl002_complete_count|default:"-" }}</td>
+                        <td>{{ row.rd001_complete_count|default:"-" }}</td>
+                        <td>{{ row.rd001_partial_count|default:"-" }}</td>
+                        <td {% if row.rd001_error_count %}style="color:var(--red)"{% endif %}>{{ row.rd001_error_count|default:"-" }}</td>
+                        <td {% if row.rd001_transport_error_count %}style="color:var(--amber)"{% endif %}>{{ row.rd001_transport_error_count|default:"-" }}</td>
+                        <td {% if row.rd001_guard_error_count %}style="color:var(--amber)"{% endif %}>{{ row.rd001_guard_error_count|default:"-" }}</td>
+                        <td {% if row.fl002_auth_error_count %}style="color:var(--red)"{% endif %}>{{ row.fl002_auth_error_count|default:"-" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {# ── Daily Truth Audits ────────────────────────────────────── #}
+    <div class="table-panel">
+        <div class="panel-head">
+            <h2>Daily Truth Audits</h2>
+        </div>
+        <div style="overflow-x:auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Live Source</th>
+                        <th>RD-001 Chain</th>
+                        <th>FL-001 Derived</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in summary.daily_rows %}
+                    <tr>
+                        <td class="timestamp">{{ row.label }}</td>
+                        <td>
+                            <div class="audit-cell">
+                                <span class="audit-line">
+                                    runs {{ row.source_audit_runs }}
+                                    / ok {{ row.source_audit_ok }}
+                                    / warn {{ row.source_audit_warning_runs }}
+                                    / find {{ row.source_audit_finding_runs }}
+                                    / err {{ row.source_audit_error_runs }}
+                                </span>
+                                <div class="bar">
+                                    <div class="bar-fill" style="width: {% if row.source_audit_runs %}100{% else %}0{% endif %}%;"></div>
+                                </div>
+                                <span class="audit-counts">findings {{ row.source_audit_findings }} / warnings {{ row.source_audit_warnings }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="audit-cell">
+                                <span class="audit-line">
+                                    runs {{ row.rd001_chain_audit_runs }}
+                                    / ok {{ row.rd001_chain_audit_ok }}
+                                    / warn {{ row.rd001_chain_audit_warning_runs }}
+                                    / find {{ row.rd001_chain_audit_finding_runs }}
+                                    / err {{ row.rd001_chain_audit_error_runs }}
+                                </span>
+                                <div class="bar">
+                                    <div class="bar-fill" style="width: {% if row.rd001_chain_audit_runs %}100{% else %}0{% endif %}%;"></div>
+                                </div>
+                                <span class="audit-counts">sampled {{ row.rd001_chain_audit_sampled }} / findings {{ row.rd001_chain_audit_findings }} / warnings {{ row.rd001_chain_audit_warnings }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="audit-cell">
+                                <span class="audit-line">
+                                    runs {{ row.fl001_derived_audit_runs }}
+                                    / ok {{ row.fl001_derived_audit_ok }}
+                                    / warn {{ row.fl001_derived_audit_warning_runs }}
+                                    / find {{ row.fl001_derived_audit_finding_runs }}
+                                    / err {{ row.fl001_derived_audit_error_runs }}
+                                </span>
+                                <div class="bar">
+                                    <div class="bar-fill" style="width: {% if row.fl001_derived_audit_runs %}100{% else %}0{% endif %}%;"></div>
+                                </div>
+                                <span class="audit-counts">sampled {{ row.fl001_derived_audit_sampled }} / findings {{ row.fl001_derived_audit_findings }} / warnings {{ row.fl001_derived_audit_warnings }}</span>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {# ── Daily Batch Outcomes ──────────────────────────────────── #}
+    <div class="table-panel">
+        <div class="panel-head">
+            <h2>Daily Batch Outcomes</h2>
+        </div>
+        <div style="overflow-x:auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Batches Complete</th>
+                        <th>Batches Error</th>
+                        <th>Coins Succeeded</th>
+                        <th>Coins Failed</th>
+                        <th>API Calls</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in summary.daily_rows %}
+                    <tr>
+                        <td class="timestamp">{{ row.label }}</td>
+                        <td>{{ row.batch_complete }}</td>
+                        <td {% if row.batch_error %}style="color:var(--red)"{% endif %}>{{ row.batch_error }}</td>
+                        <td>{{ row.coins_succeeded }}</td>
+                        <td {% if row.coins_failed %}style="color:var(--amber)"{% endif %}>{{ row.coins_failed }}</td>
+                        <td>{{ row.batch_api_calls }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {# ── Daily Layer Activity ──────────────────────────────────── #}
+    <div class="table-panel">
+        <div class="panel-head">
+            <h2>Daily Layer Activity</h2>
+        </div>
+        <div style="overflow-x:auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>FL-001</th>
+                        <th>FL-002</th>
+                        <th>RD-001</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in summary.daily_rows %}
+                    <tr>
+                        <td class="timestamp">{{ row.label }}</td>
+                        <td>
+                            <div class="layer-activity-cell">
+                                <span>ok {{ row.fl001_complete_runs }} / err {{ row.fl001_error_runs }} / loaded {{ row.fl001_records_loaded }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="layer-activity-cell">
+                                <span>ok {{ row.fl002_complete_runs }} / err {{ row.fl002_error_runs }} / auth {{ row.fl002_auth_errors }} / loaded {{ row.fl002_records_loaded }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="layer-activity-cell">
+                                <span>ok {{ row.rd001_complete_runs }} / err {{ row.rd001_error_runs }} / transport {{ row.rd001_transport_errors }} / guard {{ row.rd001_guard_errors }} / loaded {{ row.rd001_records_loaded }}</span>
+                                <div class="bar">
+                                    <div class="bar-fill" style="width: {{ row.rd001_loaded_pct }}%;"></div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

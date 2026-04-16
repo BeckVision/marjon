@@ -4,10 +4,19 @@ from datetime import datetime, timedelta, timezone
 
 from django.db.models import Max
 from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 
+from .u001_ops import (
+    build_automation_history_summary,
+    build_coin_detail_summary,
+    build_coverage_summary,
+    build_overview_summary,
+    build_queue_summary,
+    build_trends_summary,
+)
 from warehouse.models import (
-    BinanceAsset, U002FundingRate, U002FuturesMetrics, U002OHLCVCandle,
+    BinanceAsset, MigratedCoin, U002FundingRate, U002FuturesMetrics, U002OHLCVCandle,
 )
 
 SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT']
@@ -60,6 +69,7 @@ def home_view(request):
     return render(request, 'visualization/home.html', {
         'symbols': SYMBOLS,
         'default_symbol': SYMBOLS[0],
+        'nav_active': 'home',
     })
 
 
@@ -71,7 +81,106 @@ def chart_view(request, symbol):
     return render(request, 'visualization/chart.html', {
         'symbol': symbol,
         'symbols': SYMBOLS,
+        'nav_active': 'chart',
     })
+
+
+def u001_ops_overview_view(request):
+    """Render the first U-001 operations cockpit page."""
+    return render(request, 'visualization/u001_ops_overview.html', {
+        'summary': build_overview_summary(),
+        'nav_active': 'ops',
+        'ops_tab': 'overview',
+    })
+
+
+def u001_ops_summary_api(request):
+    """JSON API: U-001 operations overview summary."""
+    return JsonResponse(build_overview_summary())
+
+
+def u001_ops_automation_view(request):
+    """Render the U-001 automation history page."""
+    return render(request, 'visualization/u001_ops_automation.html', {
+        'summary': build_automation_history_summary(
+            limit=request.GET.get('limit', '50'),
+            action=request.GET.get('action') or None,
+            status=request.GET.get('status') or None,
+        ),
+        'nav_active': 'ops',
+        'ops_tab': 'automation',
+    })
+
+
+def u001_ops_automation_api(request):
+    """JSON API: U-001 automation history summary."""
+    return JsonResponse(build_automation_history_summary(
+        limit=request.GET.get('limit', '50'),
+        action=request.GET.get('action') or None,
+        status=request.GET.get('status') or None,
+    ))
+
+
+def u001_ops_coverage_view(request):
+    """Render the U-001 coverage funnel page."""
+    preset = request.GET.get('preset', '1000')
+    return render(request, 'visualization/u001_ops_coverage.html', {
+        'summary': build_coverage_summary(preset=preset),
+        'nav_active': 'ops',
+        'ops_tab': 'coverage',
+    })
+
+
+def u001_ops_coverage_api(request):
+    """JSON API: U-001 coverage funnel summary."""
+    preset = request.GET.get('preset', '1000')
+    return JsonResponse(build_coverage_summary(preset=preset))
+
+
+def u001_ops_queues_view(request):
+    """Render the U-001 queue planner page."""
+    return render(request, 'visualization/u001_ops_queues.html', {
+        'summary': build_queue_summary(),
+        'nav_active': 'ops',
+        'ops_tab': 'queues',
+    })
+
+
+def u001_ops_queues_api(request):
+    """JSON API: U-001 queue planner summary."""
+    return JsonResponse(build_queue_summary())
+
+
+def u001_ops_coin_view(request, mint):
+    """Render the U-001 single-coin debug page."""
+    get_object_or_404(MigratedCoin, mint_address=mint)
+    return render(request, 'visualization/u001_ops_coin.html', {
+        'summary': build_coin_detail_summary(mint),
+        'nav_active': 'ops',
+        'ops_tab': 'coin',
+    })
+
+
+def u001_ops_coin_api(request, mint):
+    """JSON API: U-001 single-coin debug summary."""
+    get_object_or_404(MigratedCoin, mint_address=mint)
+    return JsonResponse(build_coin_detail_summary(mint))
+
+
+def u001_ops_trends_view(request):
+    """Render the U-001 trends page."""
+    days = request.GET.get('days', '14')
+    return render(request, 'visualization/u001_ops_trends.html', {
+        'summary': build_trends_summary(days=days),
+        'nav_active': 'ops',
+        'ops_tab': 'trends',
+    })
+
+
+def u001_ops_trends_api(request):
+    """JSON API: U-001 trends summary."""
+    days = request.GET.get('days', '14')
+    return JsonResponse(build_trends_summary(days=days))
 
 
 def klines_api(request, symbol):

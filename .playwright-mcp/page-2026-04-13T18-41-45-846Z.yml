@@ -1,0 +1,135 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - link "marjon" [ref=e5] [cursor=pointer]:
+          - /url: /
+        - generic [ref=e6]: quant research
+      - generic [ref=e7]:
+        - link "Home" [ref=e8] [cursor=pointer]:
+          - /url: /
+        - link "Charts" [ref=e9] [cursor=pointer]:
+          - /url: /chart/BTCUSDT/
+        - link "Operations" [ref=e10] [cursor=pointer]:
+          - /url: /ops/u001/
+  - main [ref=e11]:
+    - generic [ref=e12]:
+      - link "Overview" [ref=e13] [cursor=pointer]:
+        - /url: /ops/u001/
+      - link "Automation" [ref=e14] [cursor=pointer]:
+        - /url: /ops/u001/automation/
+      - link "Coverage" [ref=e15] [cursor=pointer]:
+        - /url: /ops/u001/coverage/
+      - link "Queues" [ref=e16] [cursor=pointer]:
+        - /url: /ops/u001/queues/
+      - link "Trends" [ref=e17] [cursor=pointer]:
+        - /url: /ops/u001/trends/
+    - generic [ref=e19]:
+      - heading "U-001 Coverage Funnel" [level=1] [ref=e20]
+      - text: Snapshot at 2026-04-13 18:41:45 UTC
+    - generic [ref=e21]:
+      - link "Last 100 discovered coins" [ref=e22] [cursor=pointer]:
+        - /url: /ops/u001/coverage/?preset=100
+      - link "Last 500 discovered coins" [ref=e23] [cursor=pointer]:
+        - /url: /ops/u001/coverage/?preset=500
+      - link "Last 1000 discovered coins" [ref=e24] [cursor=pointer]:
+        - /url: /ops/u001/coverage/?preset=1000
+      - link "Last 14 days" [ref=e25] [cursor=pointer]:
+        - /url: /ops/u001/coverage/?preset=14d
+      - link "Last 30 days" [ref=e26] [cursor=pointer]:
+        - /url: /ops/u001/coverage/?preset=30d
+    - generic [ref=e27]:
+      - generic [ref=e28]:
+        - generic [ref=e29]: Discovered
+        - generic [ref=e30]: "1000"
+        - generic [ref=e31]: Last 1000 discovered coins
+      - generic [ref=e32]:
+        - generic [ref=e33]: Slice Start
+        - generic [ref=e34]: 2026-04-09 19:11
+        - generic [ref=e35]: Discovery window start
+      - generic [ref=e36]:
+        - generic [ref=e37]: Slice End
+        - generic [ref=e38]: 2026-04-13 06:19
+        - generic [ref=e39]: Discovery window end
+    - generic [ref=e40]:
+      - generic [ref=e41]:
+        - heading "Funnel Stages" [level=3] [ref=e42]
+        - paragraph [ref=e43]: Each stage shows absolute count, share of discovered coins, and drop from the prior stage.
+        - generic [ref=e45]:
+          - generic [ref=e46]: Discovered
+          - generic [ref=e47]: 1000 · 100.0% · drop 0
+        - generic [ref=e51]:
+          - generic [ref=e52]: Pool mapped
+          - generic [ref=e53]: 995 · 99.5% · drop 5
+        - generic [ref=e57]:
+          - generic [ref=e58]: FL-001 has status
+          - generic [ref=e59]: 0 · 0.0% · drop 995
+        - generic [ref=e62]:
+          - generic [ref=e63]: FL-001 window_complete
+          - generic [ref=e64]: 0 · 0.0% · drop 0
+        - generic [ref=e67]:
+          - generic [ref=e68]: FL-002 has status
+          - generic [ref=e69]: 0 · 0.0% · drop 0
+        - generic [ref=e72]:
+          - generic [ref=e73]: FL-002 window_complete
+          - generic [ref=e74]: 0 · 0.0% · drop 0
+        - generic [ref=e77]:
+          - generic [ref=e78]: RD-001 has status
+          - generic [ref=e79]: 213 · 21.3% · drop -213
+        - generic [ref=e83]:
+          - generic [ref=e84]: RD-001 window_complete
+          - generic [ref=e85]: 0 · 0.0% · drop 213
+      - generic [ref=e87]:
+        - generic [ref=e88]: Top Bottleneck
+        - heading "FL-001 has status is the largest drop-off" [level=3] [ref=e89]
+        - paragraph [ref=e90]: This stage drops 995 coins versus the previous funnel step.
+    - generic [ref=e91]:
+      - heading "Stage Breakdown" [level=3] [ref=e93]
+      - table [ref=e94]:
+        - rowgroup [ref=e95]:
+          - row "Stage Count % of Discovered Drop From Prior" [ref=e96]:
+            - columnheader "Stage" [ref=e97]
+            - columnheader "Count" [ref=e98]
+            - columnheader "% of Discovered" [ref=e99]
+            - columnheader "Drop From Prior" [ref=e100]
+        - rowgroup [ref=e101]:
+          - row "Discovered 1000 100.0% 0" [ref=e102]:
+            - cell "Discovered" [ref=e103]
+            - cell "1000" [ref=e104]
+            - cell "100.0%" [ref=e105]
+            - cell "0" [ref=e106]
+          - row "Pool mapped 995 99.5% 5" [ref=e107]:
+            - cell "Pool mapped" [ref=e108]
+            - cell "995" [ref=e109]
+            - cell "99.5%" [ref=e110]
+            - cell "5" [ref=e111]
+          - row "FL-001 has status 0 0.0% 995" [ref=e112]:
+            - cell "FL-001 has status" [ref=e113]
+            - cell "0" [ref=e114]
+            - cell "0.0%" [ref=e115]
+            - cell "995" [ref=e116]
+          - row "FL-001 window_complete 0 0.0% 0" [ref=e117]:
+            - cell "FL-001 window_complete" [ref=e118]
+            - cell "0" [ref=e119]
+            - cell "0.0%" [ref=e120]
+            - cell "0" [ref=e121]
+          - row "FL-002 has status 0 0.0% 0" [ref=e122]:
+            - cell "FL-002 has status" [ref=e123]
+            - cell "0" [ref=e124]
+            - cell "0.0%" [ref=e125]
+            - cell "0" [ref=e126]
+          - row "FL-002 window_complete 0 0.0% 0" [ref=e127]:
+            - cell "FL-002 window_complete" [ref=e128]
+            - cell "0" [ref=e129]
+            - cell "0.0%" [ref=e130]
+            - cell "0" [ref=e131]
+          - row "RD-001 has status 213 21.3% -213" [ref=e132]:
+            - cell "RD-001 has status" [ref=e133]
+            - cell "213" [ref=e134]
+            - cell "21.3%" [ref=e135]
+            - cell "-213" [ref=e136]
+          - row "RD-001 window_complete 0 0.0% 213" [ref=e137]:
+            - cell "RD-001 window_complete" [ref=e138]
+            - cell "0" [ref=e139]
+            - cell "0.0%" [ref=e140]
+            - cell "213" [ref=e141]

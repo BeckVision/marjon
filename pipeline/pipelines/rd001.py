@@ -39,7 +39,11 @@ def _fetch(mint, pool, start, end, **kw):
         from pipeline.connectors.helius import fetch_transactions
     logger.info("Source: %s for %s", source, mint)
     return fetch_transactions(
-        pool, start, end, max_workers=kw.get('parse_workers', 1),
+        pool,
+        start,
+        end,
+        max_workers=kw.get('parse_workers', 1),
+        max_filtered_signatures=kw.get('max_filtered_signatures'),
     )
 
 

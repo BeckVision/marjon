@@ -1,0 +1,171 @@
+{% extends "visualization/_base_ops.html" %}
+
+{% block title %}U-001 Coverage Funnel — Marjon{% endblock %}
+
+{% block ops_head_extra %}
+<style>
+    .coverage-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .coverage-header h1 {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+    }
+
+    .funnel-bar {
+        width: 100%;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--bg-tertiary);
+        overflow: hidden;
+        margin-top: 6px;
+    }
+
+    .funnel-bar-fill {
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--accent-strong), var(--accent));
+        transition: width 0.3s;
+    }
+
+    .stage-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+    }
+
+    .stage-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .stage-metrics {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-family: var(--font-mono);
+        white-space: nowrap;
+    }
+
+    .stage {
+        padding: 12px 0;
+        border-top: 1px solid var(--border);
+    }
+
+    .stage:first-child {
+        border-top: 0;
+        padding-top: 0;
+    }
+</style>
+{% endblock %}
+
+{% block ops_content %}
+
+<div class="coverage-header">
+    <div>
+        <h1>U-001 Coverage Funnel</h1>
+        <span class="timestamp">Snapshot at {{ summary.generated_at|date:"Y-m-d H:i:s T" }}</span>
+    </div>
+</div>
+
+<!-- Preset Selector -->
+<div class="pill-strip" style="margin-bottom: 20px;">
+    {% for item in summary.available_presets %}
+    <a class="pill {% if item.active %}active{% endif %}" href="/ops/u001/coverage/?preset={{ item.key }}">{{ item.label }}</a>
+    {% endfor %}
+</div>
+
+<!-- Slice Stats -->
+<div class="grid grid-auto-sm" style="margin-bottom: 20px;">
+    <div class="metric-card">
+        <div class="label">Discovered</div>
+        <div class="value">{{ summary.discovered_count }}</div>
+        <div class="detail">{{ summary.preset_label }}</div>
+    </div>
+    <div class="metric-card">
+        <div class="label">Slice Start</div>
+        <div class="value text-sm font-mono">
+            {% if summary.range_start %}{{ summary.range_start|date:"Y-m-d H:i" }}{% else %}—{% endif %}
+        </div>
+        <div class="detail">Discovery window start</div>
+    </div>
+    <div class="metric-card">
+        <div class="label">Slice End</div>
+        <div class="value text-sm font-mono">
+            {% if summary.range_end %}{{ summary.range_end|date:"Y-m-d H:i" }}{% else %}—{% endif %}
+        </div>
+        <div class="detail">Discovery window end</div>
+    </div>
+</div>
+
+<div class="two-col" style="margin-bottom: 20px;">
+
+    <!-- Funnel Stages -->
+    <div class="panel">
+        <h3 style="margin-bottom: 4px;">Funnel Stages</h3>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Each stage shows absolute count, share of discovered coins, and drop from the prior stage.</p>
+        {% for stage in summary.stages %}
+        <div class="stage">
+            <div class="stage-top">
+                <span class="stage-label">{{ stage.label }}</span>
+                <span class="stage-metrics">{{ stage.count }} · {{ stage.pct_of_discovered }}% · drop {{ stage.delta_from_prior }}</span>
+            </div>
+            <div class="funnel-bar">
+                <div class="funnel-bar-fill" style="width: {{ stage.pct_of_discovered }}%;"></div>
+            </div>
+        </div>
+        {% empty %}
+        <p class="text-muted" style="font-size:13px;padding:16px 0;">No discovered coins in this slice.</p>
+        {% endfor %}
+    </div>
+
+    <!-- Bottleneck -->
+    <div class="bottleneck">
+        <div class="text-xs uppercase font-bold text-amber" style="letter-spacing:0.1em;margin-bottom:10px;">Top Bottleneck</div>
+        <h3 style="color:var(--amber);font-size:15px;margin-bottom:8px;">{{ summary.bottleneck.title }}</h3>
+        <p style="font-size:13px;line-height:1.6;">{{ summary.bottleneck.detail }}</p>
+    </div>
+
+</div>
+
+<!-- Stage Breakdown Table -->
+<div class="table-panel">
+    <div class="panel-head">
+        <h3 style="margin-bottom:0;">Stage Breakdown</h3>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Stage</th>
+                <th>Count</th>
+                <th>% of Discovered</th>
+                <th>Drop From Prior</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for stage in summary.stages %}
+            <tr>
+                <td>{{ stage.label }}</td>
+                <td>{{ stage.count }}</td>
+                <td>{{ stage.pct_of_discovered }}%</td>
+                <td>{{ stage.delta_from_prior }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4" style="color:var(--text-muted);text-align:center;padding:24px;">
+                    No stage data for this slice.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}
