@@ -7,11 +7,6 @@ import os
 from django.utils import timezone
 
 from pipeline.management.commands.fetch_transactions import SHYFT_RETENTION_DAYS
-from pipeline.u001_rd001_recent_runner import (
-    parse_runner_datetime,
-    pid_alive,
-    read_status_file,
-)
 from warehouse.models import (
     MigratedCoin,
     PoolMapping,
@@ -20,7 +15,6 @@ from warehouse.models import (
     U001AutomationTick,
     U001FL001DerivedAuditRun,
     U001PipelineStatus,
-    U001RD001ChainAuditRun,
     U001SourceAuditRun,
 )
 
@@ -52,12 +46,7 @@ ACTION_NAMES = (
     'truth_source_audit',
     'pool_mapping_recent',
     'holders_catchup',
-    'rd001_recent',
-    'truth_rd001_chain_audit',
     'truth_fl001_derived_audit',
-    'rd001_partial_historical',
-    'rd001_error_recovery',
-    'rd001_guarded',
     'no_action',
 )
 
@@ -136,10 +125,6 @@ def policy_config():
             'MARJON_U001_AUTOMATION_FL002_MIN_COVERAGE_PCT',
             0.25,
         ),
-        'error_every_n_ticks': _env_int(
-            'MARJON_U001_AUTOMATION_ERROR_EVERY_N_TICKS',
-            4,
-        ),
         'max_consecutive_failures': _env_int(
             'MARJON_U001_AUTOMATION_MAX_CONSECUTIVE_FAILURES',
             3,
@@ -156,45 +141,9 @@ def policy_config():
             'MARJON_U001_AUTOMATION_FAILURE_PAUSE_HOURS',
             2,
         ),
-        'max_guarded_per_day': _env_int(
-            'MARJON_U001_AUTOMATION_MAX_GUARDED_PER_DAY',
-            1,
-        ),
-        'rd001_recent_cooldown_hours': _env_float(
-            'MARJON_U001_AUTOMATION_RD001_RECENT_COOLDOWN_HOURS',
-            1,
-        ),
-        'rd001_recent_runner_fresh_minutes': _env_int(
-            'MARJON_U001_AUTOMATION_RD001_RECENT_RUNNER_FRESH_MINUTES',
-            10,
-        ),
-        'rd001_partial_hist_cooldown_hours': _env_float(
-            'MARJON_U001_AUTOMATION_RD001_PARTIAL_HIST_COOLDOWN_HOURS',
-            0.4,
-        ),
-        'truth_rd001_chain_audit_cooldown_hours': _env_float(
-            'MARJON_U001_AUTOMATION_TRUTH_RD001_CHAIN_AUDIT_COOLDOWN_HOURS',
-            24,
-        ),
         'truth_fl001_derived_audit_cooldown_hours': _env_float(
             'MARJON_U001_AUTOMATION_TRUTH_FL001_DERIVED_AUDIT_COOLDOWN_HOURS',
             24,
-        ),
-        'rd001_error_cooldown_hours': _env_float(
-            'MARJON_U001_AUTOMATION_RD001_ERROR_COOLDOWN_HOURS',
-            2,
-        ),
-        'rd001_transport_pause_hours': _env_float(
-            'MARJON_U001_AUTOMATION_RD001_TRANSPORT_PAUSE_HOURS',
-            2,
-        ),
-        'rd001_guarded_cooldown_hours': _env_float(
-            'MARJON_U001_AUTOMATION_RD001_GUARDED_COOLDOWN_HOURS',
-            12,
-        ),
-        'rd001_guarded_max_filtered_signatures': _env_int(
-            'MARJON_U001_RD001_GUARDED_MAX_FILTERED_SIGNATURES',
-            1400,
         ),
         'snapshot_hour_utc': _env_int(
             'MARJON_U001_AUTOMATION_SNAPSHOT_HOUR_UTC',
@@ -212,10 +161,6 @@ def policy_config():
             'MARJON_U001_AUTOMATION_HOLDERS_FORCE_AFTER_RECENT_TICKS',
             4,
         ),
-        'rd001_recent_max_coins': _env_int('MARJON_U001_RD001_MAX_COINS', 25),
-        'rd001_partial_hist_max_coins': _env_int('MARJON_U001_RD001_PARTIAL_HIST_MAX_COINS', 5),
-        'rd001_error_max_coins': _env_int('MARJON_U001_RD001_ERROR_MAX_COINS', 10),
-        'rd001_guarded_max_coins': _env_int('MARJON_U001_RD001_PARTIAL_GUARDED_MAX_COINS', 1),
     }
 
 
@@ -283,13 +228,6 @@ def collect_metrics(now=None):
         last_error__icontains=FREE_TIER_GUARD_TEXT,
     ).count()
 
-    rd001_error_count = U001PipelineStatus.objects.filter(
-        layer_id='RD-001',
-        status='error',
-    ).exclude(
-        last_error__icontains=FREE_TIER_GUARD_TEXT,
-    ).count()
-
     guarded_count = U001PipelineStatus.objects.filter(
         layer_id='RD-001',
         status__in=('partial', 'error'),
@@ -298,11 +236,6 @@ def collect_metrics(now=None):
     ).count()
     latest_source_audit_at = (
         U001SourceAuditRun.objects.order_by('-completed_at', '-started_at', '-id')
-        .values_list('completed_at', 'started_at')
-        .first()
-    )
-    latest_rd001_chain_audit_at = (
-        U001RD001ChainAuditRun.objects.order_by('-completed_at', '-started_at', '-id')
         .values_list('completed_at', 'started_at')
         .first()
     )
@@ -323,15 +256,10 @@ def collect_metrics(now=None):
         'recent_safe_count': recent_safe_count,
         'recent_bootstrap_count': recent_bootstrap_count,
         'historical_partial_count': historical_partial_count,
-        'rd001_error_count': rd001_error_count,
         'guarded_count': guarded_count,
         'latest_source_audit_at': (
             latest_source_audit_at[0] or latest_source_audit_at[1]
             if latest_source_audit_at else None
-        ),
-        'latest_rd001_chain_audit_at': (
-            latest_rd001_chain_audit_at[0] or latest_rd001_chain_audit_at[1]
-            if latest_rd001_chain_audit_at else None
         ),
         'latest_fl001_derived_audit_at': (
             latest_fl001_derived_audit_at[0] or latest_fl001_derived_audit_at[1]
@@ -391,18 +319,6 @@ def select_next_action(state, metrics, force_action=None):
         pause_after_ticks=config['holders_no_progress_after_ticks'],
         pause_hours=config['holders_no_progress_pause_hours'],
     )
-    rd001_recent_paused = _action_error_pause_active(
-        state,
-        action='rd001_recent',
-        pause_hours=config['rd001_transport_pause_hours'],
-        now=now,
-        patterns=TRANSPORT_ERROR_PATTERNS,
-    )
-    rd001_recent_owned_by_runner = _dedicated_recent_runner_active(
-        now=now,
-        fresh_minutes=config['rd001_recent_runner_fresh_minutes'],
-    )
-
     recent_mapping_pct = (
         metrics['recent_mapped_count'] / metrics['recent_discovered_count']
         if metrics['recent_discovered_count'] else 1.0
@@ -427,7 +343,7 @@ def select_next_action(state, metrics, force_action=None):
 
     if (
         holders_due
-        and _recent_success_streak({'pool_mapping_recent', 'rd001_recent'})
+        and _recent_success_streak({'pool_mapping_recent'})
         >= config['holders_force_after_recent_ticks']
     ):
         return _decision(
@@ -450,100 +366,6 @@ def select_next_action(state, metrics, force_action=None):
             'pool_mapping_recent',
             'Recent discovery exists, but recent pool mapping still needs dedicated catch-up throughput.',
             _pool_mapping_recent_kwargs(config),
-        )
-
-    if (
-        (metrics['recent_safe_count'] > 0 or metrics['recent_bootstrap_count'] > 0)
-        and not rd001_recent_owned_by_runner
-        and not rd001_recent_paused
-        and _cooldown_ok(state, 'rd001_recent', config['rd001_recent_cooldown_hours'], now)
-    ):
-        return _decision(
-            'rd001_recent',
-            (
-                'Safe recent RD-001 candidates are available inside Shyft retention.'
-                if metrics['recent_safe_count'] > 0 else
-                'Recent mapped RD-001 bootstrap candidates are available inside Shyft retention.'
-            ),
-            {
-                'max_coins': config['rd001_recent_max_coins'],
-            },
-        )
-
-    # When the dedicated recent runner is healthy, the main controller should spend
-    # its freed capacity on historical RD-001 catch-up before lower-urgency holders
-    # and truth-audit lanes.
-    if rd001_recent_owned_by_runner:
-        error_due = state.error_lane_tick_counter >= max(config['error_every_n_ticks'] - 1, 0)
-        if metrics['rd001_error_count'] > 0 and error_due and _cooldown_ok(
-            state,
-            'rd001_error_recovery',
-            config['rd001_error_cooldown_hours'],
-            now,
-        ):
-            return _decision(
-                'rd001_error_recovery',
-                'The dedicated recent RD-001 runner is healthy, so the main controller is spending this tick on scheduled RD-001 error recovery.',
-                {
-                    'source': 'helius',
-                    'status_filter': 'error',
-                    'max_coins': config['rd001_error_max_coins'],
-                },
-            )
-
-        if (
-            metrics['historical_partial_count'] > 0
-            and _cooldown_ok(
-                state,
-                'rd001_partial_historical',
-                config['rd001_partial_hist_cooldown_hours'],
-                now,
-            )
-        ):
-            return _decision(
-                'rd001_partial_historical',
-                'The dedicated recent RD-001 runner is healthy, so the main controller is prioritizing historical RD-001 partial catch-up.',
-                {
-                    'source': 'helius',
-                    'status_filter': 'partial',
-                    'max_coins': config['rd001_partial_hist_max_coins'],
-                },
-            )
-
-        if (
-            metrics['guarded_count'] > 0
-            and metrics['historical_partial_count'] == 0
-            and metrics['rd001_error_count'] == 0
-            and state.guarded_attempts_today < config['max_guarded_per_day']
-            and _cooldown_ok(
-                state,
-                'rd001_guarded',
-                config['rd001_guarded_cooldown_hours'],
-                now,
-            )
-        ):
-            return _decision(
-                'rd001_guarded',
-                'The dedicated recent RD-001 runner is healthy, so the main controller is using guarded budget on historical RD-001 backlog.',
-                {
-                    'source': 'helius',
-                    'status_filter': 'partial',
-                    'include_free_tier_guarded': True,
-                    'only_free_tier_guarded': True,
-                    'max_coins': config['rd001_guarded_max_coins'],
-                    'max_filtered_signatures': config['rd001_guarded_max_filtered_signatures'],
-                },
-            )
-
-    if _truth_audit_due(
-        metrics['latest_rd001_chain_audit_at'],
-        config['truth_rd001_chain_audit_cooldown_hours'],
-        now,
-    ):
-        return _decision(
-            'truth_rd001_chain_audit',
-            'Recent direct-RPC RD-001 chain-truth coverage is stale or missing.',
-            {},
         )
 
     if _truth_audit_due(
@@ -573,70 +395,6 @@ def select_next_action(state, metrics, force_action=None):
             'truth_source_audit',
             'Recent provider-source truth coverage is stale or missing.',
             {},
-        )
-
-    if (
-        metrics['historical_partial_count'] > 0
-        and _cooldown_ok(
-            state,
-            'rd001_partial_historical',
-            config['rd001_partial_hist_cooldown_hours'],
-            now,
-        )
-    ):
-        return _decision(
-            'rd001_partial_historical',
-            'Historical RD-001 partial backlog is available and recent safe work is thin.',
-            {
-                'source': 'helius',
-                'status_filter': 'partial',
-                'max_coins': config['rd001_partial_hist_max_coins'],
-            },
-        )
-
-    error_due = state.error_lane_tick_counter >= max(config['error_every_n_ticks'] - 1, 0)
-    if metrics['rd001_error_count'] > 0 and (
-        error_due or (
-            metrics['recent_safe_count'] == 0
-            and metrics['historical_partial_count'] == 0
-        )
-    ) and _cooldown_ok(
-        state,
-        'rd001_error_recovery',
-        config['rd001_error_cooldown_hours'],
-        now,
-    ):
-        return _decision(
-            'rd001_error_recovery',
-            'RD-001 error rows are due for a controlled retry pass.',
-            {
-                'source': 'helius',
-                'status_filter': 'error',
-                'max_coins': config['rd001_error_max_coins'],
-            },
-        )
-
-    if (
-        metrics['guarded_count'] > 0
-        and state.guarded_attempts_today < config['max_guarded_per_day']
-        and _cooldown_ok(
-            state,
-            'rd001_guarded',
-            config['rd001_guarded_cooldown_hours'],
-            now,
-        )
-    ):
-        return _decision(
-            'rd001_guarded',
-            'Free-tier-guarded historical RD-001 rows remain and today still has guarded budget left.',
-            {
-                'source': 'helius',
-                'status_filter': 'partial',
-                'include_free_tier_guarded': True,
-                'only_free_tier_guarded': True,
-                'max_coins': config['rd001_guarded_max_coins'],
-                'max_filtered_signatures': config['rd001_guarded_max_filtered_signatures'],
-            },
         )
 
     return AutomationDecision(
@@ -696,12 +454,7 @@ def _decision(action, reason, kwargs):
         'truth_source_audit': 'audit_u001_sources',
         'pool_mapping_recent': 'orchestrate',
         'holders_catchup': 'orchestrate',
-        'rd001_recent': 'fetch_transactions_batch',
-        'truth_rd001_chain_audit': 'audit_u001_rd001_chain',
         'truth_fl001_derived_audit': 'audit_u001_fl001_derived',
-        'rd001_partial_historical': 'fetch_transactions_batch',
-        'rd001_error_recovery': 'fetch_transactions_batch',
-        'rd001_guarded': 'fetch_transactions_batch',
     }
     command = command_map.get(action)
     return AutomationDecision(
@@ -721,37 +474,8 @@ def _forced_decision(action, config):
         return _decision(action, 'Forced action override.', _pool_mapping_recent_kwargs(config))
     if action == 'holders_catchup':
         return _decision(action, 'Forced action override.', _holders_kwargs(config))
-    if action == 'rd001_recent':
-        return _decision(action, 'Forced action override.', {'max_coins': config['rd001_recent_max_coins']})
-    if action == 'truth_rd001_chain_audit':
-        return _decision(action, 'Forced action override.', {})
     if action == 'truth_fl001_derived_audit':
         return _decision(action, 'Forced action override.', {})
-    if action == 'rd001_partial_historical':
-        return _decision(
-            action,
-            'Forced action override.',
-            {'source': 'helius', 'status_filter': 'partial', 'max_coins': config['rd001_partial_hist_max_coins']},
-        )
-    if action == 'rd001_error_recovery':
-        return _decision(
-            action,
-            'Forced action override.',
-            {'source': 'helius', 'status_filter': 'error', 'max_coins': config['rd001_error_max_coins']},
-        )
-    if action == 'rd001_guarded':
-        return _decision(
-            action,
-            'Forced action override.',
-            {
-                'source': 'helius',
-                'status_filter': 'partial',
-                'include_free_tier_guarded': True,
-                'only_free_tier_guarded': True,
-                'max_coins': config['rd001_guarded_max_coins'],
-                'max_filtered_signatures': config['rd001_guarded_max_filtered_signatures'],
-            },
-        )
     return AutomationDecision(
         action='no_action',
         reason='Forced action override.',
@@ -811,22 +535,6 @@ def _truth_audit_due(latest_run_at, cooldown_hours, now):
     if latest_run_at is None:
         return True
     return latest_run_at <= now - timedelta(hours=cooldown_hours)
-
-
-def _dedicated_recent_runner_active(now, fresh_minutes):
-    if fresh_minutes <= 0:
-        return False
-    status = read_status_file()
-    if not status or status.get('_error'):
-        return False
-    if status.get('state') not in {'running', 'sleeping'}:
-        return False
-    if not pid_alive(status.get('pid')):
-        return False
-    updated_at = parse_runner_datetime(status.get('updated_at'))
-    if not updated_at:
-        return False
-    return updated_at >= now - timedelta(minutes=fresh_minutes)
 
 
 def _holders_no_progress_pause_active(now, pause_after_ticks, pause_hours):

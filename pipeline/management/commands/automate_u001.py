@@ -16,20 +16,7 @@ from warehouse.models import U001AutomationTick
 
 
 def _batch_result_is_total_failure(action, result_summary):
-    if action not in {
-        'rd001_recent',
-        'rd001_partial_historical',
-        'rd001_error_recovery',
-        'rd001_guarded',
-    }:
-        return False
-    if not isinstance(result_summary, dict):
-        return False
-    queued = result_summary.get('queued_coins') or 0
-    failed = result_summary.get('failed') or 0
-    succeeded = result_summary.get('succeeded') or 0
-    records_loaded = result_summary.get('records_loaded') or 0
-    return queued > 0 and succeeded == 0 and failed >= queued and records_loaded == 0
+    return False
 
 
 class Command(BaseCommand):
@@ -60,6 +47,10 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        force_action = options.get('force_action')
+        if force_action is not None and force_action not in ACTION_NAMES:
+            raise CommandError(f"Unsupported force_action '{force_action}' for automate_u001")
+
         now = timezone.now()
         state = get_or_create_state()
         today = timezone.localdate(now)
@@ -70,7 +61,7 @@ class Command(BaseCommand):
             decision = select_next_action(
                 state,
                 collect_metrics(now=now),
-                force_action=options.get('force_action'),
+                force_action=force_action,
             )
             self.stdout.write(f"selected_action: {decision.action}")
             self.stdout.write(f"reason: {decision.reason}")
@@ -91,7 +82,7 @@ class Command(BaseCommand):
         decision = select_next_action(
             state,
             collect_metrics(now=now),
-            force_action=options.get('force_action'),
+            force_action=force_action,
         )
         state.last_action = decision.action
         state.last_action_reason = decision.reason
@@ -133,15 +124,6 @@ class Command(BaseCommand):
             state.last_action_completed_at = timezone.now()
             state.consecutive_failures = 0
 
-            if decision.action == 'rd001_error_recovery':
-                state.error_lane_tick_counter = 0
-            elif decision.action != 'no_action':
-                state.error_lane_tick_counter += 1
-
-            if decision.action == 'rd001_guarded':
-                state.guarded_attempts_date = today
-                state.guarded_attempts_today += 1
-
             state.save()
             tick.status = 'complete'
             tick.completed_at = state.last_action_completed_at
@@ -154,9 +136,6 @@ class Command(BaseCommand):
             state.last_action_completed_at = timezone.now()
             state.consecutive_failures += 1
             state.notes = str(exc)
-            if decision.action == 'rd001_guarded':
-                state.guarded_attempts_date = today
-                state.guarded_attempts_today += 1
             state.save()
             tick.status = 'error'
             tick.completed_at = state.last_action_completed_at

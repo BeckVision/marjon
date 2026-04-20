@@ -29,7 +29,6 @@ Usage:
 
 import logging
 import os
-import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
@@ -85,24 +84,15 @@ DEFAULT_MAX_BOOTSTRAP_NEW_SIGS = _env_int(
     'MARJON_U001_RD001_MAX_BOOTSTRAP_NEW_SIGS',
     0,
 )
-DEFAULT_GUARDED_MAX_FILTERED_SIGNATURES = _env_int(
-    'MARJON_U001_RD001_GUARDED_MAX_FILTERED_SIGNATURES',
-    1400,
-)
 
 
 def _min_utc_datetime():
     return datetime.min.replace(tzinfo=timezone.utc)
 
 
-FREE_TIER_GUARD_TEXT = 'exceeds free-tier guard'
-
-
 def _get_active_coins(
     source='auto',
     status_filter='incomplete',
-    include_free_tier_guarded=False,
-    only_free_tier_guarded=False,
     candidate_limit=0,
 ):
     """Return coins eligible for batch processing.
@@ -126,38 +116,11 @@ def _get_active_coins(
     )
     pending = active_mints - complete_mints
 
-    guarded_mints = set(
-        U001PipelineStatus.objects
-        .filter(
-            layer_id='RD-001',
-            status__in={PipelineCompleteness.ERROR, PipelineCompleteness.PARTIAL},
-            last_error__icontains=FREE_TIER_GUARD_TEXT,
-        )
-        .values_list('coin_id', flat=True)
-    )
-
-    if status_filter == 'incomplete':
-        if not include_free_tier_guarded:
-            pending -= guarded_mints
-        if only_free_tier_guarded:
-            pending &= guarded_mints
-
     if status_filter != 'incomplete':
         status_qs = U001PipelineStatus.objects.filter(
             layer_id='RD-001',
             status=status_filter,
         )
-        if (
-            not include_free_tier_guarded
-            and status_filter in {'error', 'partial'}
-        ):
-            status_qs = status_qs.exclude(
-                last_error__icontains=FREE_TIER_GUARD_TEXT,
-            )
-        if only_free_tier_guarded and status_filter in {'error', 'partial'}:
-            status_qs = status_qs.filter(
-                last_error__icontains=FREE_TIER_GUARD_TEXT,
-            )
         filtered_mints = set(status_qs.values_list('coin_id', flat=True))
         pending &= filtered_mints
 
@@ -289,38 +252,6 @@ def _order_status_only_queue(work_queue, status_last_run, raw_counts=None):
     )
 
 
-def _guarded_signature_count_map(work_queue, status_filter):
-    """Return last known free-tier-guard counts keyed by mint.
-
-    Used by the explicit guarded recovery lanes to work smallest-first.
-    """
-    rows = U001PipelineStatus.objects.filter(
-        layer_id='RD-001',
-        status=status_filter,
-        coin_id__in=work_queue,
-        last_error__icontains=FREE_TIER_GUARD_TEXT,
-    ).values_list('coin_id', 'last_error')
-
-    counts = {}
-    for mint, error in rows:
-        match = re.search(r'Filtered signature count (\d+)', error or '')
-        if match:
-            counts[mint] = int(match.group(1))
-    return counts
-
-
-def _order_guarded_queue(work_queue, status_last_run, guarded_counts):
-    """Order explicit guarded retries by smallest known guard overage first."""
-    return sorted(
-        work_queue,
-        key=lambda mint: (
-            guarded_counts.get(mint, float('inf')),
-            status_last_run.get(mint) or _min_utc_datetime(),
-            mint,
-        ),
-    )
-
-
 def _build_pool_watermarks(coins):
     """Build {pool_address: last_signature} map for batch RPC discovery.
 
@@ -356,14 +287,13 @@ def _build_pool_watermarks(coins):
     return pool_watermarks, pool_to_mint
 
 
-def _process_coin(mint_address, source, parse_workers=1, max_filtered_signatures=None):
+def _process_coin(mint_address, source, parse_workers=1):
     """Process one coin. Called from thread pool."""
     try:
         result = fetch_transactions_for_coin(
             mint_address,
             source=source,
             parse_workers=parse_workers,
-            max_filtered_signatures=max_filtered_signatures,
         )
         return mint_address, result, None
     except Exception as e:
@@ -475,24 +405,6 @@ class Command(BaseCommand):
             default=0,
             help='Limit Phase 1 signature discovery to this many eligible coins before queue selection (0 = all)',
         )
-        parser.add_argument(
-            '--include-free-tier-guarded', action='store_true',
-            help='Include partial/error rows whose last error exceeded the free-tier guard',
-        )
-        parser.add_argument(
-            '--only-free-tier-guarded', action='store_true',
-            help='Restrict partial/error retries to rows whose last error exceeded the free-tier guard',
-        )
-        parser.add_argument(
-            '--max-filtered-signatures',
-            type=int,
-            default=0,
-            help=(
-                'Override the Helius filtered-signature guard for this batch '
-                '(0 = connector default / env default)'
-            ),
-        )
-
     def handle(self, *args, **options):
         workers = options['workers']
         rpc_batch_size = min(options['rpc_batch_size'], 250)
@@ -507,10 +419,7 @@ class Command(BaseCommand):
         max_new_sigs = options['max_new_sigs']
         max_bootstrap_new_sigs = options['max_bootstrap_new_sigs']
         status_filter = options['status_filter']
-        include_free_tier_guarded = options['include_free_tier_guarded']
-        only_free_tier_guarded = options['only_free_tier_guarded']
         candidate_limit = options['candidate_limit']
-        max_filtered_signatures = options['max_filtered_signatures'] or None
 
         started = dj_timezone.now()
         self.stdout.write(f"Batch run started at {started}")
@@ -537,28 +446,12 @@ class Command(BaseCommand):
         coins = _get_active_coins(
             source=source,
             status_filter=status_filter,
-            include_free_tier_guarded=include_free_tier_guarded,
-            only_free_tier_guarded=only_free_tier_guarded,
             candidate_limit=candidate_limit,
         )
         summary['active_coins'] = len(coins)
         self.stdout.write(
             f"Active coins for source={source}, status_filter={status_filter}: {len(coins)}"
         )
-        if status_filter in {'error', 'partial'}:
-            guarded_total = U001PipelineStatus.objects.filter(
-                layer_id='RD-001',
-                status=status_filter,
-                last_error__icontains=FREE_TIER_GUARD_TEXT,
-            ).count()
-            if guarded_total and only_free_tier_guarded:
-                self.stdout.write(
-                    f"Restricting to {guarded_total} {status_filter} coins marked by the free-tier guard"
-                )
-            elif guarded_total and not include_free_tier_guarded:
-                self.stdout.write(
-                    f"Skipping {guarded_total} {status_filter} coins marked by the free-tier guard"
-                )
 
         if not coins:
             self.stdout.write("Nothing to process.")
@@ -655,42 +548,17 @@ class Command(BaseCommand):
             )
 
         if source == 'helius' and status_filter in {'error', 'partial'}:
-            if only_free_tier_guarded:
-                guarded_counts = _guarded_signature_count_map(
-                    work_queue, status_filter,
-                )
-                if max_filtered_signatures:
-                    skipped_above_limit = {
-                        mint: count
-                        for mint, count in guarded_counts.items()
-                        if count > max_filtered_signatures
-                    }
-                    if skipped_above_limit:
-                        self.stdout.write(
-                            f"Skipping {len(skipped_above_limit)} guarded {status_filter} coins "
-                            f"(>{max_filtered_signatures} filtered signatures)"
-                        )
-                        work_queue = [
-                            mint for mint in work_queue
-                            if guarded_counts.get(mint, 0) <= max_filtered_signatures
-                        ]
-                work_queue = _order_guarded_queue(
-                    work_queue, status_last_run, guarded_counts,
-                )
-            else:
-                raw_counts = {}
-                if status_filter in {'error', 'partial'}:
-                    raw_counts = {
-                        row['coin_id']: row['count']
-                        for row in RawTransaction.objects.filter(
-                            coin_id__in=work_queue,
-                        ).values('coin_id').annotate(count=Count('id'))
-                    }
-                work_queue = _order_status_only_queue(
-                    work_queue,
-                    status_last_run,
-                    raw_counts,
-                )
+            raw_counts = {
+                row['coin_id']: row['count']
+                for row in RawTransaction.objects.filter(
+                    coin_id__in=work_queue,
+                ).values('coin_id').annotate(count=Count('id'))
+            }
+            work_queue = _order_status_only_queue(
+                work_queue,
+                status_last_run,
+                raw_counts,
+            )
 
         if max_coins:
             work_queue = work_queue[:max_coins]
@@ -744,7 +612,6 @@ class Command(BaseCommand):
                         mint,
                         coin_source,
                         parse_workers,
-                        max_filtered_signatures,
                     )
                     futures[future] = mint
 
@@ -785,7 +652,6 @@ class Command(BaseCommand):
                     mint,
                     coin_source,
                     parse_workers,
-                    max_filtered_signatures,
                 )
                 if error:
                     failed += 1

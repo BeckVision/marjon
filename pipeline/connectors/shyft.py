@@ -45,9 +45,6 @@ PARSE_BATCH_SIZE = max(
     MIN_PARSE_BATCH_SIZE,
     min(int(os.environ.get('MARJON_U001_RD001_PARSE_BATCH_SIZE', '100')), 100),
 )   # hard cap is 100
-DEFAULT_MAX_FILTERED_SIGNATURES = int(
-    os.environ.get('MARJON_U001_RD001_MAX_FILTERED_SIGNATURES', '0')
-)
 
 # Round-robin iterator over Shyft API keys (thread-safe).
 # Invalid keys are filtered out at import time to avoid repeated
@@ -149,14 +146,7 @@ _validate_rpc_response = partial(validate_jsonrpc_response, source_name="Shyft R
 # Phase 1: Signature discovery via RPC
 # ---------------------------------------------------------------------------
 
-def _resolve_max_filtered_signatures(explicit=None):
-    if explicit is not None:
-        return explicit
-    value = os.environ.get('MARJON_U001_RD001_MAX_FILTERED_SIGNATURES')
-    return int(value) if value else DEFAULT_MAX_FILTERED_SIGNATURES
-
-
-def _fetch_signatures(pool_address, start=None, end=None, until_sig=None, max_filtered_signatures=None):
+def _fetch_signatures(pool_address, start=None, end=None, until_sig=None):
     """Fetch transaction signatures for a pool via getSignaturesForAddress.
 
     Paginates backward from newest. Stops when blockTime < start or
@@ -174,11 +164,8 @@ def _fetch_signatures(pool_address, start=None, end=None, until_sig=None, max_fi
     """
     api_key = _next_api_key()
     rpc_url = f"{RPC_URL}?api_key={api_key}"
-    max_filtered_signatures = _resolve_max_filtered_signatures(max_filtered_signatures)
-
     all_sigs = []
     cursor = None
-    filtered_count = 0
 
     while True:
         params = [pool_address, {"limit": SIG_LIMIT}]
@@ -204,13 +191,6 @@ def _fetch_signatures(pool_address, start=None, end=None, until_sig=None, max_fi
             break
 
         all_sigs.extend(result)
-        filtered_count += len(_filter_signatures(result, start, end))
-        if max_filtered_signatures and filtered_count > max_filtered_signatures:
-            raise RuntimeError(
-                f"Filtered signature count {filtered_count} exceeds free-tier guard "
-                f"({max_filtered_signatures}) for pool {pool_address}"
-            )
-
         # Stop when oldest sig is before start
         if start is not None:
             oldest_time = datetime.fromtimestamp(
@@ -466,7 +446,7 @@ def _parse_selected(signatures, max_workers=1):
 # Public API
 # ---------------------------------------------------------------------------
 
-def fetch_transactions(pool_address, start=None, end=None, max_workers=1, max_filtered_signatures=None):
+def fetch_transactions(pool_address, start=None, end=None, max_workers=1):
     """Fetch and parse transactions for a Pumpswap pool from Shyft.
 
     Two-phase approach:
@@ -488,7 +468,6 @@ def fetch_transactions(pool_address, start=None, end=None, max_workers=1, max_fi
         pool_address,
         start,
         end,
-        max_filtered_signatures=max_filtered_signatures,
     )
     rpc_pages = (len(raw_sigs) // SIG_LIMIT) + 1 if raw_sigs else 1
 
@@ -513,13 +492,6 @@ def fetch_transactions(pool_address, start=None, end=None, max_workers=1, max_fi
             len(raw_sigs), pool_address,
         )
         return [], {'api_calls': rpc_pages}
-
-    max_filtered_signatures = _resolve_max_filtered_signatures(max_filtered_signatures)
-    if max_filtered_signatures and len(filtered) > max_filtered_signatures:
-        raise RuntimeError(
-            f"Filtered signature count {len(filtered)} exceeds free-tier guard "
-            f"({max_filtered_signatures}) for pool {pool_address}"
-        )
 
     # Phase 2: parse selected
     transactions = _parse_selected(filtered, max_workers=max_workers)

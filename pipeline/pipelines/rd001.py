@@ -43,7 +43,6 @@ def _fetch(mint, pool, start, end, **kw):
         start,
         end,
         max_workers=kw.get('parse_workers', 1),
-        max_filtered_signatures=kw.get('max_filtered_signatures'),
     )
 
 

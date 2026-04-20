@@ -3,12 +3,9 @@ from datetime import datetime, timedelta, timezone
 from django.test import TestCase
 
 from pipeline.management.commands.fetch_transactions_batch import (
-    FREE_TIER_GUARD_TEXT,
     _apply_bootstrap_sig_cap,
     _apply_min_sig_thresholds,
-    _guarded_signature_count_map,
     _get_active_coins,
-    _order_guarded_queue,
     _order_status_only_queue,
     _order_work_queue,
 )
@@ -80,24 +77,20 @@ class FetchTransactionsBatchSelectionTest(TestCase):
             layer_id='RD-001',
             status=PipelineCompleteness.ERROR,
         )
-        self.partial_old_guarded = MigratedCoin.objects.create(
-            mint_address='PARTIAL_OLD_GUARDED',
+        self.partial_old = MigratedCoin.objects.create(
+            mint_address='PARTIAL_OLD',
             anchor_event=now - timedelta(days=12),
         )
         PoolMapping.objects.create(
-            coin=self.partial_old_guarded,
-            pool_address=f'POOL_{self.partial_old_guarded.mint_address}',
+            coin=self.partial_old,
+            pool_address=f'POOL_{self.partial_old.mint_address}',
             dex='pumpswap',
             source='test',
         )
         U001PipelineStatus.objects.create(
-            coin=self.partial_old_guarded,
+            coin=self.partial_old,
             layer_id='RD-001',
             status=PipelineCompleteness.PARTIAL,
-            last_error=(
-                f"Filtered signature count 1230 {FREE_TIER_GUARD_TEXT} "
-                "for pool TEST_POOL"
-            ),
         )
 
     def test_incomplete_filter_returns_recent_incomplete_coins(self):
@@ -107,30 +100,26 @@ class FetchTransactionsBatchSelectionTest(TestCase):
             ['ERR_RECENT', 'PARTIAL_RECENT', 'PENDING_RECENT'],
         )
 
-    def test_incomplete_filter_excludes_free_tier_guarded_rows_by_default(self):
-        recent_guarded = MigratedCoin.objects.create(
-            mint_address='RECENT_GUARDED',
+    def test_incomplete_filter_includes_recent_error_rows(self):
+        recent_error = MigratedCoin.objects.create(
+            mint_address='RECENT_ERROR',
             anchor_event=datetime.now(timezone.utc) - timedelta(hours=4),
         )
         PoolMapping.objects.create(
-            coin=recent_guarded,
-            pool_address='POOL_RECENT_GUARDED',
+            coin=recent_error,
+            pool_address='POOL_RECENT_ERROR',
             dex='pumpswap',
             source='test',
         )
         U001PipelineStatus.objects.create(
-            coin=recent_guarded,
+            coin=recent_error,
             layer_id='RD-001',
             status=PipelineCompleteness.ERROR,
-            last_error=(
-                f"Filtered signature count 1009 {FREE_TIER_GUARD_TEXT} "
-                "for pool TEST_POOL"
-            ),
         )
 
         coins = _get_active_coins(source='auto', status_filter='incomplete')
 
-        self.assertNotIn('RECENT_GUARDED', [coin.mint_address for coin in coins])
+        self.assertIn('RECENT_ERROR', [coin.mint_address for coin in coins])
 
     def test_error_filter_returns_only_recent_error_coins_for_shyft_window(self):
         coins = _get_active_coins(source='auto', status_filter='error')
@@ -192,42 +181,9 @@ class FetchTransactionsBatchSelectionTest(TestCase):
             ['WATERMARKED_RECENT'],
         )
 
-    def test_partial_filter_excludes_free_tier_guarded_by_default(self):
+    def test_partial_filter_returns_old_partial_coin_for_helius_mode(self):
         coins = _get_active_coins(source='helius', status_filter='partial')
-        self.assertEqual([coin.mint_address for coin in coins], [])
-
-    def test_partial_filter_can_include_free_tier_guarded_rows(self):
-        coins = _get_active_coins(
-            source='helius',
-            status_filter='partial',
-            include_free_tier_guarded=True,
-        )
-        self.assertEqual(
-            sorted(coin.mint_address for coin in coins),
-            ['PARTIAL_OLD_GUARDED'],
-        )
-
-    def test_partial_filter_can_target_only_free_tier_guarded_rows(self):
-        coins = _get_active_coins(
-            source='helius',
-            status_filter='partial',
-            include_free_tier_guarded=True,
-            only_free_tier_guarded=True,
-        )
-        self.assertEqual(
-            [coin.mint_address for coin in coins],
-            ['PARTIAL_OLD_GUARDED'],
-        )
-
-    def test_guarded_signature_count_map_extracts_last_known_counts(self):
-        counts = _guarded_signature_count_map(
-            ['PARTIAL_OLD_GUARDED'],
-            'partial',
-        )
-        self.assertEqual(
-            counts,
-            {'PARTIAL_OLD_GUARDED': 1230},
-        )
+        self.assertEqual([coin.mint_address for coin in coins], ['PARTIAL_OLD'])
 
     def test_partial_and_error_recovery_prefers_oldest_then_smallest(self):
         status_last_run = {
@@ -310,21 +266,6 @@ class FetchTransactionsBatchSelectionTest(TestCase):
         self.assertEqual(
             _order_status_only_queue(['A', 'B', 'C'], status_last_run, raw_counts),
             ['B', 'C', 'A'],
-        )
-
-    def test_guarded_queue_prefers_smallest_known_overage(self):
-        status_last_run = {
-            'A': datetime(2026, 3, 15, tzinfo=timezone.utc),
-            'B': datetime(2026, 3, 14, tzinfo=timezone.utc),
-            'C': datetime(2026, 3, 13, tzinfo=timezone.utc),
-        }
-        guarded_counts = {
-            'A': 1600,
-            'B': 1200,
-        }
-        self.assertEqual(
-            _order_guarded_queue(['A', 'B', 'C'], status_last_run, guarded_counts),
-            ['B', 'A', 'C'],
         )
 
     def test_bootstrap_sig_cap_skips_risky_bootstrap_only(self):

@@ -263,10 +263,8 @@ class FetchTransactionsTrackingTest(TestCase):
         )
 
     @patch('pipeline.connectors.helius.fetch_transactions')
-    def test_free_tier_guard_failure_preserves_partial_status(self, mock_fetch):
-        mock_fetch.side_effect = RuntimeError(
-            'Filtered signature count 1789 exceeds free-tier guard (1000) for pool POOL_RD001'
-        )
+    def test_fetch_failure_overwrites_partial_status_to_error(self, mock_fetch):
+        mock_fetch.side_effect = RuntimeError('upstream fetch failed')
         U001PipelineStatus.objects.create(
             coin_id='TRACK_RD001',
             layer_id='RD-001',
@@ -278,17 +276,15 @@ class FetchTransactionsTrackingTest(TestCase):
 
         run = U001PipelineRun.objects.get(coin_id='TRACK_RD001', layer_id='RD-001')
         self.assertEqual(run.status, RunStatus.ERROR)
-        self.assertIn('exceeds free-tier guard', run.error_message)
+        self.assertIn('upstream fetch failed', run.error_message)
 
         status = U001PipelineStatus.objects.get(coin_id='TRACK_RD001', layer_id='RD-001')
-        self.assertEqual(status.status, PipelineCompleteness.PARTIAL)
-        self.assertIn('exceeds free-tier guard', status.last_error)
+        self.assertEqual(status.status, PipelineCompleteness.ERROR)
+        self.assertIn('upstream fetch failed', status.last_error)
 
     @patch('pipeline.connectors.helius.fetch_transactions')
-    def test_free_tier_guard_failure_without_existing_status_sets_error(self, mock_fetch):
-        mock_fetch.side_effect = RuntimeError(
-            'Filtered signature count 1789 exceeds free-tier guard (1000) for pool POOL_RD001'
-        )
+    def test_fetch_failure_without_existing_status_sets_error(self, mock_fetch):
+        mock_fetch.side_effect = RuntimeError('upstream fetch failed')
 
         with self.assertRaises(CommandError):
             call_command('fetch_transactions', coin='TRACK_RD001', source='helius')

@@ -20,10 +20,6 @@ from warehouse.utils import find_universe_fk
 logger = logging.getLogger(__name__)
 
 
-def _is_free_tier_guard_error(error):
-    return "exceeds free-tier guard" in str(error)
-
-
 def _resolve_models(spec):
     """Resolve universe/run/status models from spec, falling back to U-001."""
     universe_model = spec.universe_model or MigratedCoin
@@ -252,18 +248,8 @@ def _mark_error(run, status_model, status_fk, layer_id, asset_id, error,
         run.cu_consumed = meta.get('cu_consumed', 0)
     run.save()
 
-    preserved_status = None
-    if (
-        _is_free_tier_guard_error(error) and
-        prior_status in {
-            PipelineCompleteness.PARTIAL,
-            PipelineCompleteness.WINDOW_COMPLETE,
-        }
-    ):
-        preserved_status = prior_status
-
     _update_status(status_model, status_fk, asset_id, layer_id, {
-        'status': preserved_status or PipelineCompleteness.ERROR,
+        'status': PipelineCompleteness.ERROR,
         'last_run': run,
         'last_run_at': run.completed_at,
         'last_error': str(error),

@@ -20,7 +20,7 @@ def _sig_page(count, block_time):
 
 
 class RD001ConnectorFreeTierGuardTest(SimpleTestCase):
-    def test_helius_raises_guard_during_signature_discovery(self):
+    def test_helius_continues_past_old_guard_threshold_during_signature_discovery(self):
         now = datetime.now(timezone.utc)
         block_time = int((now - timedelta(minutes=1)).timestamp())
 
@@ -33,17 +33,16 @@ class RD001ConnectorFreeTierGuardTest(SimpleTestCase):
                         _sig_page(1, block_time),
                     ],
                 ):
-            with self.assertRaises(RuntimeError) as ctx:
-                helius._fetch_signatures(
-                    'POOL_HELIUS_LIMIT',
-                    start=now - timedelta(hours=1),
-                    end=now,
-                    max_filtered_signatures=1000,
-                )
+            signatures, credits = helius._fetch_signatures(
+                'POOL_HELIUS_LIMIT',
+                start=now - timedelta(hours=1),
+                end=now,
+            )
 
-        self.assertIn('exceeds free-tier guard', str(ctx.exception))
+        self.assertEqual(len(signatures), 1001)
+        self.assertGreater(credits, 0)
 
-    def test_shyft_raises_guard_during_signature_discovery(self):
+    def test_shyft_continues_past_old_guard_threshold_during_signature_discovery(self):
         now = datetime.now(timezone.utc)
         block_time = int((now - timedelta(minutes=1)).timestamp())
 
@@ -56,15 +55,13 @@ class RD001ConnectorFreeTierGuardTest(SimpleTestCase):
                         _sig_page(1, block_time),
                     ],
                 ):
-            with self.assertRaises(RuntimeError) as ctx:
-                shyft._fetch_signatures(
-                    'POOL_SHYFT_LIMIT',
-                    start=now - timedelta(hours=1),
-                    end=now,
-                    max_filtered_signatures=1000,
-                )
+            signatures = shyft._fetch_signatures(
+                'POOL_SHYFT_LIMIT',
+                start=now - timedelta(hours=1),
+                end=now,
+            )
 
-        self.assertIn('exceeds free-tier guard', str(ctx.exception))
+        self.assertEqual(len(signatures), 1001)
 
     def test_shyft_parse_fallback_splits_failed_batch(self):
         chunk = [f'sig_{i}' for i in range(20)]
@@ -111,3 +108,24 @@ class RD001ConnectorFreeTierGuardTest(SimpleTestCase):
             [len(call.args[0]) for call in parse_batch.call_args_list],
             [10, 10, 5],
         )
+
+    def test_helius_parse_transactions_respects_configured_batch_size(self):
+        signatures = [f'sig_{i}' for i in range(25)]
+
+        with patch.object(helius, 'PARSE_BATCH_SIZE', 10), \
+                patch.object(
+                    helius,
+                    '_parse_one_batch',
+                    side_effect=lambda batch: ([{'batch_size': len(batch)}], 100),
+                ) as parse_batch:
+            parsed, credits = helius._parse_transactions(signatures, max_workers=1)
+
+        self.assertEqual(
+            [row['batch_size'] for row in parsed],
+            [10, 10, 5],
+        )
+        self.assertEqual(
+            [len(call.args[0]) for call in parse_batch.call_args_list],
+            [10, 10, 5],
+        )
+        self.assertEqual(credits, 300)
