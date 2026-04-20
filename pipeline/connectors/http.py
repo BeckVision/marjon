@@ -47,19 +47,24 @@ def _http2_enabled_for_url(url):
 def _client_kwargs_for_url(url):
     """Return host-specific httpx.Client kwargs.
 
-    Shyft has shown repeated disconnects on reused pooled sessions in live
-    RD-001 runs. Disabling keep-alive reuse for those hosts trades a small
-    amount of latency for more predictable transport behavior.
+    Shyft still behaves better on HTTP/1 than HTTP/2 in live RD-001 runs,
+    but keep-alive reuse should remain enabled so large parse workloads do
+    not churn fresh TCP/TLS connections on every request.
     """
-    kwargs = {
+    return {
         'http2': _http2_enabled_for_url(url),
     }
 
-    host = (urlparse(url).hostname or '').lower()
-    if host in DEFAULT_HTTP2_DISABLED_HOSTS:
-        kwargs['limits'] = httpx.Limits(max_keepalive_connections=0)
 
-    return kwargs
+def _should_reset_session(url):
+    """Return whether transport/session errors should drop the pooled client.
+
+    Shyft requests authenticate per request and perform better when the
+    shared client keeps its live connections. Other hosts still keep the
+    previous "reset on broken session" behavior.
+    """
+    host = (urlparse(url).hostname or '').lower()
+    return host not in DEFAULT_HTTP2_DISABLED_HOSTS
 
 
 def _drop_session(url):
@@ -135,7 +140,8 @@ def request_with_retry(url, params=None, headers=None, timeout=30,
             if resp.status_code == 417:
                 last_error = 'expectation_failed_417'
                 wait = 2 ** (attempt + 1)
-                _drop_session(url)
+                if _should_reset_session(url):
+                    _drop_session(url)
                 logger.warning(
                     "Expectation failed (417), retrying with a fresh session in %ds (url=%s)",
                     wait, url,
@@ -185,7 +191,8 @@ def request_with_retry(url, params=None, headers=None, timeout=30,
         except httpx.TransportError as e:
             last_error = f'transport_error: {e.__class__.__name__}: {e}'
             wait = 2 ** (attempt + 1)
-            _drop_session(url)
+            if _should_reset_session(url):
+                _drop_session(url)
             logger.warning(
                 "Network error, waiting %ds (url=%s)",
                 wait, url,
