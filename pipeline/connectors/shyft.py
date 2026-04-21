@@ -162,10 +162,27 @@ def _fetch_signatures(pool_address, start=None, end=None, until_sig=None):
     Returns:
         List of signature dicts: {signature, blockTime, err}.
     """
+    all_sigs = []
+    for page in _iter_signature_pages(
+        pool_address,
+        start=start,
+        end=end,
+        until_sig=until_sig,
+    ):
+        all_sigs.extend(page)
+    return all_sigs
+
+
+def _iter_signature_pages(pool_address, start=None, end=None, until_sig=None):
+    """Yield signature-discovery pages newest-first for a pool.
+
+    Shared by the legacy "fetch all then parse" path and the streaming
+    path that can start parsing as pages arrive.
+    """
     api_key = _next_api_key()
     rpc_url = f"{RPC_URL}?api_key={api_key}"
-    all_sigs = []
     cursor = None
+    page_id = 0
 
     while True:
         params = [pool_address, {"limit": SIG_LIMIT}]
@@ -176,7 +193,7 @@ def _fetch_signatures(pool_address, start=None, end=None, until_sig=None):
 
         payload = {
             "jsonrpc": "2.0",
-            "id": len(all_sigs),
+            "id": page_id,
             "method": "getSignaturesForAddress",
             "params": params,
         }
@@ -190,8 +207,9 @@ def _fetch_signatures(pool_address, start=None, end=None, until_sig=None):
         if not result:
             break
 
-        all_sigs.extend(result)
-        # Stop when oldest sig is before start
+        yield result
+        page_id += 1
+
         if start is not None:
             oldest_time = datetime.fromtimestamp(
                 result[-1]['blockTime'], tz=timezone.utc,
@@ -199,13 +217,10 @@ def _fetch_signatures(pool_address, start=None, end=None, until_sig=None):
             if oldest_time < start:
                 break
 
-        # Last page
         if len(result) < SIG_LIMIT:
             break
 
         cursor = result[-1]['signature']
-
-    return all_sigs
 
 
 def _fetch_signatures_batch(pool_addresses, limit=SIG_LIMIT):
@@ -442,6 +457,63 @@ def _parse_selected(signatures, max_workers=1):
     return all_parsed
 
 
+def _fetch_transactions_streaming(pool_address, start=None, end=None, max_workers=1):
+    """Discover signatures and submit parse batches as soon as they fill.
+
+    This overlaps Phase 1 paging with Phase 2 parsing so large recent pools
+    do not have to wait for full signature discovery before parsing begins.
+    """
+    raw_sig_count = 0
+    filtered_count = 0
+    dropped_count = 0
+    rpc_pages = 0
+    pending_signatures = []
+    all_parsed = []
+    futures = []
+
+    def _drain_completed():
+        nonlocal futures
+        remaining = []
+        for future in futures:
+            if future.done():
+                all_parsed.extend(future.result())
+            else:
+                remaining.append(future)
+        futures = remaining
+
+    with ThreadPoolExecutor(max_workers=max(1, max_workers)) as executor:
+        for page in _iter_signature_pages(pool_address, start=start, end=end):
+            rpc_pages += 1
+            raw_sig_count += len(page)
+
+            filtered_page = _filter_signatures(page, start, end)
+            filtered_count += len(filtered_page)
+            dropped_count += len(page) - len(filtered_page)
+            pending_signatures.extend(filtered_page)
+
+            while len(pending_signatures) >= PARSE_BATCH_SIZE:
+                batch = pending_signatures[:PARSE_BATCH_SIZE]
+                del pending_signatures[:PARSE_BATCH_SIZE]
+                futures.append(executor.submit(_parse_with_fallback, batch))
+
+            _drain_completed()
+
+        if pending_signatures:
+            futures.append(
+                executor.submit(_parse_with_fallback, list(pending_signatures))
+            )
+
+        for future in as_completed(futures):
+            all_parsed.extend(future.result())
+
+    return all_parsed, {
+        'raw_sig_count': raw_sig_count,
+        'filtered_count': filtered_count,
+        'dropped_count': dropped_count,
+        'rpc_pages': rpc_pages,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -449,9 +521,9 @@ def _parse_selected(signatures, max_workers=1):
 def fetch_transactions(pool_address, start=None, end=None, max_workers=1):
     """Fetch and parse transactions for a Pumpswap pool from Shyft.
 
-    Two-phase approach:
-      1. Discover signatures via RPC (fast, no rate limit)
-      2. Parse selected signatures via REST (rate-limited)
+    The connector still uses RPC discovery plus REST parsing, but for recent
+    high-volume pools it now overlaps those stages so parsing can begin before
+    full signature discovery finishes.
 
     Args:
         pool_address: Pumpswap pool address string.
@@ -463,46 +535,44 @@ def fetch_transactions(pool_address, start=None, end=None, max_workers=1):
         Tuple of (transactions, metadata) where transactions is a list of
         raw Shyft transaction dicts and metadata is {'api_calls': int}.
     """
-    # Phase 1: discover signatures
-    raw_sigs = _fetch_signatures(
+    transactions, stats = _fetch_transactions_streaming(
         pool_address,
         start,
         end,
+        max_workers=max_workers,
     )
-    rpc_pages = (len(raw_sigs) // SIG_LIMIT) + 1 if raw_sigs else 1
+    rpc_pages = stats['rpc_pages'] or 1
+    raw_sig_count = stats['raw_sig_count']
+    filtered_count = stats['filtered_count']
+    dropped = stats['dropped_count']
 
-    if not raw_sigs:
+    if not raw_sig_count:
         logger.info(
             "No signatures found for pool %s", pool_address,
         )
         return [], {'api_calls': rpc_pages}
 
-    # Pre-filter
-    filtered = _filter_signatures(raw_sigs, start, end)
-    dropped = len(raw_sigs) - len(filtered)
     if dropped:
         logger.info(
             "Pre-filtered %d/%d signatures (failed or out-of-window)",
-            dropped, len(raw_sigs),
+            dropped, raw_sig_count,
         )
 
-    if not filtered:
+    if not filtered_count:
         logger.info(
             "All %d signatures filtered out for pool %s",
-            len(raw_sigs), pool_address,
+            raw_sig_count, pool_address,
         )
         return [], {'api_calls': rpc_pages}
 
-    # Phase 2: parse selected
-    transactions = _parse_selected(filtered, max_workers=max_workers)
-    rest_calls = (len(filtered) + PARSE_BATCH_SIZE - 1) // PARSE_BATCH_SIZE
+    rest_calls = (filtered_count + PARSE_BATCH_SIZE - 1) // PARSE_BATCH_SIZE
 
     logger.info(
         "Fetched %d transactions for pool %s "
         "(%d sigs discovered, %d filtered, %d parsed, "
         "%d RPC pages + %d REST calls)",
         len(transactions), pool_address,
-        len(raw_sigs), len(filtered), len(transactions),
+        raw_sig_count, filtered_count, len(transactions),
         rpc_pages, rest_calls,
     )
 
