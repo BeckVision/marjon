@@ -126,6 +126,27 @@ def run_for_coin(spec, asset_id, start=None, end=None, **kwargs):
         'last_run_at': dj_timezone.now(),
     })
 
+    # Step 6A: Optional streaming fetch path
+    if spec.fetch_stream and spec.load_chunk:
+        try:
+            raw_stream = spec.fetch_stream(
+                asset_id, pool_address, start, end, **kwargs,
+            )
+        except Exception as e:
+            logger.error("Connector failed for %s", asset_id, exc_info=True)
+            _mark_error(
+                run, status_model, status_fk, layer_id, asset_id, e,
+                prior_status=prior_status,
+            )
+            raise RuntimeError(f"Connector failed for {asset_id}") from e
+
+        if raw_stream is not None:
+            return _run_streaming_for_coin(
+                spec, asset, asset_id, pool_address, start, end, kwargs,
+                run, status_model, status_fk, feature_fk, layer_id, mode,
+                prior_status, raw_stream,
+            )
+
     # Step 6: Fetch
     try:
         raw, meta = spec.fetch(asset_id, pool_address, start, end, **kwargs)
@@ -235,6 +256,127 @@ def _update_status(status_model, status_fk, asset_id, layer_id, defaults):
         **{status_fk: asset_id}, layer_id=layer_id,
         defaults=defaults,
     )
+
+
+def _run_streaming_for_coin(spec, asset, asset_id, pool_address, start, end,
+                            kwargs, run, status_model, status_fk, feature_fk,
+                            layer_id, mode, prior_status, raw_stream):
+    """Execute a pipeline run using chunked fetch/conform/load."""
+    total_loaded = 0
+    total_skipped = 0
+    saw_any_raw = False
+    prepared = False
+    pending_skipped = []
+
+    try:
+        for raw in raw_stream:
+            if not raw:
+                continue
+
+            saw_any_raw = True
+            logger.info(
+                "Received %d raw records for %s (stream chunk)",
+                len(raw), asset_id,
+            )
+
+            result = spec.conform(raw, asset_id, pool_address, **kwargs)
+            if spec.conform_returns_tuple:
+                canonical, skipped = result
+            else:
+                canonical, skipped = result, []
+
+            if canonical:
+                if not prepared:
+                    if spec.prepare_load:
+                        spec.prepare_load(asset_id, start, end)
+                    prepared = True
+                    if pending_skipped:
+                        spec.load_chunk(asset_id, [], pending_skipped)
+                        total_skipped += len(pending_skipped)
+                        pending_skipped = []
+
+                spec.load_chunk(asset_id, canonical, skipped)
+                total_loaded += len(canonical)
+                total_skipped += len(skipped)
+                continue
+
+            if skipped:
+                if prepared:
+                    spec.load_chunk(asset_id, [], skipped)
+                    total_skipped += len(skipped)
+                else:
+                    pending_skipped.extend(skipped)
+    except Exception as e:
+        logger.error("Streaming pipeline failed for %s", asset_id, exc_info=True)
+        _mark_error(
+            run, status_model, status_fk, layer_id, asset_id, e,
+            meta=getattr(raw_stream, 'meta', None), prior_status=prior_status,
+        )
+        raise RuntimeError(f"Streaming pipeline failed for {asset_id}") from e
+
+    meta = getattr(raw_stream, 'meta', {})
+
+    if not saw_any_raw:
+        logger.info(
+            "Zero results from API for %s in [%s, %s]",
+            asset_id, start, end,
+        )
+        return _mark_complete_empty(
+            spec, asset, run, status_model, status_fk, feature_fk,
+            layer_id, asset_id, meta, mode,
+        )
+
+    if total_loaded == 0:
+        logger.warning(
+            "All streamed records filtered during conformance for %s",
+            asset_id,
+        )
+        return _mark_complete_empty(
+            spec, asset, run, status_model, status_fk, feature_fk,
+            layer_id, asset_id, meta, mode,
+        )
+
+    reconcile_data = {}
+    if spec.reconcile_stream:
+        reconcile_data = spec.reconcile_stream(
+            total_loaded, total_skipped, start, end, meta, asset_id, **kwargs,
+        )
+
+    run.status = RunStatus.COMPLETE
+    run.completed_at = dj_timezone.now()
+    run.records_loaded = total_loaded
+    run.api_calls = meta.get('api_calls', 0)
+    run.cu_consumed = meta.get('cu_consumed', 0)
+    if 'records_expected' in reconcile_data:
+        run.records_expected = reconcile_data['records_expected']
+    run.save()
+
+    new_watermark = get_watermark(spec.model, asset_id, asset_fk=feature_fk)
+
+    if spec.compute_completeness:
+        completeness = spec.compute_completeness(
+            asset, asset_id, new_watermark,
+        )
+    else:
+        completeness = _default_completeness(spec, asset, feature_fk, new_watermark)
+
+    _update_status(status_model, status_fk, asset_id, layer_id, {
+        'status': completeness,
+        'watermark': new_watermark,
+        'last_run': run,
+        'last_run_at': run.completed_at,
+        'last_error': None,
+    })
+
+    return {
+        'status': completeness,
+        'records_loaded': total_loaded,
+        'records_skipped': total_skipped,
+        'api_calls': meta.get('api_calls', 0),
+        'mode': mode,
+        'run_id': run.id,
+        'error_message': None,
+    }
 
 
 def _mark_error(run, status_model, status_fk, layer_id, asset_id, error,

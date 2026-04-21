@@ -46,6 +46,22 @@ def _fetch(mint, pool, start, end, **kw):
     )
 
 
+def _fetch_stream(mint, pool, start, end, **kw):
+    source = _resolve_source(kw)
+    if source != 'shyft':
+        return None
+
+    from pipeline.connectors.shyft import stream_transactions
+
+    logger.info("Source: %s for %s", source, mint)
+    return stream_transactions(
+        pool,
+        start,
+        end,
+        max_workers=kw.get('parse_workers', 1),
+    )
+
+
 def _conform(raw, mint, pool, **kw):
     source = _resolve_source(kw)
     if source == 'shyft':
@@ -60,11 +76,30 @@ def _load(mint, start, end, canonical, skipped):
     load(mint, start, end, canonical, skipped)
 
 
+def _prepare_load(mint, start, end):
+    from pipeline.loaders.rd001 import prepare_replace_range
+    prepare_replace_range(mint, start, end)
+
+
+def _load_chunk(mint, canonical, skipped):
+    from pipeline.loaders.rd001 import append_chunk
+    append_chunk(mint, canonical, skipped)
+
+
 def _reconcile(canonical, skipped, start, end, meta, mint, **kw):
     source = _resolve_source(kw)
     logger.info(
         "Reconciliation for %s [%s]: parsed=%d, skipped=%d, api_calls=%d",
         mint, source, len(canonical), len(skipped), meta.get('api_calls', 0),
+    )
+    return {}
+
+
+def _reconcile_stream(records_loaded, records_skipped, start, end, meta, mint, **kw):
+    source = _resolve_source(kw)
+    logger.info(
+        "Reconciliation for %s [%s]: parsed=%d, skipped=%d, api_calls=%d",
+        mint, source, records_loaded, records_skipped, meta.get('api_calls', 0),
     )
     return {}
 
@@ -76,11 +111,15 @@ def _build_spec():
         model=RawTransaction,
         overlap=timedelta(minutes=5),
         fetch=_fetch,
+        fetch_stream=_fetch_stream,
         conform=_conform,
         load=_load,
+        prepare_load=_prepare_load,
+        load_chunk=_load_chunk,
         requires_pool=True,
         conform_returns_tuple=True,
         reconcile=_reconcile,
+        reconcile_stream=_reconcile_stream,
     )
 
 

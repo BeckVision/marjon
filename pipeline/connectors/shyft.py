@@ -463,55 +463,94 @@ def _fetch_transactions_streaming(pool_address, start=None, end=None, max_worker
     This overlaps Phase 1 paging with Phase 2 parsing so large recent pools
     do not have to wait for full signature discovery before parsing begins.
     """
-    raw_sig_count = 0
-    filtered_count = 0
-    dropped_count = 0
-    rpc_pages = 0
-    pending_signatures = []
+    stream = stream_transactions(
+        pool_address,
+        start=start,
+        end=end,
+        max_workers=max_workers,
+    )
     all_parsed = []
-    futures = []
+    for batch in stream:
+        all_parsed.extend(batch)
+    return all_parsed, stream.stats
 
-    def _drain_completed():
-        nonlocal futures
-        remaining = []
-        for future in futures:
-            if future.done():
-                all_parsed.extend(future.result())
-            else:
-                remaining.append(future)
-        futures = remaining
 
-    with ThreadPoolExecutor(max_workers=max(1, max_workers)) as executor:
-        for page in _iter_signature_pages(pool_address, start=start, end=end):
-            rpc_pages += 1
-            raw_sig_count += len(page)
+class TransactionBatchStream:
+    """Yield parsed Shyft transaction batches while discovery is still running."""
 
-            filtered_page = _filter_signatures(page, start, end)
-            filtered_count += len(filtered_page)
-            dropped_count += len(page) - len(filtered_page)
-            pending_signatures.extend(filtered_page)
+    def __init__(self, pool_address, start=None, end=None, max_workers=1):
+        self.pool_address = pool_address
+        self.start = start
+        self.end = end
+        self.max_workers = max_workers
+        self.stats = {
+            'raw_sig_count': 0,
+            'filtered_count': 0,
+            'dropped_count': 0,
+            'rpc_pages': 0,
+        }
+        self.meta = {'api_calls': 0}
 
-            while len(pending_signatures) >= PARSE_BATCH_SIZE:
-                batch = pending_signatures[:PARSE_BATCH_SIZE]
-                del pending_signatures[:PARSE_BATCH_SIZE]
-                futures.append(executor.submit(_parse_with_fallback, batch))
+    def __iter__(self):
+        pending_signatures = []
+        futures = []
 
-            _drain_completed()
+        def _drain_completed():
+            nonlocal futures
+            remaining = []
+            completed = []
+            for future in futures:
+                if future.done():
+                    completed.append(future.result())
+                else:
+                    remaining.append(future)
+            futures = remaining
+            return completed
 
-        if pending_signatures:
-            futures.append(
-                executor.submit(_parse_with_fallback, list(pending_signatures))
-            )
+        with ThreadPoolExecutor(max_workers=max(1, self.max_workers)) as executor:
+            for page in _iter_signature_pages(
+                self.pool_address,
+                start=self.start,
+                end=self.end,
+            ):
+                self.stats['rpc_pages'] += 1
+                self.stats['raw_sig_count'] += len(page)
 
-        for future in as_completed(futures):
-            all_parsed.extend(future.result())
+                filtered_page = _filter_signatures(page, self.start, self.end)
+                self.stats['filtered_count'] += len(filtered_page)
+                self.stats['dropped_count'] += len(page) - len(filtered_page)
+                pending_signatures.extend(filtered_page)
 
-    return all_parsed, {
-        'raw_sig_count': raw_sig_count,
-        'filtered_count': filtered_count,
-        'dropped_count': dropped_count,
-        'rpc_pages': rpc_pages,
-    }
+                while len(pending_signatures) >= PARSE_BATCH_SIZE:
+                    batch = pending_signatures[:PARSE_BATCH_SIZE]
+                    del pending_signatures[:PARSE_BATCH_SIZE]
+                    futures.append(executor.submit(_parse_with_fallback, batch))
+
+                for parsed_batch in _drain_completed():
+                    yield parsed_batch
+
+            if pending_signatures:
+                futures.append(
+                    executor.submit(_parse_with_fallback, list(pending_signatures))
+                )
+
+            for future in as_completed(futures):
+                yield future.result()
+
+        rest_calls = (
+            self.stats['filtered_count'] + PARSE_BATCH_SIZE - 1
+        ) // PARSE_BATCH_SIZE
+        self.meta = {'api_calls': self.stats['rpc_pages'] + rest_calls}
+
+
+def stream_transactions(pool_address, start=None, end=None, max_workers=1):
+    """Return a streaming iterator of parsed Shyft transaction batches."""
+    return TransactionBatchStream(
+        pool_address,
+        start=start,
+        end=end,
+        max_workers=max_workers,
+    )
 
 
 # ---------------------------------------------------------------------------

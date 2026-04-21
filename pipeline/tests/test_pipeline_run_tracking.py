@@ -10,7 +10,8 @@ from django.test import TestCase
 
 from warehouse.models import (
     MigratedCoin, OHLCVCandle, PipelineCompleteness, PoolMapping,
-    RunMode, RunStatus, U001PipelineRun, U001PipelineStatus,
+    RawTransaction, RunMode, RunStatus, SkippedTransaction, U001PipelineRun,
+    U001PipelineStatus,
 )
 
 T0 = datetime(2026, 3, 1, 10, 0, tzinfo=timezone.utc)
@@ -291,6 +292,70 @@ class FetchTransactionsTrackingTest(TestCase):
 
         status = U001PipelineStatus.objects.get(coin_id='TRACK_RD001', layer_id='RD-001')
         self.assertEqual(status.status, PipelineCompleteness.ERROR)
+
+    def test_shyft_streaming_path_loads_first_chunk_before_stream_ends(self):
+        from pipeline.pipelines.rd001 import RD001
+
+        first_tx = {
+            'signatures': ['sig_stream_1'],
+            'timestamp': '2026-03-01T10:00:00.000Z',
+            'status': 'Success',
+            'fee': 0.000005,
+            'events': [{
+                'name': 'BuyEvent',
+                'data': {
+                    'user': 'wallet_1',
+                    'base_amount_out': 100,
+                    'quote_amount_in': 200,
+                    'pool': 'POOL_RD001',
+                    'lp_fee': 1,
+                    'protocol_fee': 2,
+                    'coin_creator_fee': 3,
+                    'pool_base_token_reserves': 400,
+                    'pool_quote_token_reserves': 500,
+                },
+            }],
+        }
+        second_tx = {
+            'signatures': ['sig_stream_2'],
+            'timestamp': '2026-03-01T10:01:00.000Z',
+            'status': 'Failed',
+            'type': 'swap',
+            'events': [],
+        }
+        stream_checked_midflight = {'value': False}
+
+        class FakeStream:
+            meta = {'api_calls': 7}
+
+            def __iter__(self_inner):
+                yield [first_tx]
+                self.assertEqual(
+                    RawTransaction.objects.filter(coin_id='TRACK_RD001').count(),
+                    1,
+                )
+                stream_checked_midflight['value'] = True
+                yield [second_tx]
+
+        with patch.object(
+            RD001, 'fetch_stream', return_value=FakeStream(),
+        ), patch.object(
+            RD001, 'fetch', side_effect=AssertionError('non-stream fetch should not run')
+        ):
+            call_command('fetch_transactions', coin='TRACK_RD001', source='shyft')
+
+        self.assertTrue(stream_checked_midflight['value'])
+        self.assertEqual(
+            RawTransaction.objects.filter(coin_id='TRACK_RD001').count(), 1,
+        )
+        self.assertEqual(
+            SkippedTransaction.objects.filter(coin_id='TRACK_RD001').count(), 1,
+        )
+
+        run = U001PipelineRun.objects.get(coin_id='TRACK_RD001', layer_id='RD-001')
+        self.assertEqual(run.status, RunStatus.COMPLETE)
+        self.assertEqual(run.records_loaded, 1)
+        self.assertEqual(run.api_calls, 7)
 
 
 # --- Connector metadata tests ------------------------------------------------

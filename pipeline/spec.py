@@ -20,6 +20,10 @@ class PipelineSpec:
     pre_flight: Callable | None = None   # (coin, pool, start, end, **kw) -> None
     reconcile: Callable | None = None    # (canonical, skipped, start, end, meta, mint, **kw) -> dict
     compute_completeness: Callable | None = None  # override default
+    fetch_stream: Callable | None = None          # optional streaming fetch path
+    prepare_load: Callable | None = None         # optional one-time range prep
+    load_chunk: Callable | None = None           # optional append-style chunk load
+    reconcile_stream: Callable | None = None     # optional streaming reconcile
     # Universe/tracking models — defaults resolve to U-001 at runtime for backward compat
     universe_model: type | None = None   # MigratedCoin, CryptoMajor, etc.
     asset_field: str = 'mint_address'    # field used as FK target / lookup

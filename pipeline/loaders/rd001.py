@@ -31,6 +31,12 @@ def load(mint_address, start, end, parsed_records, skipped_records):
         )
         return
 
+    prepare_replace_range(mint_address, start, end)
+    append_chunk(mint_address, parsed_records, skipped_records)
+
+
+def prepare_replace_range(mint_address, start, end):
+    """Delete the target RD-001 range once before chunked appends begin."""
     with transaction.atomic():
         del_raw, _ = RawTransaction.objects.filter(
             coin_id=mint_address,
@@ -44,12 +50,19 @@ def load(mint_address, start, end, parsed_records, skipped_records):
             timestamp__lte=end,
         ).delete()
 
-        if del_raw or del_skipped:
-            logger.info(
-                "Deleted %d raw + %d skipped for %s in [%s, %s]",
-                del_raw, del_skipped, mint_address, start, end,
-            )
+    if del_raw or del_skipped:
+        logger.info(
+            "Deleted %d raw + %d skipped for %s in [%s, %s]",
+            del_raw, del_skipped, mint_address, start, end,
+        )
 
+
+def append_chunk(mint_address, parsed_records, skipped_records):
+    """Append one RD-001 chunk after range prep has already happened."""
+    if not parsed_records and not skipped_records:
+        return
+
+    with transaction.atomic():
         if parsed_records:
             objs = [RawTransaction(**r) for r in parsed_records]
             RawTransaction.objects.bulk_create(objs)
