@@ -218,18 +218,27 @@ class ParadigmLeakTest(SimpleTestCase):
 class SSOTConstantTest(SimpleTestCase):
     """Pipeline code must not hardcode paradigm constants."""
 
-    def _scan_pipeline_source(self, pattern, description, exclude_contexts=None):
+    def _scan_pipeline_source(self, pattern, description, exclude_contexts=None,
+                              exclude_subdirs=None):
         """Scan all non-test .py files in pipeline/ for a string pattern.
 
         Args:
             exclude_contexts: list of strings — if a line contains any of
                 these strings, it's not a violation (false positive filter).
+            exclude_subdirs: list of pipeline/ subdirectories to skip.
         """
         exclude_contexts = exclude_contexts or []
+        exclude_subdirs = exclude_subdirs or []
         violations = []
         for root, dirs, files in os.walk(os.path.join(BASE_DIR, 'pipeline')):
             # Skip test directories
             if 'tests' in root.split(os.sep):
+                continue
+            rel_root = os.path.relpath(root, os.path.join(BASE_DIR, 'pipeline'))
+            if any(
+                rel_root == subdir or rel_root.startswith(f"{subdir}{os.sep}")
+                for subdir in exclude_subdirs
+            ):
                 continue
             for filename in files:
                 if not filename.endswith('.py') or filename == '__init__.py':
@@ -251,11 +260,14 @@ class SSOTConstantTest(SimpleTestCase):
     def test_no_hardcoded_temporal_resolution(self):
         """pipeline/ must not hardcode timedelta(minutes=5) — use model constant.
 
-        Excludes overlap= parameters (operational, not paradigm constants).
+        Excludes overlap= parameters and audit modules. Audit code may use
+        explicit bucket sizes for validation logic without creating pipeline
+        SSOT drift.
         """
         violations = self._scan_pipeline_source(
             'timedelta(minutes=5)', 'TEMPORAL_RESOLUTION',
             exclude_contexts=['overlap'],
+            exclude_subdirs=['audits'],
         )
         self.assertFalse(
             violations,

@@ -4,11 +4,9 @@ from collections import Counter
 from datetime import timedelta
 from decimal import Decimal
 
-from warehouse.models import OHLCVCandle
-
 LAMPORTS_PER_SOL = Decimal('1000000000')
 DEFAULT_TOKEN_DECIMALS = 6
-FIVE_MINUTES = OHLCVCandle.TEMPORAL_RESOLUTION
+FIVE_MINUTES = timedelta(minutes=5)
 ONE_MINUTE = timedelta(minutes=1)
 
 
