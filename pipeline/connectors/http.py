@@ -15,6 +15,13 @@ DEFAULT_HTTP2_DISABLED_HOSTS = {
     'rpc.shyft.to',
 }
 
+SESSION_RESET_DISABLED_HOSTS = {
+    'api.shyft.to',
+    'rpc.shyft.to',
+    'api-mainnet.helius-rpc.com',
+    'mainnet.helius-rpc.com',
+}
+
 # Per-host session pool. Each unique origin (scheme + host) gets its own
 # httpx.Client, reusing TCP + TLS connections via HTTP keep-alive + HTTP/2.
 _session_pool = {}
@@ -59,12 +66,12 @@ def _client_kwargs_for_url(url):
 def _should_reset_session(url):
     """Return whether transport/session errors should drop the pooled client.
 
-    Shyft requests authenticate per request and perform better when the
+    RD-001 providers authenticate per request and perform better when the
     shared client keeps its live connections. Other hosts still keep the
     previous "reset on broken session" behavior.
     """
     host = (urlparse(url).hostname or '').lower()
-    return host not in DEFAULT_HTTP2_DISABLED_HOSTS
+    return host not in SESSION_RESET_DISABLED_HOSTS
 
 
 def _drop_session(url):

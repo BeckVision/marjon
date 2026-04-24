@@ -42,6 +42,14 @@ class HttpConnectorTest(SimpleTestCase):
         self.assertTrue(kwargs['http2'])
         self.assertNotIn('limits', kwargs)
 
+    def test_helius_keeps_http2_enabled_and_default_pooling(self):
+        kwargs = http._client_kwargs_for_url(
+            'https://api-mainnet.helius-rpc.com/v0/transactions'
+        )
+
+        self.assertTrue(kwargs['http2'])
+        self.assertNotIn('limits', kwargs)
+
     def test_request_with_retry_retries_417_without_resetting_shyft_session(self):
         first_response = Mock()
         first_response.status_code = 417
@@ -97,6 +105,25 @@ class HttpConnectorTest(SimpleTestCase):
             data = http.request_with_retry('https://rpc.shyft.to?api_key=test')
 
         self.assertEqual(data, {'ok': True})
+        drop_session.assert_not_called()
+
+    def test_request_with_retry_keeps_helius_session_on_transport_error(self):
+        session = Mock()
+        session.post.side_effect = [
+            httpx.TransportError('boom'),
+            Mock(status_code=200, json=Mock(return_value=[])),
+        ]
+
+        with patch.object(http, '_get_session', return_value=session), \
+                patch.object(http, '_drop_session') as drop_session, \
+                patch('pipeline.connectors.http.time.sleep'):
+            data = http.request_with_retry(
+                'https://api-mainnet.helius-rpc.com/v0/transactions',
+                method='POST',
+                json_body={'transactions': ['sig']},
+            )
+
+        self.assertEqual(data, [])
         drop_session.assert_not_called()
 
     def test_request_with_retry_drops_non_shyft_session_on_transport_error(self):
