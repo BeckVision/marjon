@@ -2,10 +2,39 @@
 
 Crypto quantitative research platform. Collects market and on-chain data, stores it in a structured warehouse with point-in-time semantics, and provides a data service for analysis and strategy development. Universe-agnostic by design.
 
+## Why it matters
+
+`marjon` is built for research workflows where raw market data is not enough. It keeps ingestion state, source audits, point-in-time access rules, derived feature checks, and strategy tooling in one Django-backed system so experiments can be traced back to the exact data available at the time.
+
+## Highlights
+
+- Market and on-chain warehouse for crypto research datasets
+- Point-in-time data service for analysis without look-ahead leakage
+- Provider-backed ingestion pipelines for OHLCV, holder snapshots, pool mapping, and transactions
+- Direct audit paths for source freshness, Solana chain checks, and derived-candle parity
+- Strategy research layer with backtesting, sweeps, and leaderboard commands
+- Operational cockpit and command wrappers for local unattended runs
+
 ## Stack
 
 - **Backend:** Django + PostgreSQL
-- **Task queue:** Celery + Redis (Phase 2+)
+- **Data sources:** GeckoTerminal, Moralis, Shyft, Helius, Binance, Solana RPC
+- **Operations:** Docker Compose, Make, shell wrappers, Django management commands
+
+## Architecture
+
+```text
+External providers
+  -> pipeline connectors
+  -> warehouse models
+  -> data service / point-in-time access
+  -> derived features and strategy engine
+  -> ops dashboard and audit commands
+```
+
+## Public Demo Status
+
+This repository is currently a local-first research platform. The codebase includes an ops UI and Django views, but no public hosted demo is linked yet because provider keys and local warehouse state are required for meaningful output.
 
 ## Roadmap
 
@@ -289,7 +318,7 @@ The current pages are:
 - `/ops/u001/trends/` for current operational pressure plus exact daily snapshot rows when available
   It now also includes current `Live Source Audit`, `RD-001 Chain Audit`, and `FL-001 Derived Audit` cards plus daily truth-audit history and coverage summaries, so Phase 0 confidence gaps are visible over time instead of only as latest-state on the overview.
 
-The tracked operational backlog for U-001 lives in [CHECKLIST.md](/home/beck/Desktop/projects/marjon/CHECKLIST.md), so current ingestion follow-up work stays in the repo instead of only in chat.
+The tracked operational backlog for U-001 lives in [CHECKLIST.md](CHECKLIST.md), so current ingestion follow-up work stays in the repo instead of only in chat.
 
 If U-001 ingestion is interrupted and leaves stale `started` or `in_progress` rows behind, use:
 
@@ -329,29 +358,33 @@ MORALIS_DAILY_CU_LIMIT
 
 The tracked wrappers default to a free-tier-safe posture:
 
-- [run_daily.sh](/home/beck/Desktop/projects/marjon/scripts/run_daily.sh) processes a capped recent slice and skips holders unless `MARJON_U001_ENABLE_HOLDERS=1`.
-- [run_daily.sh](/home/beck/Desktop/projects/marjon/scripts/run_daily.sh) also prefers mature coins by default so OHLCV backfill does not waste its capped slice on immature names.
-- [run_holders.sh](/home/beck/Desktop/projects/marjon/scripts/run_holders.sh) is the dedicated low-budget FL-002 catch-up path for mature coins.
-- [run_batch.sh](/home/beck/Desktop/projects/marjon/scripts/run_batch.sh) caps RD-001 work per run and keeps concurrency conservative.
-- [run_batch_errors.sh](/home/beck/Desktop/projects/marjon/scripts/run_batch_errors.sh) spends RD-001 budget specifically on coins already in `error` state.
-- [run_batch_partials.sh](/home/beck/Desktop/projects/marjon/scripts/run_batch_partials.sh) spends RD-001 budget specifically on coins stuck in `partial` state.
-- [run_batch_partials_historical.sh](/home/beck/Desktop/projects/marjon/scripts/run_batch_partials_historical.sh) spends a small Helius budget on old RD-001 `partial` rows that are outside Shyft retention.
+- [run_daily.sh](scripts/run_daily.sh) processes a capped recent slice and skips holders unless `MARJON_U001_ENABLE_HOLDERS=1`.
+- [run_daily.sh](scripts/run_daily.sh) also prefers mature coins by default so OHLCV backfill does not waste its capped slice on immature names.
+- [run_holders.sh](scripts/run_holders.sh) is the dedicated low-budget FL-002 catch-up path for mature coins.
+- [run_batch.sh](scripts/run_batch.sh) caps RD-001 work per run and keeps concurrency conservative.
+- [run_batch_errors.sh](scripts/run_batch_errors.sh) spends RD-001 budget specifically on coins already in `error` state.
+- [run_batch_partials.sh](scripts/run_batch_partials.sh) spends RD-001 budget specifically on coins stuck in `partial` state.
+- [run_batch_partials_historical.sh](scripts/run_batch_partials_historical.sh) spends a small Helius budget on old RD-001 `partial` rows that are outside Shyft retention.
 - Historical RD-001 `partial` and `error` retries now skip rows already marked by the free-tier guard unless you pass `--include-free-tier-guarded`.
-- [run_batch_partials_guarded.sh](/home/beck/Desktop/projects/marjon/scripts/run_batch_partials_guarded.sh) is the explicit opt-in lane for those free-tier-guarded historical `partial` rows, with a tiny default slice.
-- [run_u001_automation.sh](/home/beck/Desktop/projects/marjon/scripts/run_u001_automation.sh) runs one overlap-protected policy tick that repairs stale state, selects one U-001 lane, executes it, and snapshots when due.
+- [run_batch_partials_guarded.sh](scripts/run_batch_partials_guarded.sh) is the explicit opt-in lane for those free-tier-guarded historical `partial` rows, with a tiny default slice.
+- [run_u001_automation.sh](scripts/run_u001_automation.sh) runs one overlap-protected policy tick that repairs stale state, selects one U-001 lane, executes it, and snapshots when due.
 
 The shared HTTP client also disables HTTP/2 for Shyft by default because RD-001 showed repeated transport instability there in live runs. Override the host list with `MARJON_HTTP2_DISABLED_HOSTS` if you need different behavior.
 
 ## Releases
 
-The repo now tracks release notes in [CHANGELOG.md](/home/beck/Desktop/projects/marjon/CHANGELOG.md) and the current release number in [VERSION](/home/beck/Desktop/projects/marjon/VERSION).
+The repo now tracks release notes in [CHANGELOG.md](CHANGELOG.md) and the current release number in [VERSION](VERSION).
 
 Recommended release flow:
 
-1. Add new notes under `Unreleased` in [CHANGELOG.md](/home/beck/Desktop/projects/marjon/CHANGELOG.md).
-2. When you are ready to publish, move those notes into a new `X.Y.Z` section and update [VERSION](/home/beck/Desktop/projects/marjon/VERSION).
+1. Add new notes under `Unreleased` in [CHANGELOG.md](CHANGELOG.md).
+2. When you are ready to publish, move those notes into a new `X.Y.Z` section and update [VERSION](VERSION).
 3. Commit the release prep.
 4. Tag the release commit with `git tag -a vX.Y.Z -m "Release vX.Y.Z"`.
 5. Push the branch and tag, then paste the matching changelog section into the GitHub release body.
 
 Current release line: `v0.4.0`.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
