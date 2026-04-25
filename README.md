@@ -36,6 +36,22 @@ External providers
 
 This repository is currently a local-first research platform. The codebase includes an ops UI and Django views, but no public hosted demo is linked yet because provider keys and local warehouse state are required for meaningful output.
 
+## Screenshots
+
+Screenshots are captured from a local warehouse state and are intended to show the operational surfaces, not a hosted public demo.
+
+### Operations Overview
+
+![Operations overview](docs/screenshots/ops-overview.png)
+
+### Coverage Funnel
+
+![Coverage funnel](docs/screenshots/ops-coverage.png)
+
+### Queue Planner
+
+![Queue planner](docs/screenshots/ops-queues.png)
+
 ## Roadmap
 
 | Phase | What it delivers |
